@@ -1,0 +1,3 @@
+{
+  "_comment": "KORREKTUR-LAYER (hoechste Prioritaet) - aktuell LEER: alle Formen kommen aus den gesammelten Quellen (RC3/SAC) via tools/build_dso_shapes.py. Eintraege hier nur, falls ein Objekt in RC3/SAC nachweislich falsch ist. Format: \"NGC 6960\": { \"maj\": Bogenmin, \"min\": Bogenmin?, \"pa\": Grad? }."
+}

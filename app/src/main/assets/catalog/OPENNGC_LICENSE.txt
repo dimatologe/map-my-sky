@@ -1,0 +1,9 @@
+OpenNGC (https://github.com/mattiaverga/OpenNGC)
+Copyright (c) Mattia Verga and contributors.
+
+Licensed under Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0).
+Full license text: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+Used in this app for the popular/common names of selected deep-sky objects
+(assets/catalog/dso_names.json, sourced from the "Common names" column of
+OpenNGC's NGC.csv). See tools/build_dso_names.py for the extraction script.

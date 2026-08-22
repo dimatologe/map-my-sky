@@ -1,0 +1,285 @@
+{
+ "remove_name": [
+  {
+   "key": "3C249.1",
+   "old": "3C 249.1"
+  },
+  {
+   "key": "3C273",
+   "old": "3C 273"
+  },
+  {
+   "key": "ACO1051",
+   "old": "[RRB2014] RM J103705.6+461111.7"
+  },
+  {
+   "key": "ACO1222",
+   "old": "[RRB2014] RM J112012.6+471132.5"
+  },
+  {
+   "key": "ACO2043",
+   "old": "[RRB2014] RM J151234.7+162838.0"
+  },
+  {
+   "key": "ESO5221",
+   "old": "Terzan 12"
+  },
+  {
+   "key": "IC3600",
+   "old": "Haro 30"
+  },
+  {
+   "key": "IC5117",
+   "old": "MITG J2132+4435"
+  },
+  {
+   "key": "LDN1616",
+   "old": "Lynds 1616"
+  },
+  {
+   "key": "NGC149",
+   "old": "New General Galaxy 149"
+  },
+  {
+   "key": "NGC2409",
+   "old": "Firsse 213"
+  },
+  {
+   "key": "NGC5164",
+   "old": "New General Galaxy 5164"
+  },
+  {
+   "key": "NGC6530",
+   "old": "Herschel 36"
+  },
+  {
+   "key": "NGC6820",
+   "old": "Avedisova 878"
+  },
+  {
+   "key": "NGC6845",
+   "old": "Klemola 30"
+  },
+  {
+   "key": "NGC863",
+   "old": "Mkn 590"
+  },
+  {
+   "key": "PGC100169",
+   "old": "Cassiopeia 1"
+  },
+  {
+   "key": "PGC2204",
+   "old": "Haro 11"
+  },
+  {
+   "key": "PGC22190",
+   "old": "MCG+07-17-001"
+  },
+  {
+   "key": "PGC45741",
+   "old": "8ZW 254"
+  },
+  {
+   "key": "PGC47506",
+   "old": "8ZW 321"
+  },
+  {
+   "key": "PGC50346",
+   "old": "8ZW 364"
+  },
+  {
+   "key": "PGC50357",
+   "old": "8ZW 365"
+  },
+  {
+   "key": "PGC52092",
+   "old": "8ZW 436"
+  },
+  {
+   "key": "PGC52468",
+   "old": "1ZW 93"
+  },
+  {
+   "key": "PGC53493",
+   "old": "1ZW 99"
+  },
+  {
+   "key": "PGC54623",
+   "old": "8ZW 466"
+  },
+  {
+   "key": "PGC54674",
+   "old": "8ZW 467"
+  },
+  {
+   "key": "PGC55148",
+   "old": "3ZW 74"
+  },
+  {
+   "key": "PGC55381",
+   "old": "1ZW 115"
+  },
+  {
+   "key": "PGC55554",
+   "old": "MCG+07-32-030"
+  },
+  {
+   "key": "PGC57068",
+   "old": "MCG+03-41-095"
+  },
+  {
+   "key": "PGC58143",
+   "old": "3ZW 78"
+  },
+  {
+   "key": "PGC59049",
+   "old": "1ZW 167"
+  },
+  {
+   "key": "PGC59336",
+   "old": "2ZW 75"
+  },
+  {
+   "key": "PGC59669",
+   "old": "7ZW 681"
+  },
+  {
+   "key": "PGC60027",
+   "old": "1ZW 178"
+  },
+  {
+   "key": "PGC60724",
+   "old": "7ZW 738"
+  },
+  {
+   "key": "PGC60823",
+   "old": "1ZW 194"
+  },
+  {
+   "key": "PGC60832",
+   "old": "7ZW 741"
+  },
+  {
+   "key": "PGC61881",
+   "old": "1ZW 206"
+  },
+  {
+   "key": "PGC62476",
+   "old": "7ZW 846"
+  },
+  {
+   "key": "PGC62535",
+   "old": "7ZW 848"
+  },
+  {
+   "key": "PGC64287",
+   "old": "7ZW 929"
+  },
+  {
+   "key": "PGC64454",
+   "old": "7ZW 931"
+  },
+  {
+   "key": "PGC65857",
+   "old": "2ZW 97"
+  },
+  {
+   "key": "PGC66978",
+   "old": "2ZW 140"
+  },
+  {
+   "key": "PGC67562",
+   "old": "4ZW 80"
+  },
+  {
+   "key": "PGC67946",
+   "old": "5ZW 380"
+  },
+  {
+   "key": "PGC68019",
+   "old": "2ZW 163"
+  },
+  {
+   "key": "PGC68115",
+   "old": "2ZW 166"
+  },
+  {
+   "key": "PGC68797",
+   "old": "4ZW 99"
+  },
+  {
+   "key": "PGC69014",
+   "old": "4ZW 105"
+  },
+  {
+   "key": "PGC70523",
+   "old": "5ZW 397"
+  },
+  {
+   "key": "PGC70604",
+   "old": "4ZW 134"
+  },
+  {
+   "key": "PGC71165",
+   "old": "4ZW 145"
+  },
+  {
+   "key": "PGC71791",
+   "old": "5ZW 414"
+  },
+  {
+   "key": "PGC72134",
+   "old": "3ZW 116"
+  },
+  {
+   "key": "PGC72928",
+   "old": "5ZW 440"
+  },
+  {
+   "key": "PGC90170",
+   "old": "Padova 3"
+  },
+  {
+   "key": "RCW174",
+   "old": "Westerhout 40"
+  },
+  {
+   "key": "RCW93",
+   "old": "Mz 1"
+  },
+  {
+   "key": "UGC5720",
+   "old": "Haro 2"
+  }
+ ],
+ "replace_name": [
+  {
+   "key": "NGC4194",
+   "old": "New General Galaxy 4194",
+   "new": "Medusa Galaxy Merger"
+  },
+  {
+   "key": "PGC21859",
+   "old": "MCG+09-13-057",
+   "new": "DA 240 LVS"
+  },
+  {
+   "key": "PGC55550",
+   "old": "MCG+03-40-009",
+   "new": "HWD 1533+14"
+  },
+  {
+   "key": "RCW100",
+   "old": "Shapley 1",
+   "new": "Fine Ring Nebula"
+  },
+  {
+   "key": "RCW101",
+   "old": "Mz 3",
+   "new": "Ant Nebula"
+  }
+ ],
+ "remove_translation": [],
+ "unchanged_but_flagged": []
+}

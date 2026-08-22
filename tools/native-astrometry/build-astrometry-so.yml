@@ -1,0 +1,69 @@
+# GitHub-Actions-Workflow, der die native astrometry.net-Bibliothek
+# `libastrometry.so` (arm64-v8a, API 28) fuer Android in der Cloud baut.
+#
+# So benutzt du ihn (ausfuehrliche Anleitung: README.md daneben):
+#   1. Kostenloses GitHub-Konto anlegen (github.com).
+#   2. Neues, leeres Repository erstellen (z. B. "astrometry-build").
+#   3. Diese Datei dort unter  .github/workflows/build-astrometry-so.yml  ablegen.
+#   4. Reiter "Actions" -> diesen Workflow -> "Run workflow".
+#   5. Nach ~10-20 min: Lauf oeffnen -> unten "Artifacts" -> "libastrometry-arm64-v8a" laden.
+#   6. Die entpackte  libastrometry.so  schickst du mir bzw. legst sie unter
+#        app/src/main/jniLibs/arm64-v8a/libastrometry.so
+#
+# HINWEIS: Dieser Workflow ist nach der Fork-Doku geschrieben, aber von mir NICHT
+# testbar (kein CI in meiner Umgebung). Wenn ein Schritt fehlschlaegt: schick mir das
+# Actions-Log, dann passe ich ihn an. Genau das ist der native Bau-Schritt, den ich
+# nicht selbst kompilieren kann.
+
+name: Build astrometry.net .so (arm64-v8a)
+
+on:
+  workflow_dispatch: {}   # manuell startbar ueber den Actions-Tab
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Android NDK r21e einrichten
+        id: ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r21e   # Fork getestet mit r21b; r21e ist die letzte r21-Reihe
+
+      - name: astrometry-android-Fork klonen
+        run: git clone --depth 1 https://github.com/DiDacTex/astrometry-android.git src
+
+      - name: cfitsio 3.48 holen und als "cfitsio" ablegen
+        working-directory: src
+        run: |
+          set -eux
+          curl -fL -o cfitsio.tar.gz \
+            "https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.48.tar.gz"
+          tar xzf cfitsio.tar.gz
+          rm -rf cfitsio
+          mv cfitsio-3.48 cfitsio
+
+      - name: libastrometry.so bauen (arm64-v8a, API 28)
+        working-directory: src
+        env:
+          TOOLCHAIN: ${{ steps.ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64
+          API: "28"
+        run: |
+          set -eux
+          chmod +x build.sh
+          ./build.sh
+          echo "== Suche nach libastrometry.so =="
+          find . -name 'libastrometry.so' -print || true
+
+      - name: Ergebnis-Baum zeigen (Debug, falls .so fehlt)
+        if: always()
+        working-directory: src
+        run: ls -R build 2>/dev/null | head -200 || true
+
+      - name: libastrometry.so als Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: libastrometry-arm64-v8a
+          path: |
+            src/**/libastrometry.so
+          if-no-files-found: error

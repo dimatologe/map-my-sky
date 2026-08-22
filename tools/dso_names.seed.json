@@ -1,0 +1,31 @@
+{
+ "_comment": "Handverlesene Ergaenzungen fuer build_dso_names.py -- Objekte mit Populaernamen, die OpenNGC NICHT erfasst (leere \"Common names\"-Spalte in NGC.csv, direkt gegen die Rohdaten geprueft -- kein Parser-/Lookup-Fehler, echte Luecke in OpenNGC selbst). Alle Werte gegen Wikidata verifiziert (P528=Katalognummer), keine Erfindungen. Fehlende Sprachen (z.B. es/ru/ja bei IC1805/IC1848) hat Wikidata schlicht nicht hinterlegt -- properDisplayName() faellt dafuer korrekt auf Englisch zurueck, wie bei den anderen 44 Englisch-only-Eintraegen aus der OpenNGC-Automatik. LDN935: Wikidata-Label ist woertlich 'NAME Golf of Mexico' (Q74183804) -- 'Golf' zu 'Gulf' korrigiert (Positionsabgleich gegen dsos.20.json bestaetigt: RA/Dec praktisch identisch mit NGC 7000/Nordamerikanebel -- die dunkle Bucht an dessen 'Kueste', analog zur echten Golfkueste). IC1795: NICHT auf Wikidata (P528-Item Q3146556 hat weder Label noch Alias dafuer, live geprueft) -- 'Fish Head Nebula' steht seit 2026-08-15 als eigener en.wikipedia.org-Artikel, 'Fischkopfnebel' seit Juni 2026 im Fliesstext des de.wikipedia.org-Artikels 'IC 1795', Wikidata ist schlicht noch nicht nachgezogen (Beleg fuer eine strukturelle Wikidata-Verzoegerung, nicht fuer einen Pipeline-Fehler).",
+ "M45": {
+  "name": "Pleiades",
+  "de": "Plejaden",
+  "zh": "昴宿星團",
+  "es": "Pléyades",
+  "ru": "Плеяды",
+  "ar": "الثريا",
+  "ja": "プレアデス星団"
+ },
+ "IC1805": {
+  "name": "Heart Nebula",
+  "de": "Herznebel",
+  "zh": "心臟星雲",
+  "ar": "سديم القلب"
+ },
+ "IC1848": {
+  "name": "Soul Nebula",
+  "de": "Seelennebel",
+  "zh": "靈魂星雲",
+  "ar": "سديم وسترهاوت 5"
+ },
+ "LDN935": {
+  "name": "Gulf of Mexico"
+ },
+ "IC1795": {
+  "name": "Fish Head Nebula",
+  "de": "Fischkopfnebel"
+ }
+}

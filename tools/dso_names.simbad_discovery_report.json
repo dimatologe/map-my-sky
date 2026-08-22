@@ -1,0 +1,4930 @@
+{
+ "accepted": [
+  {
+   "key": "PNG076.3+14.1",
+   "raw": "PN G076.3+14.1",
+   "name": "PN Pa 5",
+   "other_candidates": []
+  },
+  {
+   "key": "LDN1634",
+   "raw": "LDN 1634",
+   "name": "HH 240/241",
+   "other_candidates": [
+    "RNO 40 FIR"
+   ]
+  },
+  {
+   "key": "ESO35529",
+   "raw": "ESO 355-29",
+   "name": "Fornax C1",
+   "other_candidates": [
+    "Cluster 1 in Fornax",
+    "Fornax Dwarf Cluster 1",
+    "Fornax H1"
+   ]
+  },
+  {
+   "key": "ESO3561",
+   "raw": "ESO 356-1",
+   "name": "Fornax C2",
+   "other_candidates": [
+    "Fornax Dwarf Cluster 2",
+    "Cluster 2 in Fornax",
+    "Fornax H2"
+   ]
+  },
+  {
+   "key": "MCG0607001",
+   "raw": "MCG-06-07-001",
+   "name": "Fornax de",
+   "other_candidates": [
+    "Fornax dSph",
+    "For Dwarf Galaxy",
+    "Fornax Dwarf Galaxy",
+    "Fornax Dwarf Elliptical",
+    "Fornax Dwarf Spheroidal",
+    "Fornax Dwarf Spheroidal Galaxy"
+   ]
+  },
+  {
+   "key": "MCG0603015",
+   "raw": "MCG-06-03-015",
+   "name": "Sculptor de",
+   "other_candidates": [
+    "Sculptor dSph",
+    "Scl dSph",
+    "Scl Galaxy",
+    "Sculptor Galaxy",
+    "Scl Dwarf Galaxy",
+    "Sculptor Dwarf Galaxy",
+    "Sculptor Dwarf Elliptical Gal",
+    "Sculptor Dwarf Spheroidal",
+    "Sculptor Dwarf Elliptical"
+   ]
+  },
+  {
+   "key": "NGC4276",
+   "raw": "NGC  4276",
+   "name": "FAUST V023",
+   "other_candidates": []
+  },
+  {
+   "key": "M86",
+   "raw": "M  86",
+   "name": "FAUST V051",
+   "other_candidates": []
+  },
+  {
+   "key": "NGC5258",
+   "raw": "NGC  5258",
+   "name": "IRAS F13373+0105 SE",
+   "other_candidates": []
+  },
+  {
+   "key": "PNG354.503.9",
+   "raw": "PN G354.5-03.9",
+   "name": "PN SAB 41",
+   "other_candidates": []
+  },
+  {
+   "key": "SNRG005.301.0",
+   "raw": "SNR G005.3-01.0",
+   "name": "Bird",
+   "other_candidates": [
+    "Duck Redux"
+   ]
+  },
+  {
+   "key": "MCG0253003",
+   "raw": "MCG-02-53-003",
+   "name": "AqrDIG",
+   "other_candidates": [
+    "Aquarius System",
+    "Aqr Dwarf Galaxy",
+    "Aquarius Dwarf",
+    "Aquarius Dwarf Galaxy"
+   ]
+  },
+  {
+   "key": "SNRG263.903.0",
+   "raw": "SNR G263.9-03.0",
+   "name": "Vela",
+   "other_candidates": [
+    "Vela SNR",
+    "Vela XYZ"
+   ]
+  },
+  {
+   "key": "ESO1208",
+   "raw": "ESO 120-8",
+   "name": "E2 Cluster",
+   "other_candidates": []
+  },
+  {
+   "key": "NGC1925",
+   "raw": "NGC  1925",
+   "name": "LH45s",
+   "other_candidates": []
+  },
+  {
+   "key": "NGC1948",
+   "raw": "NGC  1948",
+   "name": "LH53s",
+   "other_candidates": []
+  },
+  {
+   "key": "NGC2042",
+   "raw": "NGC  2042",
+   "name": "LH89n",
+   "other_candidates": []
+  },
+  {
+   "key": "NGC1712",
+   "raw": "NGC  1712",
+   "name": "LH1w",
+   "other_candidates": []
+  },
+  {
+   "key": "SNRG290.100.8",
+   "raw": "SNR G290.1-00.8",
+   "name": "MSH 11-61A",
+   "other_candidates": [
+    "MSH 11-6-1A"
+   ]
+  },
+  {
+   "key": "NGC241",
+   "raw": "NGC   241",
+   "name": "Cl Kron 22W",
+   "other_candidates": [
+    "Cl Lindsay 29w"
+   ]
+  },
+  {
+   "key": "ESO2917",
+   "raw": "ESO  29-17",
+   "name": "DEM S 42E",
+   "other_candidates": []
+  },
+  {
+   "key": "SNRG050.072.8",
+   "raw": "SNR G050.0-72.8",
+   "name": "DEM S 68SE",
+   "other_candidates": [
+    "SMC-DEM 68SE",
+    "DEM S 68NW",
+    "SMC-DEM 68NW"
+   ]
+  },
+  {
+   "key": "SNRG310.800.4",
+   "raw": "SNR G310.8-00.4",
+   "name": "Kes 20A",
+   "other_candidates": []
+  },
+  {
+   "key": "PNG098.9+03.0",
+   "raw": "PN G098.9+03.0",
+   "name": "PN Jo 1",
+   "other_candidates": []
+  },
+  {
+   "key": "PNG075.9+11.6",
+   "raw": "PN G075.9+11.6",
+   "name": "PN AMU 1",
+   "other_candidates": []
+  },
+  {
+   "key": "PNG129.6+03.4",
+   "raw": "PN G129.6+03.4",
+   "name": "PN Fe 6",
+   "other_candidates": []
+  },
+  {
+   "key": "PNG048.9+04.3",
+   "raw": "PN G048.9+04.3",
+   "name": "PN Ra 2",
+   "other_candidates": []
+  },
+  {
+   "key": "PNG149.1+08.8",
+   "raw": "PN G149.1+08.8",
+   "name": "PN Kn 34",
+   "other_candidates": []
+  },
+  {
+   "key": "PNG165.505.2",
+   "raw": "PN G165.5-05.2",
+   "name": "PN Kn 37",
+   "other_candidates": []
+  },
+  {
+   "key": "PNG198.606.7",
+   "raw": "PN G198.6-06.7",
+   "name": "PN Kn 40",
+   "other_candidates": []
+  },
+  {
+   "key": "PNG045.703.8",
+   "raw": "PN G045.7-03.8",
+   "name": "PN Fe 1",
+   "other_candidates": []
+  },
+  {
+   "key": "PNG114.4+00.0",
+   "raw": "PN G114.4+00.0",
+   "name": "PN LDu 13",
+   "other_candidates": []
+  },
+  {
+   "key": "PNG137.7+03.3",
+   "raw": "PN G137.7+03.3",
+   "name": "PN LDu 14",
+   "other_candidates": []
+  },
+  {
+   "key": "PNG072.0+02.2",
+   "raw": "PN G072.0+02.2",
+   "name": "PN Ou 6",
+   "other_candidates": []
+  },
+  {
+   "key": "PNG077.404.0",
+   "raw": "PN G077.4-04.0",
+   "name": "PN Ra 4",
+   "other_candidates": []
+  },
+  {
+   "key": "PNG058.103.7",
+   "raw": "PN G058.1-03.7",
+   "name": "PN Ra 16",
+   "other_candidates": []
+  },
+  {
+   "key": "PNG056.400.3",
+   "raw": "PN G056.4-00.3",
+   "name": "PN Ra 24",
+   "other_candidates": []
+  }
+ ],
+ "rejected_implausible": [
+  {
+   "oidref": 1842,
+   "candidates": [
+    "Kn 26"
+   ]
+  },
+  {
+   "oidref": 13195,
+   "candidates": [
+    "Riddle PN J2050.0+3753"
+   ]
+  },
+  {
+   "oidref": 30903,
+   "candidates": [
+    "IRAS 20306+3841 Cluster"
+   ]
+  },
+  {
+   "oidref": 30971,
+   "candidates": [
+    "Teutsch DC J2028.7+3909"
+   ]
+  },
+  {
+   "oidref": 34035,
+   "candidates": [
+    "Teutsch GX J2133.2+4639"
+   ]
+  },
+  {
+   "oidref": 57096,
+   "candidates": [
+    "Teutsch GN J2041.2+4237"
+   ]
+  },
+  {
+   "oidref": 59886,
+   "candidates": [
+    "Herbig 1"
+   ]
+  },
+  {
+   "oidref": 80126,
+   "candidates": [
+    "Alessi J2327+55"
+   ]
+  },
+  {
+   "oidref": 88203,
+   "candidates": [
+    "NVSS J0320+4136"
+   ]
+  },
+  {
+   "oidref": 93722,
+   "candidates": [
+    "Teutsch GN J2046.3+4624"
+   ]
+  },
+  {
+   "oidref": 94664,
+   "candidates": [
+    "Teutsch GN J2102.1+4710"
+   ]
+  },
+  {
+   "oidref": 96576,
+   "candidates": [
+    "Patchick DC J2118.8+5051"
+   ]
+  },
+  {
+   "oidref": 101731,
+   "candidates": [
+    "Teutsch GN J2226.9+5554"
+   ]
+  },
+  {
+   "oidref": 103324,
+   "candidates": [
+    "Teutsch GN J2320.1+5821"
+   ]
+  },
+  {
+   "oidref": 107417,
+   "candidates": [
+    "SH 2-184 E IRS"
+   ]
+  },
+  {
+   "oidref": 107862,
+   "candidates": [
+    "NGC 281W Cluster"
+   ]
+  },
+  {
+   "oidref": 107863,
+   "candidates": [
+    "NGC 281E Cluster",
+    "NGC 281E IR Cluster"
+   ]
+  },
+  {
+   "oidref": 116262,
+   "candidates": [
+    "Patchick GN J2022.6+4534"
+   ]
+  },
+  {
+   "oidref": 116263,
+   "candidates": [
+    "Patchick GN J2022.6+4547"
+   ]
+  },
+  {
+   "oidref": 116264,
+   "candidates": [
+    "Teutsch GN J2026.0+4547"
+   ]
+  },
+  {
+   "oidref": 119350,
+   "candidates": [
+    "Kronberger PN J2122.0+5504"
+   ]
+  },
+  {
+   "oidref": 119352,
+   "candidates": [
+    "Teutsch GN J2135.6+5351"
+   ]
+  },
+  {
+   "oidref": 120035,
+   "candidates": [
+    "IRAS 21413+5442N"
+   ]
+  },
+  {
+   "oidref": 120036,
+   "candidates": [
+    "IRAS 21413+5442S"
+   ]
+  },
+  {
+   "oidref": 120189,
+   "candidates": [
+    "Barnard 163SW"
+   ]
+  },
+  {
+   "oidref": 120193,
+   "candidates": [
+    "Teutsch GN J2132.2+5545"
+   ]
+  },
+  {
+   "oidref": 122256,
+   "candidates": [
+    "Teutsch GN J2206.2+5819"
+   ]
+  },
+  {
+   "oidref": 123400,
+   "candidates": [
+    "SH 2-138 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 123490,
+   "candidates": [
+    "Teutsch GN J2222.5+5918"
+   ]
+  },
+  {
+   "oidref": 123491,
+   "candidates": [
+    "Teutsch GN J2234.6+5842"
+   ]
+  },
+  {
+   "oidref": 125389,
+   "candidates": [
+    "Saloranta GN J2256.0+5906"
+   ]
+  },
+  {
+   "oidref": 125630,
+   "candidates": [
+    "PWM 3",
+    "Pfleiderer 3"
+   ]
+  },
+  {
+   "oidref": 126514,
+   "candidates": [
+    "Patchick GN J2313.1+5902"
+   ]
+  },
+  {
+   "oidref": 128766,
+   "candidates": [
+    "Teutsch GN J2345.5+5936"
+   ]
+  },
+  {
+   "oidref": 156233,
+   "candidates": [
+    "Teutsch GN J2119.9+5519"
+   ]
+  },
+  {
+   "oidref": 156234,
+   "candidates": [
+    "Teutsch GN J2119.9+5520"
+   ]
+  },
+  {
+   "oidref": 160267,
+   "candidates": [
+    "LDN 1211 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 162388,
+   "candidates": [
+    "NGC 7538 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 163686,
+   "candidates": [
+    "PWM 4",
+    "Pfleiderer 4"
+   ]
+  },
+  {
+   "oidref": 164161,
+   "candidates": [
+    "Majaess 225"
+   ]
+  },
+  {
+   "oidref": 167521,
+   "candidates": [
+    "Sh 2-187 B"
+   ]
+  },
+  {
+   "oidref": 171752,
+   "candidates": [
+    "IRAS 02044+6031 Cluster"
+   ]
+  },
+  {
+   "oidref": 171753,
+   "candidates": [
+    "IRAS 02054+6011 Stellar Group"
+   ]
+  },
+  {
+   "oidref": 173471,
+   "candidates": [
+    "IRAS 02175+5845 Cluster"
+   ]
+  },
+  {
+   "oidref": 173542,
+   "candidates": [
+    "Teutsch DC J0210.1+5841"
+   ]
+  },
+  {
+   "oidref": 195679,
+   "candidates": [
+    "Patchick GN J2000.6+4803"
+   ]
+  },
+  {
+   "oidref": 196180,
+   "candidates": [
+    "Patchick GX J2001.2+5011"
+   ]
+  },
+  {
+   "oidref": 196332,
+   "candidates": [
+    "Patchick GN J2024.5+5249"
+   ]
+  },
+  {
+   "oidref": 197667,
+   "candidates": [
+    "Patchick DC J2056.4+5551"
+   ]
+  },
+  {
+   "oidref": 201024,
+   "candidates": [
+    "SH 2-140 North IR Cluster"
+   ]
+  },
+  {
+   "oidref": 201558,
+   "candidates": [
+    "LDN 1206 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 201604,
+   "candidates": [
+    "Teutsch GN J2238.1+6357"
+   ]
+  },
+  {
+   "oidref": 202579,
+   "candidates": [
+    "Teutsch PN J2327.2+6509"
+   ]
+  },
+  {
+   "oidref": 203819,
+   "candidates": [
+    "Teutsch GN J0018.0+6549"
+   ]
+  },
+  {
+   "oidref": 203820,
+   "candidates": [
+    "Teutsch GN J0016.8+6546"
+   ]
+  },
+  {
+   "oidref": 204583,
+   "candidates": [
+    "PWM 1",
+    "Pfleiderer 1"
+   ]
+  },
+  {
+   "oidref": 206228,
+   "candidates": [
+    "IRAS 01546+6319 Stellar Group"
+   ]
+  },
+  {
+   "oidref": 209277,
+   "candidates": [
+    "IRAS 02232+6138 Cluster"
+   ]
+  },
+  {
+   "oidref": 209278,
+   "candidates": [
+    "IC 1795 IR Cluster 1"
+   ]
+  },
+  {
+   "oidref": 209279,
+   "candidates": [
+    "IC 1795 IR Cluster 2"
+   ]
+  },
+  {
+   "oidref": 209281,
+   "candidates": [
+    "IRAS 02245+6115 Cluster"
+   ]
+  },
+  {
+   "oidref": 209282,
+   "candidates": [
+    "IRAS 02252+6120 Cluster"
+   ]
+  },
+  {
+   "oidref": 209283,
+   "candidates": [
+    "IRAS 02327+6019 Cluster"
+   ]
+  },
+  {
+   "oidref": 209306,
+   "candidates": [
+    "IC 1805W Cluster"
+   ]
+  },
+  {
+   "oidref": 210110,
+   "candidates": [
+    "Majaess 30"
+   ]
+  },
+  {
+   "oidref": 210179,
+   "candidates": [
+    "Lo 2"
+   ]
+  },
+  {
+   "oidref": 210905,
+   "candidates": [
+    "IRAS 02434+6018 Stellar Group"
+   ]
+  },
+  {
+   "oidref": 211420,
+   "candidates": [
+    "Cas 2"
+   ]
+  },
+  {
+   "oidref": 218319,
+   "candidates": [
+    "NGC 6946 SNR"
+   ]
+  },
+  {
+   "oidref": 220725,
+   "candidates": [
+    "NGC 7129 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 220790,
+   "candidates": [
+    "Riddle GN J2203.7+6722"
+   ]
+  },
+  {
+   "oidref": 222364,
+   "candidates": [
+    "Steine GN J2359.6+6741"
+   ]
+  },
+  {
+   "oidref": 222806,
+   "candidates": [
+    "IRAS 00013+6817 Cluster"
+   ]
+  },
+  {
+   "oidref": 223608,
+   "candidates": [
+    "Skiff J0058+68.4"
+   ]
+  },
+  {
+   "oidref": 226837,
+   "candidates": [
+    "IRAS 02461+6147 Cluster"
+   ]
+  },
+  {
+   "oidref": 226838,
+   "candidates": [
+    "IRAS 02445+6042 Stellar Group"
+   ]
+  },
+  {
+   "oidref": 226839,
+   "candidates": [
+    "IRAS 02459+6029 Stellar Group"
+   ]
+  },
+  {
+   "oidref": 226840,
+   "candidates": [
+    "IRAS 02541+6208 Stellar Group"
+   ]
+  },
+  {
+   "oidref": 226841,
+   "candidates": [
+    "IRAS 02484+6022 Cluster"
+   ]
+  },
+  {
+   "oidref": 226844,
+   "candidates": [
+    "IC 1871 IR Cluster",
+    "SH 2-201 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 226865,
+   "candidates": [
+    "IRAS 02497+6217 Stellar Group"
+   ]
+  },
+  {
+   "oidref": 229812,
+   "candidates": [
+    "Majaess 41"
+   ]
+  },
+  {
+   "oidref": 229841,
+   "candidates": [
+    "Teutsch GN J0414.2+5037"
+   ]
+  },
+  {
+   "oidref": 229842,
+   "candidates": [
+    "Teutsch GN J0403.4+5208"
+   ]
+  },
+  {
+   "oidref": 241470,
+   "candidates": [
+    "Cas 1",
+    "Cassiopeia 1"
+   ]
+  },
+  {
+   "oidref": 245185,
+   "candidates": [
+    "Mayer 2"
+   ]
+  },
+  {
+   "oidref": 258030,
+   "candidates": [
+    "Teutsch GN J0423.1+5431"
+   ]
+  },
+  {
+   "oidref": 258031,
+   "candidates": [
+    "Teutsch GN J0426.0+5433"
+   ]
+  },
+  {
+   "oidref": 258847,
+   "candidates": [
+    "Teutsch DC J0445.5+5115"
+   ]
+  },
+  {
+   "oidref": 264656,
+   "candidates": [
+    "Schoenball GN J2051.0+7222"
+   ]
+  },
+  {
+   "oidref": 267210,
+   "candidates": [
+    "Majaess 29"
+   ]
+  },
+  {
+   "oidref": 268775,
+   "candidates": [
+    "IC 342-NC",
+    "IC 342 Star Cluster",
+    "IC 342 Nuclear Star Cluster"
+   ]
+  },
+  {
+   "oidref": 272090,
+   "candidates": [
+    "Teutsch GN J0453.5+5137"
+   ]
+  },
+  {
+   "oidref": 277915,
+   "candidates": [
+    "LDN 1228 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 281838,
+   "candidates": [
+    "NGC 1569 CL* A",
+    "NGC 1569 Chimney"
+   ]
+  },
+  {
+   "oidref": 282405,
+   "candidates": [
+    "NGC 1569 CL* C"
+   ]
+  },
+  {
+   "oidref": 282427,
+   "candidates": [
+    "NGC 1569 HI Disk"
+   ]
+  },
+  {
+   "oidref": 282444,
+   "candidates": [
+    "NGC 1569 CL* A1"
+   ]
+  },
+  {
+   "oidref": 282445,
+   "candidates": [
+    "NGC 1569 CL* A2"
+   ]
+  },
+  {
+   "oidref": 282597,
+   "candidates": [
+    "NGC 1569 CL* B"
+   ]
+  },
+  {
+   "oidref": 285117,
+   "candidates": [
+    "UGC 11283 companion",
+    "UGC 11283c"
+   ]
+  },
+  {
+   "oidref": 321648,
+   "candidates": [
+    "Patchick DC J2105.9+5606"
+   ]
+  },
+  {
+   "oidref": 376626,
+   "candidates": [
+    "SMM J16359+6613",
+    "SMM J16359+6612"
+   ]
+  },
+  {
+   "oidref": 393255,
+   "candidates": [
+    "M81dwA",
+    "M81 dwA",
+    "M 81 Dwarf A",
+    "M81 Dwarf A"
+   ]
+  },
+  {
+   "oidref": 417385,
+   "candidates": [
+    "VV 29 Plume"
+   ]
+  },
+  {
+   "oidref": 472949,
+   "candidates": [
+    "Jacoby 1"
+   ]
+  },
+  {
+   "oidref": 482997,
+   "candidates": [
+    "SMM J123600.1+620254",
+    "SMM J123600.10+620253.5"
+   ]
+  },
+  {
+   "oidref": 482999,
+   "candidates": [
+    "SMM J123710.0+622649"
+   ]
+  },
+  {
+   "oidref": 483012,
+   "candidates": [
+    "SMM J123653+621121"
+   ]
+  },
+  {
+   "oidref": 484148,
+   "candidates": [
+    "SMM J123607.53+621550.4"
+   ]
+  },
+  {
+   "oidref": 484560,
+   "candidates": [
+    "SMM J123607+621143"
+   ]
+  },
+  {
+   "oidref": 484561,
+   "candidates": [
+    "SMM J123608+621249"
+   ]
+  },
+  {
+   "oidref": 484562,
+   "candidates": [
+    "SMM J123618+621007"
+   ]
+  },
+  {
+   "oidref": 484563,
+   "candidates": [
+    "SMM J123621+621252"
+   ]
+  },
+  {
+   "oidref": 484564,
+   "candidates": [
+    "SMM J123622+621616"
+   ]
+  },
+  {
+   "oidref": 484566,
+   "candidates": [
+    "SMM J123637+621155"
+   ]
+  },
+  {
+   "oidref": 484569,
+   "candidates": [
+    "SMM J123645+621449"
+   ]
+  },
+  {
+   "oidref": 484570,
+   "candidates": [
+    "SMM J123702+621301"
+   ]
+  },
+  {
+   "oidref": 484572,
+   "candidates": [
+    "SMM J123713+621204"
+   ]
+  },
+  {
+   "oidref": 484573,
+   "candidates": [
+    "SMM J123611+621213"
+   ]
+  },
+  {
+   "oidref": 484574,
+   "candidates": [
+    "SMM J123636+620658"
+   ]
+  },
+  {
+   "oidref": 484575,
+   "candidates": [
+    "SMM J123647+621840"
+   ]
+  },
+  {
+   "oidref": 484577,
+   "candidates": [
+    "SMM J123659+621452"
+   ]
+  },
+  {
+   "oidref": 484578,
+   "candidates": [
+    "SMM J123706+621849"
+   ]
+  },
+  {
+   "oidref": 484579,
+   "candidates": [
+    "SMM J123719+621107"
+   ]
+  },
+  {
+   "oidref": 484580,
+   "candidates": [
+    "SMM J123730+621055"
+   ]
+  },
+  {
+   "oidref": 484581,
+   "candidates": [
+    "SMM J123730+621855"
+   ]
+  },
+  {
+   "oidref": 484582,
+   "candidates": [
+    "SMM J123741+621225"
+   ]
+  },
+  {
+   "oidref": 484590,
+   "candidates": [
+    "SMM J123702+621012"
+   ]
+  },
+  {
+   "oidref": 484867,
+   "candidates": [
+    "HDFN 3654-1216"
+   ]
+  },
+  {
+   "oidref": 503560,
+   "candidates": [
+    "TS 01"
+   ]
+  },
+  {
+   "oidref": 518070,
+   "candidates": [
+    "SMM J141809.8+522205"
+   ]
+  },
+  {
+   "oidref": 518139,
+   "candidates": [
+    "CFDF 64601"
+   ]
+  },
+  {
+   "oidref": 525958,
+   "candidates": [
+    "SMM J141802.87+523011.1"
+   ]
+  },
+  {
+   "oidref": 525959,
+   "candidates": [
+    "SMM J141750.50+523101.0"
+   ]
+  },
+  {
+   "oidref": 525960,
+   "candidates": [
+    "SMM J141813.54+522923.4"
+   ]
+  },
+  {
+   "oidref": 533745,
+   "candidates": [
+    "NGC 3690 West"
+   ]
+  },
+  {
+   "oidref": 535122,
+   "candidates": [
+    "SMM J105224.6+572119"
+   ]
+  },
+  {
+   "oidref": 535721,
+   "candidates": [
+    "SMM J105226.61+572113.0"
+   ]
+  },
+  {
+   "oidref": 535746,
+   "candidates": [
+    "SMM J105227.58+572512.4"
+   ]
+  },
+  {
+   "oidref": 535748,
+   "candidates": [
+    "SMM J105155.47+572312.7"
+   ]
+  },
+  {
+   "oidref": 535752,
+   "candidates": [
+    "SMM J105238.19+571651.1"
+   ]
+  },
+  {
+   "oidref": 571694,
+   "candidates": [
+    "Shane 1"
+   ]
+  },
+  {
+   "oidref": 622842,
+   "candidates": [
+    "SMM J030244.56+000632.3",
+    "SMM J030244.82+000632.3"
+   ]
+  },
+  {
+   "oidref": 623647,
+   "candidates": [
+    "SMM J030238.62+001106.3"
+   ]
+  },
+  {
+   "oidref": 639071,
+   "candidates": [
+    "NGC 1333NE Cluster"
+   ]
+  },
+  {
+   "oidref": 639072,
+   "candidates": [
+    "NGC 1333SW Cluster"
+   ]
+  },
+  {
+   "oidref": 655361,
+   "candidates": [
+    "CDFS 3223-4627"
+   ]
+  },
+  {
+   "oidref": 716620,
+   "candidates": [
+    "NGC 1579 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 722975,
+   "candidates": [
+    "NGC 1614-NC1",
+    "NGC 1614 Nuclear Cluster 1"
+   ]
+  },
+  {
+   "oidref": 722976,
+   "candidates": [
+    "NGC 1614-NC2",
+    "NGC 1614 Nuclear Cluster 2"
+   ]
+  },
+  {
+   "oidref": 731058,
+   "candidates": [
+    "Majaess 50"
+   ]
+  },
+  {
+   "oidref": 755989,
+   "candidates": [
+    "SH 2-228 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 814883,
+   "candidates": [
+    "LDN 1641N Cluster"
+   ]
+  },
+  {
+   "oidref": 820452,
+   "candidates": [
+    "SH 2-235 IRS 3"
+   ]
+  },
+  {
+   "oidref": 820533,
+   "candidates": [
+    "SH 2-235 IRS 4",
+    "M1-82#1"
+   ]
+  },
+  {
+   "oidref": 820941,
+   "candidates": [
+    "IRAS 05361+3539 Cluster"
+   ]
+  },
+  {
+   "oidref": 820942,
+   "candidates": [
+    "SH 2-235 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 820943,
+   "candidates": [
+    "SH 2-235B Cluster"
+   ]
+  },
+  {
+   "oidref": 821133,
+   "candidates": [
+    "Teutsch GN J0539.5+3129"
+   ]
+  },
+  {
+   "oidref": 821821,
+   "candidates": [
+    "Teutsch GN J0542.7+3057"
+   ]
+  },
+  {
+   "oidref": 822323,
+   "candidates": [
+    "IRAS 05439+3035 Cluster"
+   ]
+  },
+  {
+   "oidref": 826688,
+   "candidates": [
+    "NGC 2071 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 826689,
+   "candidates": [
+    "M 78 IR Cluster",
+    "NGC 2068 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 828258,
+   "candidates": [
+    "NGC 2023 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 829600,
+   "candidates": [
+    "LDN 1641 Center"
+   ]
+  },
+  {
+   "oidref": 830026,
+   "candidates": [
+    "LDN 1641 South"
+   ]
+  },
+  {
+   "oidref": 830086,
+   "candidates": [
+    "LDN 1641 S3",
+    "LDN 1641 S3 IRS"
+   ]
+  },
+  {
+   "oidref": 830468,
+   "candidates": [
+    "LDN 1641S Cluster"
+   ]
+  },
+  {
+   "oidref": 830470,
+   "candidates": [
+    "LDN 1641C Cluster"
+   ]
+  },
+  {
+   "oidref": 837330,
+   "candidates": [
+    "Teutsch GN J0550.2+2810"
+   ]
+  },
+  {
+   "oidref": 837968,
+   "candidates": [
+    "Teutsch GN J0552.3+2653"
+   ]
+  },
+  {
+   "oidref": 838506,
+   "candidates": [
+    "Teutsch GN J0549.8+2749"
+   ]
+  },
+  {
+   "oidref": 839694,
+   "candidates": [
+    "Basel 11B"
+   ]
+  },
+  {
+   "oidref": 842825,
+   "candidates": [
+    "Majaess 69"
+   ]
+  },
+  {
+   "oidref": 852028,
+   "candidates": [
+    "Teutsch GN J0607.9+3122"
+   ]
+  },
+  {
+   "oidref": 852629,
+   "candidates": [
+    "Teutsch GN J0601.6+2631"
+   ]
+  },
+  {
+   "oidref": 857217,
+   "candidates": [
+    "SH 2-252A Cluster"
+   ]
+  },
+  {
+   "oidref": 857218,
+   "candidates": [
+    "SH 2-252C IR Cluster"
+   ]
+  },
+  {
+   "oidref": 857219,
+   "candidates": [
+    "NGC 2174 IR Cluster",
+    "SH 2-252E IR Cluster"
+   ]
+  },
+  {
+   "oidref": 857440,
+   "candidates": [
+    "Teutsch GN J0600.5+2141"
+   ]
+  },
+  {
+   "oidref": 859037,
+   "candidates": [
+    "SH 2-270 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 861633,
+   "candidates": [
+    "NGC 2183 Cluster",
+    "GGD 12-15"
+   ]
+  },
+  {
+   "oidref": 869718,
+   "candidates": [
+    "Teutsch GN J0615.3+2253"
+   ]
+  },
+  {
+   "oidref": 870281,
+   "candidates": [
+    "Teutsch GN J0611.7+2039"
+   ]
+  },
+  {
+   "oidref": 871405,
+   "candidates": [
+    "IC 2162 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 873197,
+   "candidates": [
+    "SH 2-269 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 889020,
+   "candidates": [
+    "NGC 2245 Stellar Group"
+   ]
+  },
+  {
+   "oidref": 905568,
+   "candidates": [
+    "NGC 2264 IRS 2 Cluster"
+   ]
+  },
+  {
+   "oidref": 905569,
+   "candidates": [
+    "NGC 2264 IRS 1 Cluster"
+   ]
+  },
+  {
+   "oidref": 908957,
+   "candidates": [
+    "IRAS 06319+0415 Cluster"
+   ]
+  },
+  {
+   "oidref": 911478,
+   "candidates": [
+    "Collinder 110A"
+   ]
+  },
+  {
+   "oidref": 923037,
+   "candidates": [
+    "Riddle PN J0646.4+0828"
+   ]
+  },
+  {
+   "oidref": 925570,
+   "candidates": [
+    "NGC 2282 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 925619,
+   "candidates": [
+    "Steine GN J0652.2+0213"
+   ]
+  },
+  {
+   "oidref": 927238,
+   "candidates": [
+    "SH 2-287N IR Cluster"
+   ]
+  },
+  {
+   "oidref": 927663,
+   "candidates": [
+    "Teutsch GN J0648.9-0432"
+   ]
+  },
+  {
+   "oidref": 936250,
+   "candidates": [
+    "Graczewski GX J0704.0+2809"
+   ]
+  },
+  {
+   "oidref": 942825,
+   "candidates": [
+    "SH 2-287C IR Cluster"
+   ]
+  },
+  {
+   "oidref": 942871,
+   "candidates": [
+    "Steine GN J0659.3-0417"
+   ]
+  },
+  {
+   "oidref": 943469,
+   "candidates": [
+    "LDN 1654 IR Cluster",
+    "NGC 2316 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 944448,
+   "candidates": [
+    "IRAS 06548-0815 Cluster"
+   ]
+  },
+  {
+   "oidref": 944485,
+   "candidates": [
+    "Riddle GN J0700.7-0858"
+   ]
+  },
+  {
+   "oidref": 944486,
+   "candidates": [
+    "Riddle GN J0701.2-0904"
+   ]
+  },
+  {
+   "oidref": 945218,
+   "candidates": [
+    "NGC 2327 Star Cluster"
+   ]
+  },
+  {
+   "oidref": 945811,
+   "candidates": [
+    "Teutsch GX J0706.5-1514"
+   ]
+  },
+  {
+   "oidref": 958310,
+   "candidates": [
+    "Teutsch GX J0708.9-0358"
+   ]
+  },
+  {
+   "oidref": 958950,
+   "candidates": [
+    "Teutsch GN J0708.6-0831"
+   ]
+  },
+  {
+   "oidref": 959161,
+   "candidates": [
+    "Teutsch GN J0711.3-0825"
+   ]
+  },
+  {
+   "oidref": 960247,
+   "candidates": [
+    "IRAS 07069-1045 Cluster"
+   ]
+  },
+  {
+   "oidref": 960496,
+   "candidates": [
+    "Basel 11A"
+   ]
+  },
+  {
+   "oidref": 962273,
+   "candidates": [
+    "Teutsch GN J0717.3-2042"
+   ]
+  },
+  {
+   "oidref": 975933,
+   "candidates": [
+    "Teutsch GN J0723.0-1455"
+   ]
+  },
+  {
+   "oidref": 977830,
+   "candidates": [
+    "IRAS 07255-2012 Cluster"
+   ]
+  },
+  {
+   "oidref": 977831,
+   "candidates": [
+    "IRAS 07255-2012 South Group"
+   ]
+  },
+  {
+   "oidref": 993588,
+   "candidates": [
+    "Riddle GX J0734.0-1442"
+   ]
+  },
+  {
+   "oidref": 993643,
+   "candidates": [
+    "FIRSSE 213"
+   ]
+  },
+  {
+   "oidref": 994985,
+   "candidates": [
+    "MAYER 3"
+   ]
+  },
+  {
+   "oidref": 1007865,
+   "candidates": [
+    "Herschel 1"
+   ]
+  },
+  {
+   "oidref": 1010658,
+   "candidates": [
+    "Teutsch GX J0741.7-1456"
+   ]
+  },
+  {
+   "oidref": 1012037,
+   "candidates": [
+    "Teutsch GN J0741.6-2000"
+   ]
+  },
+  {
+   "oidref": 1014644,
+   "candidates": [
+    "Steine GN J0752.2-2630"
+   ]
+  },
+  {
+   "oidref": 1015316,
+   "candidates": [
+    "FEGU 248-5"
+   ]
+  },
+  {
+   "oidref": 1032753,
+   "candidates": [
+    "NGC 2467 East IR Cluster"
+   ]
+  },
+  {
+   "oidref": 1062788,
+   "candidates": [
+    "ERO J081539+2446.8"
+   ]
+  },
+  {
+   "oidref": 1078677,
+   "candidates": [
+    "Teutsch GX J0824.7-3009"
+   ]
+  },
+  {
+   "oidref": 1149923,
+   "candidates": [
+    "APPLES 1"
+   ]
+  },
+  {
+   "oidref": 1186187,
+   "candidates": [
+    "For 6"
+   ]
+  },
+  {
+   "oidref": 1339738,
+   "candidates": [
+    "NGC 1042-NC",
+    "NGC 1042 Star Cluster",
+    "NGC 1042 Nuclear Star Cluster"
+   ]
+  },
+  {
+   "oidref": 1358298,
+   "candidates": [
+    "Whiting 1"
+   ]
+  },
+  {
+   "oidref": 1382378,
+   "candidates": [
+    "SMM J221733.91+001352.1"
+   ]
+  },
+  {
+   "oidref": 1382581,
+   "candidates": [
+    "SMM J221735.15+001537.2"
+   ]
+  },
+  {
+   "oidref": 1382698,
+   "candidates": [
+    "SMM J221804.42+002154.4"
+   ]
+  },
+  {
+   "oidref": 1382699,
+   "candidates": [
+    "SMM J221733.12+001120.2"
+   ]
+  },
+  {
+   "oidref": 1382700,
+   "candidates": [
+    "SMM J221806.77+001245.7"
+   ]
+  },
+  {
+   "oidref": 1382702,
+   "candidates": [
+    "SMM J221733.02+000906.0"
+   ]
+  },
+  {
+   "oidref": 1436666,
+   "candidates": [
+    "C1 Galaxy"
+   ]
+  },
+  {
+   "oidref": 1451440,
+   "candidates": [
+    "JHU 2375"
+   ]
+  },
+  {
+   "oidref": 1460392,
+   "candidates": [
+    "Riddle GX J2308.8+1712"
+   ]
+  },
+  {
+   "oidref": 1547694,
+   "candidates": [
+    "cK39"
+   ]
+  },
+  {
+   "oidref": 1557611,
+   "candidates": [
+    "VDB0",
+    "VDB 0"
+   ]
+  },
+  {
+   "oidref": 1572891,
+   "candidates": [
+    "FJCHP 51"
+   ]
+  },
+  {
+   "oidref": 1572892,
+   "candidates": [
+    "FJCHP 57"
+   ]
+  },
+  {
+   "oidref": 1572893,
+   "candidates": [
+    "FJCHP 58"
+   ]
+  },
+  {
+   "oidref": 1575543,
+   "candidates": [
+    "M31-EC3"
+   ]
+  },
+  {
+   "oidref": 1592523,
+   "candidates": [
+    "M31-EC1"
+   ]
+  },
+  {
+   "oidref": 1592524,
+   "candidates": [
+    "M31-EC2"
+   ]
+  },
+  {
+   "oidref": 1624162,
+   "candidates": [
+    "NGC 2784 DW1"
+   ]
+  },
+  {
+   "oidref": 1678912,
+   "candidates": [
+    "NGC 3115 DW1",
+    "NGC 3115 DW 1"
+   ]
+  },
+  {
+   "oidref": 1681929,
+   "candidates": [
+    "NGC 3125-1"
+   ]
+  },
+  {
+   "oidref": 1783747,
+   "candidates": [
+    "NGC 3561 Irregular"
+   ]
+  },
+  {
+   "oidref": 1806261,
+   "candidates": [
+    "NGC 3640 companion"
+   ]
+  },
+  {
+   "oidref": 1904840,
+   "candidates": [
+    "NGC 4214-I"
+   ]
+  },
+  {
+   "oidref": 1904841,
+   "candidates": [
+    "NGC 4214-II"
+   ]
+  },
+  {
+   "oidref": 1923207,
+   "candidates": [
+    "NGC 4449 SNR",
+    "SNR 4449-1"
+   ]
+  },
+  {
+   "oidref": 1954849,
+   "candidates": [
+    "NGC 4631 DwA"
+   ]
+  },
+  {
+   "oidref": 2063571,
+   "candidates": [
+    "SMM J131235.2+424424"
+   ]
+  },
+  {
+   "oidref": 2063620,
+   "candidates": [
+    "SMM J131205.60+423946.0"
+   ]
+  },
+  {
+   "oidref": 2063836,
+   "candidates": [
+    "SMM J131228.30+424454.8"
+   ]
+  },
+  {
+   "oidref": 2063839,
+   "candidates": [
+    "SMM J131225.20+424344.5"
+   ]
+  },
+  {
+   "oidref": 2063840,
+   "candidates": [
+    "SMM J131231.07+424609.0"
+   ]
+  },
+  {
+   "oidref": 2063841,
+   "candidates": [
+    "SMM J131232.31+423949.5",
+    "SMM J13123+4239"
+   ]
+  },
+  {
+   "oidref": 2063842,
+   "candidates": [
+    "SMM J131239.14+424155.7"
+   ]
+  },
+  {
+   "oidref": 2158824,
+   "candidates": [
+    "DC 1",
+    "DC1"
+   ]
+  },
+  {
+   "oidref": 2193424,
+   "candidates": [
+    "DC 2",
+    "DC2"
+   ]
+  },
+  {
+   "oidref": 2218836,
+   "candidates": [
+    "SMM J140104.96+025223.5"
+   ]
+  },
+  {
+   "oidref": 2229013,
+   "candidates": [
+    "NGC 5367 Stellar Group"
+   ]
+  },
+  {
+   "oidref": 2233181,
+   "candidates": [
+    "HAR 40"
+   ]
+  },
+  {
+   "oidref": 2267728,
+   "candidates": [
+    "SMM J143206.65+341613.4"
+   ]
+  },
+  {
+   "oidref": 2326239,
+   "candidates": [
+    "Riddle GN J1547.9-3514"
+   ]
+  },
+  {
+   "oidref": 2328186,
+   "candidates": [
+    "Teutsch DC J1651.3-3943"
+   ]
+  },
+  {
+   "oidref": 2338209,
+   "candidates": [
+    "Teutsch GX J1846.7+4038"
+   ]
+  },
+  {
+   "oidref": 2346198,
+   "candidates": [
+    "NGC 6334-VI"
+   ]
+  },
+  {
+   "oidref": 2361705,
+   "candidates": [
+    "NGC 6334-I"
+   ]
+  },
+  {
+   "oidref": 2361962,
+   "candidates": [
+    "NGC 6334-II"
+   ]
+  },
+  {
+   "oidref": 2361963,
+   "candidates": [
+    "NGC 6334-IV",
+    "NGC 6334 IV"
+   ]
+  },
+  {
+   "oidref": 2363196,
+   "candidates": [
+    "NGC 6334F (NW)",
+    "NGC 6334F NW"
+   ]
+  },
+  {
+   "oidref": 2363323,
+   "candidates": [
+    "NGC 6334-III"
+   ]
+  },
+  {
+   "oidref": 2363324,
+   "candidates": [
+    "NGC 6334E IR Cluster"
+   ]
+  },
+  {
+   "oidref": 2363330,
+   "candidates": [
+    "NGC 6334F (C)",
+    "NGC 6334 IRS 1"
+   ]
+  },
+  {
+   "oidref": 2364140,
+   "candidates": [
+    "Gri 1"
+   ]
+  },
+  {
+   "oidref": 2490940,
+   "candidates": [
+    "Riddle GN J1711.1-2724"
+   ]
+  },
+  {
+   "oidref": 2490941,
+   "candidates": [
+    "Riddle GN J1711.3-2727"
+   ]
+  },
+  {
+   "oidref": 2490942,
+   "candidates": [
+    "Riddle GN J1711.4-2725"
+   ]
+  },
+  {
+   "oidref": 2514581,
+   "candidates": [
+    "UKS 1"
+   ]
+  },
+  {
+   "oidref": 2536600,
+   "candidates": [
+    "IRAS 18138-1954 Cluster"
+   ]
+  },
+  {
+   "oidref": 2537252,
+   "candidates": [
+    "HH 27-28"
+   ]
+  },
+  {
+   "oidref": 2537323,
+   "candidates": [
+    "Dias 5"
+   ]
+  },
+  {
+   "oidref": 2538444,
+   "candidates": [
+    "Teutsch GX J1827.0-2031"
+   ]
+  },
+  {
+   "oidref": 2551538,
+   "candidates": [
+    "C 1814-191b"
+   ]
+  },
+  {
+   "oidref": 2552234,
+   "candidates": [
+    "AGPS 273.4-17.8"
+   ]
+  },
+  {
+   "oidref": 2561230,
+   "candidates": [
+    "Patchick GX J1713.4-1451"
+   ]
+  },
+  {
+   "oidref": 2565260,
+   "candidates": [
+    "M 17S"
+   ]
+  },
+  {
+   "oidref": 2565900,
+   "candidates": [
+    "M 17 UC1",
+    "M 17 Ultra Compact 1",
+    "M17 UC-1",
+    "M17-UC1",
+    "M17UC1"
+   ]
+  },
+  {
+   "oidref": 2579920,
+   "candidates": [
+    "Riddle GN J1637.5-1033"
+   ]
+  },
+  {
+   "oidref": 2595971,
+   "candidates": [
+    "Riddle GN J1637.6-1032"
+   ]
+  },
+  {
+   "oidref": 2601009,
+   "candidates": [
+    "Riddle GN J1837.8-0903"
+   ]
+  },
+  {
+   "oidref": 2625156,
+   "candidates": [
+    "PWM 2",
+    "Pfleiderer 2"
+   ]
+  },
+  {
+   "oidref": 2642660,
+   "candidates": [
+    "Teutsch PN J1851.7-0028"
+   ]
+  },
+  {
+   "oidref": 2659205,
+   "candidates": [
+    "Riddle DC J1859.2+0050"
+   ]
+  },
+  {
+   "oidref": 2688271,
+   "candidates": [
+    "Teutsch GN J1851.8+0624"
+   ]
+  },
+  {
+   "oidref": 2707502,
+   "candidates": [
+    "Teutsch GX J1929.3+0802"
+   ]
+  },
+  {
+   "oidref": 2707503,
+   "candidates": [
+    "Teutsch GX J1929.3+0804"
+   ]
+  },
+  {
+   "oidref": 2708102,
+   "candidates": [
+    "Teutsch GX J1930.1+1002"
+   ]
+  },
+  {
+   "oidref": 2721972,
+   "candidates": [
+    "Teutsch GN J1909.9+1204"
+   ]
+  },
+  {
+   "oidref": 2738101,
+   "candidates": [
+    "Teutsch GN J1922.9+1407"
+   ]
+  },
+  {
+   "oidref": 2753691,
+   "candidates": [
+    "Steine GN J1929.1+1756"
+   ]
+  },
+  {
+   "oidref": 2753692,
+   "candidates": [
+    "Steine GN J1929.5+1800"
+   ]
+  },
+  {
+   "oidref": 2753693,
+   "candidates": [
+    "Steine GN J1929.9+1759"
+   ]
+  },
+  {
+   "oidref": 2770924,
+   "candidates": [
+    "Steine GN J1927.2+1943"
+   ]
+  },
+  {
+   "oidref": 2772120,
+   "candidates": [
+    "Kronberger GN J1941.1+1908"
+   ]
+  },
+  {
+   "oidref": 2774569,
+   "candidates": [
+    "Steine GN J2013.0+1701"
+   ]
+  },
+  {
+   "oidref": 2790893,
+   "candidates": [
+    "Kronberger PN J1942.4+2145"
+   ]
+  },
+  {
+   "oidref": 2790894,
+   "candidates": [
+    "Kronberger PN J1944.9+2245"
+   ]
+  },
+  {
+   "oidref": 2807879,
+   "candidates": [
+    "SH 2-88B IR Cluster"
+   ]
+  },
+  {
+   "oidref": 2822581,
+   "candidates": [
+    "Si 1-2"
+   ]
+  },
+  {
+   "oidref": 2825963,
+   "candidates": [
+    "LDN 810 IRS"
+   ]
+  },
+  {
+   "oidref": 2826717,
+   "candidates": [
+    "Teutsch GN J1950.7+2601"
+   ]
+  },
+  {
+   "oidref": 2827951,
+   "candidates": [
+    "NGC 6882/5"
+   ]
+  },
+  {
+   "oidref": 2850826,
+   "candidates": [
+    "Kronberger GN J1956.3+2953"
+   ]
+  },
+  {
+   "oidref": 2850925,
+   "candidates": [
+    "Patchick GN J2004.9+2852"
+   ]
+  },
+  {
+   "oidref": 2851470,
+   "candidates": [
+    "IRAS 20050+2720 Cluster"
+   ]
+  },
+  {
+   "oidref": 2851594,
+   "candidates": [
+    "IC 4955 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 2873540,
+   "candidates": [
+    "Loiano 1"
+   ]
+  },
+  {
+   "oidref": 2874794,
+   "candidates": [
+    "Teutsch GN J2004.9+3114"
+   ]
+  },
+  {
+   "oidref": 2924446,
+   "candidates": [
+    "Teutsch GX J1845.3+4050"
+   ]
+  },
+  {
+   "oidref": 2924831,
+   "candidates": [
+    "Teutsch GN J1903.1+3954"
+   ]
+  },
+  {
+   "oidref": 2924832,
+   "candidates": [
+    "Teutsch GX J1856.3+4028"
+   ]
+  },
+  {
+   "oidref": 2925284,
+   "candidates": [
+    "Teutsch GX J1910.5+4010"
+   ]
+  },
+  {
+   "oidref": 2925515,
+   "candidates": [
+    "Saloranta GN J1921.3+3743"
+   ]
+  },
+  {
+   "oidref": 2926033,
+   "candidates": [
+    "Saloranta GX J1921.5+3745"
+   ]
+  },
+  {
+   "oidref": 2943258,
+   "candidates": [
+    "SMM J163655.80+405914.0"
+   ]
+  },
+  {
+   "oidref": 2943401,
+   "candidates": [
+    "SMM J163627.94+405811.2"
+   ]
+  },
+  {
+   "oidref": 2943404,
+   "candidates": [
+    "SMM J163658.8+405733",
+    "SMM J163658.78+405728.1"
+   ]
+  },
+  {
+   "oidref": 2945377,
+   "candidates": [
+    "DC 3",
+    "DC3"
+   ]
+  },
+  {
+   "oidref": 2950331,
+   "candidates": [
+    "Teutsch GX J1929.3+4005"
+   ]
+  },
+  {
+   "oidref": 2951551,
+   "candidates": [
+    "Teutsch GN J1946.2+3902"
+   ]
+  },
+  {
+   "oidref": 2951552,
+   "candidates": [
+    "Patchick GN J1950.9+4041"
+   ]
+  },
+  {
+   "oidref": 2951553,
+   "candidates": [
+    "Teutsch GX J1950.2+3928"
+   ]
+  },
+  {
+   "oidref": 2952498,
+   "candidates": [
+    "Teutsch GN J1959.3+3928"
+   ]
+  },
+  {
+   "oidref": 2952499,
+   "candidates": [
+    "Teutsch GX J1955.7+4026"
+   ]
+  },
+  {
+   "oidref": 2953547,
+   "candidates": [
+    "Teutsch GN J2011.2+3920"
+   ]
+  },
+  {
+   "oidref": 2956549,
+   "candidates": [
+    "Teutsch DC J2015.7+3906"
+   ]
+  },
+  {
+   "oidref": 2956550,
+   "candidates": [
+    "Teutsch DC J2015.7+3926"
+   ]
+  },
+  {
+   "oidref": 2956551,
+   "candidates": [
+    "Teutsch DC J2015.8+3903"
+   ]
+  },
+  {
+   "oidref": 2975166,
+   "candidates": [
+    "WSR 1"
+   ]
+  },
+  {
+   "oidref": 3005112,
+   "candidates": [
+    "RCW 36 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 3018451,
+   "candidates": [
+    "Muzzio 1"
+   ]
+  },
+  {
+   "oidref": 3019084,
+   "candidates": [
+    "RCW 38 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 3019085,
+   "candidates": [
+    "Gum 25 Cluster",
+    "RCW 40 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 3062811,
+   "candidates": [
+    "UKS 2"
+   ]
+  },
+  {
+   "oidref": 3070676,
+   "candidates": [
+    "Hodge 4"
+   ]
+  },
+  {
+   "oidref": 3092392,
+   "candidates": [
+    "HNT 1"
+   ]
+  },
+  {
+   "oidref": 3104985,
+   "candidates": [
+    "Hodge 11"
+   ]
+  },
+  {
+   "oidref": 3113333,
+   "candidates": [
+    "Hodge 3"
+   ]
+  },
+  {
+   "oidref": 3117865,
+   "candidates": [
+    "ESO 56-108W"
+   ]
+  },
+  {
+   "oidref": 3117887,
+   "candidates": [
+    "BCD 1"
+   ]
+  },
+  {
+   "oidref": 3124418,
+   "candidates": [
+    "Rob1"
+   ]
+  },
+  {
+   "oidref": 3189044,
+   "candidates": [
+    "Carraro 1"
+   ]
+  },
+  {
+   "oidref": 3218519,
+   "candidates": [
+    "NGC 3572 Ring"
+   ]
+  },
+  {
+   "oidref": 3218715,
+   "candidates": [
+    "NGC 3603YC",
+    "NGC 3603 YC",
+    "NGC 3603 Young Cluster"
+   ]
+  },
+  {
+   "oidref": 3220413,
+   "candidates": [
+    "NGC 3576 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 3220416,
+   "candidates": [
+    "NGC 3576 IRS 1"
+   ]
+  },
+  {
+   "oidref": 3221998,
+   "candidates": [
+    "Shorlin 1"
+   ]
+  },
+  {
+   "oidref": 3222018,
+   "candidates": [
+    "WR 38-WR 38a Cluster",
+    "WR 38/WR 38a Cluster"
+   ]
+  },
+  {
+   "oidref": 3244998,
+   "candidates": [
+    "ESO29-6e"
+   ]
+  },
+  {
+   "oidref": 3296230,
+   "candidates": [
+    "WKK171-090"
+   ]
+  },
+  {
+   "oidref": 3360565,
+   "candidates": [
+    "Riddle GN J1405.9-6040"
+   ]
+  },
+  {
+   "oidref": 3378041,
+   "candidates": [
+    "BeVa 1"
+   ]
+  },
+  {
+   "oidref": 3396537,
+   "candidates": [
+    "Zo 1"
+   ]
+  },
+  {
+   "oidref": 3410098,
+   "candidates": [
+    "IRAS 15015-5720 IR Cluster",
+    "RCW 87 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 3427238,
+   "candidates": [
+    "WKK136-337"
+   ]
+  },
+  {
+   "oidref": 3442697,
+   "candidates": [
+    "PL 1547.3-5612"
+   ]
+  },
+  {
+   "oidref": 3507847,
+   "candidates": [
+    "Patchick GN J1639.6-4722"
+   ]
+  },
+  {
+   "oidref": 3508937,
+   "candidates": [
+    "RCW 108-IR",
+    "RCW 108 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 3562392,
+   "candidates": [
+    "ESO 121-SC 03"
+   ]
+  },
+  {
+   "oidref": 3579165,
+   "candidates": [
+    "NGC 2170 IRS 3"
+   ]
+  },
+  {
+   "oidref": 3584100,
+   "candidates": [
+    "Sh 2-187 A"
+   ]
+  },
+  {
+   "oidref": 3662086,
+   "candidates": [
+    "NGC 2366 III"
+   ]
+  },
+  {
+   "oidref": 3701971,
+   "candidates": [
+    "SH2"
+   ]
+  },
+  {
+   "oidref": 3703729,
+   "candidates": [
+    "MRK 231 Source B"
+   ]
+  },
+  {
+   "oidref": 3719020,
+   "candidates": [
+    "SH 2-233 IR NE Cluster"
+   ]
+  },
+  {
+   "oidref": 3719021,
+   "candidates": [
+    "SH 2-233 IR SW Cluster"
+   ]
+  },
+  {
+   "oidref": 3723202,
+   "candidates": [
+    "NGC 1333 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 3728570,
+   "candidates": [
+    "LDN 1616 IR Cluster"
+   ]
+  },
+  {
+   "oidref": 3740118,
+   "candidates": [
+    "NGC 5898 dE2"
+   ]
+  },
+  {
+   "oidref": 3744505,
+   "candidates": [
+    "IRAS 08211-4158 Cluster"
+   ]
+  },
+  {
+   "oidref": 3754454,
+   "candidates": [
+    "BzK 15504"
+   ]
+  },
+  {
+   "oidref": 3757799,
+   "candidates": [
+    "BzK 4193"
+   ]
+  },
+  {
+   "oidref": 3757862,
+   "candidates": [
+    "BzK 2742"
+   ]
+  },
+  {
+   "oidref": 3757895,
+   "candidates": [
+    "BzK 2426"
+   ]
+  },
+  {
+   "oidref": 3757947,
+   "candidates": [
+    "BzK 1901"
+   ]
+  },
+  {
+   "oidref": 3767065,
+   "candidates": [
+    "SMM J105308.3+571501"
+   ]
+  },
+  {
+   "oidref": 3767066,
+   "candidates": [
+    "SMM J105232.3+572448"
+   ]
+  },
+  {
+   "oidref": 3768845,
+   "candidates": [
+    "DJRS J20134796-4502414"
+   ]
+  },
+  {
+   "oidref": 3768894,
+   "candidates": [
+    "DJRS J20162915-4431031"
+   ]
+  },
+  {
+   "oidref": 3769975,
+   "candidates": [
+    "SMM J105702.50-033602.6"
+   ]
+  },
+  {
+   "oidref": 3775604,
+   "candidates": [
+    "SNR J0528-6714"
+   ]
+  },
+  {
+   "oidref": 3778391,
+   "candidates": [
+    "M31-EC4"
+   ]
+  },
+  {
+   "oidref": 3877884,
+   "candidates": [
+    "PKP J1338-6456"
+   ]
+  },
+  {
+   "oidref": 3877981,
+   "candidates": [
+    "PKP J1638-3731"
+   ]
+  },
+  {
+   "oidref": 3908154,
+   "candidates": [
+    "AH03 J0822-36"
+   ]
+  },
+  {
+   "oidref": 3917518,
+   "candidates": [
+    "SMM J143206.11+341648.4"
+   ]
+  },
+  {
+   "oidref": 3917519,
+   "candidates": [
+    "SMM J143207.46+341719.3"
+   ]
+  },
+  {
+   "oidref": 3917731,
+   "candidates": [
+    "ACO 1689 Sextet Arcs"
+   ]
+  },
+  {
+   "oidref": 4044103,
+   "candidates": [
+    "LDN 1521 SMM"
+   ]
+  },
+  {
+   "oidref": 4067773,
+   "candidates": [
+    "SDSS J1000+5730 Dwarf G"
+   ]
+  },
+  {
+   "oidref": 4067774,
+   "candidates": [
+    "SDSS J1329+2841 Dwarf G"
+   ]
+  },
+  {
+   "oidref": 4092436,
+   "candidates": [
+    "M59cO"
+   ]
+  },
+  {
+   "oidref": 4148590,
+   "candidates": [
+    "LDN 1630N"
+   ]
+  },
+  {
+   "oidref": 4148748,
+   "candidates": [
+    "M 33-EC1",
+    "M33-EC1"
+   ]
+  },
+  {
+   "oidref": 4151133,
+   "candidates": [
+    "SMM J13115-01208"
+   ]
+  },
+  {
+   "oidref": 4496608,
+   "candidates": [
+    "BzK 6004",
+    "BzK 6004-3482"
+   ]
+  },
+  {
+   "oidref": 4496609,
+   "candidates": [
+    "BzK 12556"
+   ]
+  },
+  {
+   "oidref": 4499740,
+   "candidates": [
+    "Mercer 5"
+   ]
+  },
+  {
+   "oidref": 4503296,
+   "candidates": [
+    "NGC 3341C"
+   ]
+  },
+  {
+   "oidref": 4549711,
+   "candidates": [
+    "MM J123633+6214.1",
+    "SMM J123634+621409"
+   ]
+  },
+  {
+   "oidref": 5161258,
+   "candidates": [
+    "M33-EC2"
+   ]
+  },
+  {
+   "oidref": 5372600,
+   "candidates": [
+    "IC131-West",
+    "IC 131-West"
+   ]
+  },
+  {
+   "oidref": 5415888,
+   "candidates": [
+    "BzK 16000"
+   ]
+  },
+  {
+   "oidref": 5447660,
+   "candidates": [
+    "NGC 6618 PG"
+   ]
+  },
+  {
+   "oidref": 5546370,
+   "candidates": [
+    "IC 10 Superbubble"
+   ]
+  },
+  {
+   "oidref": 5651817,
+   "candidates": [
+    "Swift J1644+57"
+   ]
+  },
+  {
+   "oidref": 5651950,
+   "candidates": [
+    "SMM J105243.2+572309"
+   ]
+  },
+  {
+   "oidref": 6221872,
+   "candidates": [
+    "WDP1"
+   ]
+  },
+  {
+   "oidref": 6222018,
+   "candidates": [
+    "HCD01-1"
+   ]
+  },
+  {
+   "oidref": 6222863,
+   "candidates": [
+    "TLD1",
+    "TLD 1"
+   ]
+  },
+  {
+   "oidref": 6222872,
+   "candidates": [
+    "WBB1"
+   ]
+  },
+  {
+   "oidref": 6223078,
+   "candidates": [
+    "WBB2"
+   ]
+  },
+  {
+   "oidref": 6223246,
+   "candidates": [
+    "TLF1"
+   ]
+  },
+  {
+   "oidref": 6223264,
+   "candidates": [
+    "TLF2"
+   ]
+  },
+  {
+   "oidref": 6223297,
+   "candidates": [
+    "HCD02-1"
+   ]
+  },
+  {
+   "oidref": 6223312,
+   "candidates": [
+    "HCD02-2"
+   ]
+  },
+  {
+   "oidref": 6293617,
+   "candidates": [
+    "AH03 J1725-34.4"
+   ]
+  },
+  {
+   "oidref": 6341907,
+   "candidates": [
+    "SNR J0529-6653",
+    "SNR J0529-6654"
+   ]
+  },
+  {
+   "oidref": 7809238,
+   "candidates": [
+    "SBB 1"
+   ]
+  },
+  {
+   "oidref": 7809239,
+   "candidates": [
+    "SBB 2"
+   ]
+  },
+  {
+   "oidref": 7809240,
+   "candidates": [
+    "SBB 3"
+   ]
+  },
+  {
+   "oidref": 7809241,
+   "candidates": [
+    "SBB 4"
+   ]
+  },
+  {
+   "oidref": 7828877,
+   "candidates": [
+    "BzK 1250"
+   ]
+  },
+  {
+   "oidref": 7828880,
+   "candidates": [
+    "BzK 2079"
+   ]
+  },
+  {
+   "oidref": 7828882,
+   "candidates": [
+    "BzK 3551"
+   ]
+  },
+  {
+   "oidref": 7828883,
+   "candidates": [
+    "BzK 3882"
+   ]
+  },
+  {
+   "oidref": 7828884,
+   "candidates": [
+    "BzK 3977"
+   ]
+  },
+  {
+   "oidref": 7828885,
+   "candidates": [
+    "BzK 4008"
+   ]
+  },
+  {
+   "oidref": 7828886,
+   "candidates": [
+    "BzK 759"
+   ]
+  },
+  {
+   "oidref": 7839309,
+   "candidates": [
+    "NGC 4449 J1228.8+4357.8"
+   ]
+  },
+  {
+   "oidref": 7892948,
+   "candidates": [
+    "RS-235"
+   ]
+  },
+  {
+   "oidref": 8048046,
+   "candidates": [
+    "HFLS 3"
+   ]
+  },
+  {
+   "oidref": 8194469,
+   "candidates": [
+    "Chereul 2"
+   ]
+  },
+  {
+   "oidref": 8194470,
+   "candidates": [
+    "Chereul 3"
+   ]
+  },
+  {
+   "oidref": 8195192,
+   "candidates": [
+    "Balbinot 1"
+   ]
+  },
+  {
+   "oidref": 8226420,
+   "candidates": [
+    "UGCA 127 sat"
+   ]
+  },
+  {
+   "oidref": 8272180,
+   "candidates": [
+    "XRT 150321"
+   ]
+  },
+  {
+   "oidref": 8353679,
+   "candidates": [
+    "NVSS J151106+204818N"
+   ]
+  },
+  {
+   "oidref": 8363260,
+   "candidates": [
+    "PA-7"
+   ]
+  },
+  {
+   "oidref": 8363261,
+   "candidates": [
+    "PA-8"
+   ]
+  },
+  {
+   "oidref": 8375313,
+   "candidates": [
+    "MM J01071-7302"
+   ]
+  },
+  {
+   "oidref": 8375331,
+   "candidates": [
+    "mu 1"
+   ]
+  },
+  {
+   "oidref": 8375362,
+   "candidates": [
+    "M60-UCD1"
+   ]
+  },
+  {
+   "oidref": 8375870,
+   "candidates": [
+    "SpARCS J1634.5+4021 m1 45 Bg"
+   ]
+  },
+  {
+   "oidref": 8398797,
+   "candidates": [
+    "PA-46"
+   ]
+  },
+  {
+   "oidref": 8398798,
+   "candidates": [
+    "PA-52"
+   ]
+  },
+  {
+   "oidref": 8398801,
+   "candidates": [
+    "PA-56"
+   ]
+  },
+  {
+   "oidref": 8398802,
+   "candidates": [
+    "PA-58"
+   ]
+  },
+  {
+   "oidref": 8398812,
+   "candidates": [
+    "PA-41"
+   ]
+  },
+  {
+   "oidref": 8398872,
+   "candidates": [
+    "PA-57"
+   ]
+  },
+  {
+   "oidref": 8409676,
+   "candidates": [
+    "B18-J"
+   ]
+  },
+  {
+   "oidref": 8584526,
+   "candidates": [
+    "HXMM01"
+   ]
+  },
+  {
+   "oidref": 8586105,
+   "candidates": [
+    "PA-48"
+   ]
+  },
+  {
+   "oidref": 8596550,
+   "candidates": [
+    "Majaess 79"
+   ]
+  },
+  {
+   "oidref": 8596644,
+   "candidates": [
+    "SMM J0217-0503a"
+   ]
+  },
+  {
+   "oidref": 8596645,
+   "candidates": [
+    "SMM J0217-0503b"
+   ]
+  },
+  {
+   "oidref": 8685710,
+   "candidates": [
+    "PA-17"
+   ]
+  },
+  {
+   "oidref": 8685711,
+   "candidates": [
+    "PA-21"
+   ]
+  },
+  {
+   "oidref": 8706988,
+   "candidates": [
+    "PA-14"
+   ]
+  },
+  {
+   "oidref": 8854596,
+   "candidates": [
+    "MWSC 5723"
+   ]
+  },
+  {
+   "oidref": 9035916,
+   "candidates": [
+    "Skiff J0458+43.0"
+   ]
+  },
+  {
+   "oidref": 9035925,
+   "candidates": [
+    "Skiff J0507+30.8"
+   ]
+  },
+  {
+   "oidref": 9036001,
+   "candidates": [
+    "Skiff J0614+12.9"
+   ]
+  },
+  {
+   "oidref": 9036006,
+   "candidates": [
+    "Skiff J0619+18.5"
+   ]
+  },
+  {
+   "oidref": 9036165,
+   "candidates": [
+    "AH03 J0748-26.9"
+   ]
+  },
+  {
+   "oidref": 9036208,
+   "candidates": [
+    "Moitinho 1"
+   ]
+  },
+  {
+   "oidref": 9036272,
+   "candidates": [
+    "Miller 1"
+   ]
+  },
+  {
+   "oidref": 9036544,
+   "candidates": [
+    "Archinal 1"
+   ]
+  },
+  {
+   "oidref": 9036545,
+   "candidates": [
+    "Poole J1855+10.8"
+   ]
+  },
+  {
+   "oidref": 9036547,
+   "candidates": [
+    "Poole J1856+10.8"
+   ]
+  },
+  {
+   "oidref": 9036574,
+   "candidates": [
+    "Skiff J1942+38.6"
+   ]
+  },
+  {
+   "oidref": 9036604,
+   "candidates": [
+    "Feibelman 1"
+   ]
+  },
+  {
+   "oidref": 9037107,
+   "candidates": [
+    "XRT 141001"
+   ]
+  },
+  {
+   "oidref": 9059493,
+   "candidates": [
+    "PA-12"
+   ]
+  },
+  {
+   "oidref": 9059494,
+   "candidates": [
+    "PA-2"
+   ]
+  },
+  {
+   "oidref": 9059495,
+   "candidates": [
+    "PA-50"
+   ]
+  },
+  {
+   "oidref": 9061885,
+   "candidates": [
+    "Teutsch PN J2055.4+3903"
+   ]
+  },
+  {
+   "oidref": 9061945,
+   "candidates": [
+    "Kim 1"
+   ]
+  },
+  {
+   "oidref": 9061946,
+   "candidates": [
+    "Munoz 1"
+   ]
+  },
+  {
+   "oidref": 9602013,
+   "candidates": [
+    "Zheng-4008"
+   ]
+  },
+  {
+   "oidref": 9602956,
+   "candidates": [
+    "HLock03"
+   ]
+  },
+  {
+   "oidref": 9602962,
+   "candidates": [
+    "NCv1.268"
+   ]
+  },
+  {
+   "oidref": 9602968,
+   "candidates": [
+    "NBv1.43"
+   ]
+  },
+  {
+   "oidref": 9602972,
+   "candidates": [
+    "NAv1.195"
+   ]
+  },
+  {
+   "oidref": 9602975,
+   "candidates": [
+    "NAv1.777"
+   ]
+  },
+  {
+   "oidref": 9602990,
+   "candidates": [
+    "HBootes02"
+   ]
+  },
+  {
+   "oidref": 9602993,
+   "candidates": [
+    "HBootes01"
+   ]
+  },
+  {
+   "oidref": 9603319,
+   "candidates": [
+    "HLock05"
+   ]
+  },
+  {
+   "oidref": 9603325,
+   "candidates": [
+    "HLock08"
+   ]
+  },
+  {
+   "oidref": 9619282,
+   "candidates": [
+    "[CBB2012b] 1HERMES X24 J161506.65+543846.9"
+   ]
+  },
+  {
+   "oidref": 9622865,
+   "candidates": [
+    "PA-6"
+   ]
+  },
+  {
+   "oidref": 9622866,
+   "candidates": [
+    "PA-53"
+   ]
+  },
+  {
+   "oidref": 9622867,
+   "candidates": [
+    "PA-54"
+   ]
+  },
+  {
+   "oidref": 9624468,
+   "candidates": [
+    "SMG J053450.5-100120"
+   ]
+  },
+  {
+   "oidref": 9624469,
+   "candidates": [
+    "SMG J053550.4-100443"
+   ]
+  },
+  {
+   "oidref": 9624470,
+   "candidates": [
+    "SMG J053552.0-100304"
+   ]
+  },
+  {
+   "oidref": 9700257,
+   "candidates": [
+    "AH03 J2011+26.7"
+   ]
+  },
+  {
+   "oidref": 9700263,
+   "candidates": [
+    "Majaess 9"
+   ]
+  },
+  {
+   "oidref": 9700290,
+   "candidates": [
+    "S1"
+   ]
+  },
+  {
+   "oidref": 9701318,
+   "candidates": [
+    "NVSS J183421-06102"
+   ]
+  },
+  {
+   "oidref": 9705361,
+   "candidates": [
+    "Laevens 3"
+   ]
+  },
+  {
+   "oidref": 9705847,
+   "candidates": [
+    "Majaess 209"
+   ]
+  },
+  {
+   "oidref": 9705848,
+   "candidates": [
+    "Majaess 95"
+   ]
+  },
+  {
+   "oidref": 9705849,
+   "candidates": [
+    "Majaess 8"
+   ]
+  },
+  {
+   "oidref": 9705857,
+   "candidates": [
+    "Majaess 190"
+   ]
+  },
+  {
+   "oidref": 9705858,
+   "candidates": [
+    "Majaess 135"
+   ]
+  },
+  {
+   "oidref": 9705859,
+   "candidates": [
+    "Majaess 184"
+   ]
+  },
+  {
+   "oidref": 9705860,
+   "candidates": [
+    "Majaess 211"
+   ]
+  },
+  {
+   "oidref": 9705861,
+   "candidates": [
+    "Majaess 170"
+   ]
+  },
+  {
+   "oidref": 9705862,
+   "candidates": [
+    "Majaess 215"
+   ]
+  },
+  {
+   "oidref": 9705863,
+   "candidates": [
+    "Majaess 86"
+   ]
+  },
+  {
+   "oidref": 9705864,
+   "candidates": [
+    "Majaess 227"
+   ]
+  },
+  {
+   "oidref": 9705865,
+   "candidates": [
+    "Majaess 58"
+   ]
+  },
+  {
+   "oidref": 9705866,
+   "candidates": [
+    "Majaess 68"
+   ]
+  },
+  {
+   "oidref": 9705867,
+   "candidates": [
+    "Majaess 70"
+   ]
+  },
+  {
+   "oidref": 9705868,
+   "candidates": [
+    "Majaess 61"
+   ]
+  },
+  {
+   "oidref": 9705869,
+   "candidates": [
+    "Majaess 65"
+   ]
+  },
+  {
+   "oidref": 9705870,
+   "candidates": [
+    "Majaess 99"
+   ]
+  },
+  {
+   "oidref": 9705871,
+   "candidates": [
+    "Majaess 19"
+   ]
+  },
+  {
+   "oidref": 9727348,
+   "candidates": [
+    "PA-1"
+   ]
+  },
+  {
+   "oidref": 9727350,
+   "candidates": [
+    "PA-4"
+   ]
+  },
+  {
+   "oidref": 9727351,
+   "candidates": [
+    "PA-5"
+   ]
+  },
+  {
+   "oidref": 9727352,
+   "candidates": [
+    "PA-9"
+   ]
+  },
+  {
+   "oidref": 9727353,
+   "candidates": [
+    "PA-10"
+   ]
+  },
+  {
+   "oidref": 9727354,
+   "candidates": [
+    "PA-11"
+   ]
+  },
+  {
+   "oidref": 9727355,
+   "candidates": [
+    "PA-13"
+   ]
+  },
+  {
+   "oidref": 9727356,
+   "candidates": [
+    "PA-15"
+   ]
+  },
+  {
+   "oidref": 9727357,
+   "candidates": [
+    "PA-16"
+   ]
+  },
+  {
+   "oidref": 9727358,
+   "candidates": [
+    "PA-18"
+   ]
+  },
+  {
+   "oidref": 9727359,
+   "candidates": [
+    "PA-19"
+   ]
+  },
+  {
+   "oidref": 9727361,
+   "candidates": [
+    "PA-22"
+   ]
+  },
+  {
+   "oidref": 9727362,
+   "candidates": [
+    "PA-23"
+   ]
+  },
+  {
+   "oidref": 9727366,
+   "candidates": [
+    "PA-27"
+   ]
+  },
+  {
+   "oidref": 9727374,
+   "candidates": [
+    "PA-36"
+   ]
+  },
+  {
+   "oidref": 9727375,
+   "candidates": [
+    "PA-37"
+   ]
+  },
+  {
+   "oidref": 9727378,
+   "candidates": [
+    "PA-42"
+   ]
+  },
+  {
+   "oidref": 9727379,
+   "candidates": [
+    "PA-43"
+   ]
+  },
+  {
+   "oidref": 9727380,
+   "candidates": [
+    "PA-44"
+   ]
+  },
+  {
+   "oidref": 9727381,
+   "candidates": [
+    "PA-45"
+   ]
+  },
+  {
+   "oidref": 9727382,
+   "candidates": [
+    "PA-47"
+   ]
+  },
+  {
+   "oidref": 9727383,
+   "candidates": [
+    "PA-49"
+   ]
+  },
+  {
+   "oidref": 9727384,
+   "candidates": [
+    "PA-51"
+   ]
+  },
+  {
+   "oidref": 9759139,
+   "candidates": [
+    "NGC 253-dw2"
+   ]
+  },
+  {
+   "oidref": 9901416,
+   "candidates": [
+    "HS1700.850.1"
+   ]
+  },
+  {
+   "oidref": 10058919,
+   "candidates": [
+    "Kim 3"
+   ]
+  },
+  {
+   "oidref": 10060102,
+   "candidates": [
+    "ATCA1753-8517"
+   ]
+  },
+  {
+   "oidref": 10605892,
+   "candidates": [
+    "L50879"
+   ]
+  },
+  {
+   "oidref": 10613279,
+   "candidates": [
+    "IAC J010127.83-334319.6 lens"
+   ]
+  },
+  {
+   "oidref": 10619561,
+   "candidates": [
+    "SMASH 1"
+   ]
+  },
+  {
+   "oidref": 11233685,
+   "candidates": [
+    "Tr 16-SE cluster"
+   ]
+  },
+  {
+   "oidref": 11609038,
+   "candidates": [
+    "S874"
+   ]
+  },
+  {
+   "oidref": 11735504,
+   "candidates": [
+    "HXMM05"
+   ]
+  },
+  {
+   "oidref": 12366138,
+   "candidates": [
+    "IRAS 02048+5957 Stellar Group"
+   ]
+  },
+  {
+   "oidref": 12550582,
+   "candidates": [
+    "GALFOR 1"
+   ]
+  },
+  {
+   "oidref": 12558083,
+   "candidates": [
+    "Serenity-18"
+   ]
+  },
+  {
+   "oidref": 13623587,
+   "candidates": [
+    "BLISS J0321+0438",
+    "Bliss 1"
+   ]
+  },
+  {
+   "oidref": 14786082,
+   "candidates": [
+    "PSO J145.5964+19.3565N"
+   ]
+  },
+  {
+   "oidref": 15009996,
+   "candidates": [
+    "HSC 1"
+   ]
+  },
+  {
+   "oidref": 15299976,
+   "candidates": [
+    "Clusterix 1"
+   ]
+  },
+  {
+   "oidref": 15319080,
+   "candidates": [
+    "NGC 3256 Northeastern peak"
+   ]
+  },
+  {
+   "oidref": 15319081,
+   "candidates": [
+    "NGC 3256 Northern nucleus"
+   ]
+  },
+  {
+   "oidref": 15319082,
+   "candidates": [
+    "NGC 3256 Southern nucleus"
+   ]
+  },
+  {
+   "oidref": 16012085,
+   "candidates": [
+    "Tian 1"
+   ]
+  },
+  {
+   "oidref": 16634565,
+   "candidates": [
+    "HCG 16-LSB1"
+   ]
+  },
+  {
+   "oidref": 17451929,
+   "candidates": [
+    "MIDAS J230304-323228"
+   ]
+  },
+  {
+   "oidref": 17920192,
+   "candidates": [
+    "Teutsch GN J0551.2+2542"
+   ]
+  },
+  {
+   "oidref": 18225942,
+   "candidates": [
+    "Valparaiso 1"
+   ]
+  },
+  {
+   "oidref": 19263623,
+   "candidates": [
+    "NGC 936 UCD"
+   ]
+  },
+  {
+   "oidref": 19495815,
+   "candidates": [
+    "Tian 2"
+   ]
+  },
+  {
+   "oidref": 22739321,
+   "candidates": [
+    "NGC 628 Nuclear Star Cluster"
+   ]
+  },
+  {
+   "oidref": 23932161,
+   "candidates": [
+    "Mecayotl 1"
+   ]
+  },
+  {
+   "oidref": 24126349,
+   "candidates": [
+    "SMM J121220.4+273410"
+   ]
+  },
+  {
+   "oidref": 24126357,
+   "candidates": [
+    "SMM J121223.0+273351"
+   ]
+  },
+  {
+   "oidref": 24229080,
+   "candidates": [
+    "FAST J0139+4328"
+   ]
+  },
+  {
+   "oidref": 27504871,
+   "candidates": [
+    "SNR J0614-7251"
+   ]
+  },
+  {
+   "oidref": 27530943,
+   "candidates": [
+    "NGC 5018 LSB1"
+   ]
+  },
+  {
+   "oidref": 27546859,
+   "candidates": [
+    "MACS J1149-WR1"
+   ]
+  },
+  {
+   "oidref": 27791936,
+   "candidates": [
+    "FRB 190303.J1353+48"
+   ]
+  },
+  {
+   "oidref": 28470777,
+   "candidates": [
+    "XDOCC 1"
+   ]
+  },
+  {
+   "oidref": 28470778,
+   "candidates": [
+    "XDOCC 9"
+   ]
+  },
+  {
+   "oidref": 28470779,
+   "candidates": [
+    "ZHBJZ 1"
+   ]
+  }
+ ],
+ "rejected_already_named": [
+  {
+   "key": "IC5146",
+   "raw": "IC 5146",
+   "candidates": [
+    "Cocoon Nebula"
+   ]
+  },
+  {
+   "key": "SNRG078.2+02.1",
+   "raw": "SNR G078.2+02.1",
+   "candidates": [
+    "gam Cyg SNR"
+   ]
+  },
+  {
+   "key": "LDN935",
+   "raw": "LDN  935",
+   "candidates": [
+    "Gulf of Mexico"
+   ]
+  },
+  {
+   "key": "IC5070",
+   "raw": "IC 5070",
+   "candidates": [
+    "Pelican",
+    "Pelican Nebula"
+   ]
+  },
+  {
+   "key": "NGC7000",
+   "raw": "NGC  7000",
+   "candidates": [
+    "NORTH AMER NEB",
+    "North America",
+    "North America Nebula",
+    "Bermuda Cluster"
+   ]
+  },
+  {
+   "key": "M76",
+   "raw": "M  76",
+   "candidates": [
+    "Barbell Nebula",
+    "Cork Nebula",
+    "Little Dumbbell Nebula"
+   ]
+  },
+  {
+   "key": "IC1318",
+   "raw": "IC 1318",
+   "candidates": [
+    "gam Cyg Nebula"
+   ]
+  },
+  {
+   "key": "NGC7635",
+   "raw": "NGC  7635",
+   "candidates": [
+    "Bubble Nebula"
+   ]
+  },
+  {
+   "key": "SNRG111.702.1",
+   "raw": "SNR G111.7-02.1",
+   "candidates": [
+    "Cas A",
+    "Cassiopeia A"
+   ]
+  },
+  {
+   "key": "NGC457",
+   "raw": "NGC   457",
+   "candidates": [
+    "ET Cluster",
+    "Owl Cluster"
+   ]
+  },
+  {
+   "key": "NGC6866",
+   "raw": "NGC  6866",
+   "candidates": [
+    "Kite Cluster"
+   ]
+  },
+  {
+   "key": "NGC869",
+   "raw": "NGC   869",
+   "candidates": [
+    "h Per Cluster",
+    "h Persei Cluster"
+   ]
+  },
+  {
+   "key": "NGC884",
+   "raw": "NGC   884",
+   "candidates": [
+    "chi Per Cluster",
+    "chi Persei Cluster",
+    "khi Per Cluster"
+   ]
+  },
+  {
+   "key": "PNG126.6+01.3",
+   "raw": "PN G126.6+01.3",
+   "candidates": [
+    "IPHAS PN-1",
+    "Principes de Asturias Nebula"
+   ]
+  },
+  {
+   "key": "IC1805",
+   "raw": "IC 1805",
+   "candidates": [
+    "AFGL 333 Cloud"
+   ]
+  },
+  {
+   "key": "NGC6826",
+   "raw": "NGC  6826",
+   "candidates": [
+    "Blinking Planetary"
+   ]
+  },
+  {
+   "key": "NGC7023",
+   "raw": "NGC  7023",
+   "candidates": [
+    "IRIS Nebula"
+   ]
+  },
+  {
+   "key": "UGC10822",
+   "raw": "UGC 10822",
+   "candidates": [
+    "Dra dSph",
+    "Draco dSph Galaxy",
+    "Draco Galaxy",
+    "Draco Dwarf G",
+    "Draco Dwarf Galaxy",
+    "Draco Dwarf Spheroidal Galaxy"
+   ]
+  },
+  {
+   "key": "UGC9749",
+   "raw": "UGC  9749",
+   "candidates": [
+    "UMi",
+    "UMi dSph",
+    "Ursa Minor",
+    "UMi Galaxy",
+    "UMi Dwarf Galaxy",
+    "Ursa Minor Dwarf Galaxy"
+   ]
+  },
+  {
+   "key": "M101",
+   "raw": "M 101",
+   "candidates": [
+    "Pinwheel"
+   ]
+  },
+  {
+   "key": "M97",
+   "raw": "M  97",
+   "candidates": [
+    "Owl Nebula"
+   ]
+  },
+  {
+   "key": "NGC1317",
+   "raw": "NGC  1317",
+   "candidates": [
+    "Fornax B"
+   ]
+  },
+  {
+   "key": "IC348",
+   "raw": "IC  348",
+   "candidates": [
+    "omi Per Cloud"
+   ]
+  },
+  {
+   "key": "NGC1432",
+   "raw": "NGC  1432",
+   "candidates": [
+    "Maia Nebula"
+   ]
+  },
+  {
+   "key": "M45",
+   "raw": "M  45",
+   "candidates": [
+    "Pleiades",
+    "Seven Sisters"
+   ]
+  },
+  {
+   "key": "IC349",
+   "raw": "IC  349",
+   "candidates": [
+    "Barnard's Merope Nebula"
+   ]
+  },
+  {
+   "key": "NGC1435",
+   "raw": "NGC  1435",
+   "candidates": [
+    "Merope Nebula"
+   ]
+  },
+  {
+   "key": "NGC1499",
+   "raw": "NGC  1499",
+   "candidates": [
+    "California Nebula"
+   ]
+  },
+  {
+   "key": "NGC1554",
+   "raw": "NGC  1554",
+   "candidates": [
+    "Struve's nebula"
+   ]
+  },
+  {
+   "key": "NGC1909",
+   "raw": "NGC  1909",
+   "candidates": [
+    "the Witch Head Nebula"
+   ]
+  },
+  {
+   "key": "M1",
+   "raw": "M   1",
+   "candidates": [
+    "CRAB NEB",
+    "Crab",
+    "Crab Nebula",
+    "Tau A",
+    "Taurus A"
+   ]
+  },
+  {
+   "key": "SH2264",
+   "raw": "SH  2-264",
+   "candidates": [
+    "lam Ori Molecular Ring"
+   ]
+  },
+  {
+   "key": "NGC1977",
+   "raw": "NGC  1977",
+   "candidates": [
+    "ONC Flank N",
+    "the Running Man Nebula"
+   ]
+  },
+  {
+   "key": "M43",
+   "raw": "M  43",
+   "candidates": [
+    "Mairan's Nebula"
+   ]
+  },
+  {
+   "key": "NGC1981",
+   "raw": "NGC  1981",
+   "candidates": [
+    "Upper Sword"
+   ]
+  },
+  {
+   "key": "SH2276",
+   "raw": "SH  2-276",
+   "candidates": [
+    "Barnard Loop",
+    "Barnard's Arc",
+    "Barnard's Loop"
+   ]
+  },
+  {
+   "key": "M42",
+   "raw": "M  42",
+   "candidates": [
+    "Great Orion Nebula",
+    "Ori Nebula",
+    "Orion Nebula"
+   ]
+  },
+  {
+   "key": "NGC1980",
+   "raw": "NGC  1980",
+   "candidates": [
+    "Lower Sword"
+   ]
+  },
+  {
+   "key": "CED55R",
+   "raw": "Ced  55r",
+   "candidates": [
+    "Ori Loop",
+    "Orion Loop"
+   ]
+  },
+  {
+   "key": "LBN953",
+   "raw": "LBN   953",
+   "candidates": [
+    "Flame Nebula"
+   ]
+  },
+  {
+   "key": "NGC2174",
+   "raw": "NGC  2174",
+   "candidates": [
+    "Monkey Head Nebula"
+   ]
+  },
+  {
+   "key": "SH2261",
+   "raw": "SH  2-261",
+   "candidates": [
+    "Lower's Nebula"
+   ]
+  },
+  {
+   "key": "NGC2170",
+   "raw": "NGC  2170",
+   "candidates": [
+    "Mon R2 IRS3"
+   ]
+  },
+  {
+   "key": "IC443",
+   "raw": "IC  443",
+   "candidates": [
+    "Jellyfish Nebula",
+    "Gem A"
+   ]
+  },
+  {
+   "key": "SNRG194.7+00.4",
+   "raw": "SNR G194.7+00.4",
+   "candidates": [
+    "Origem Loop"
+   ]
+  },
+  {
+   "key": "NGC2237",
+   "raw": "NGC  2237",
+   "candidates": [
+    "Rosette A"
+   ]
+  },
+  {
+   "key": "SH2275",
+   "raw": "SH  2-275",
+   "candidates": [
+    "Rosette Nebula"
+   ]
+  },
+  {
+   "key": "NGC2264",
+   "raw": "NGC  2264",
+   "candidates": [
+    "XMAS TREE CL",
+    "Christmas Tree Cluster"
+   ]
+  },
+  {
+   "key": "SNRG205.5+00.5",
+   "raw": "SNR G205.5+00.5",
+   "candidates": [
+    "MONOCEROS NEB",
+    "Mon Loop SNR",
+    "Monoceros Loop",
+    "MON NEB",
+    "Monoceros Nebula",
+    "Monoceros SNR"
+   ]
+  },
+  {
+   "key": "NGC2301",
+   "raw": "NGC  2301",
+   "candidates": [
+    "Great Bird Cluster"
+   ]
+  },
+  {
+   "key": "NGC2360",
+   "raw": "NGC  2360",
+   "candidates": [
+    "Caroline's Cluster"
+   ]
+  },
+  {
+   "key": "NGC2362",
+   "raw": "NGC  2362",
+   "candidates": [
+    "Tau CMa"
+   ]
+  },
+  {
+   "key": "SH2274",
+   "raw": "SH  2-274",
+   "candidates": [
+    "Medusa Nebula"
+   ]
+  },
+  {
+   "key": "PNG250.401.3",
+   "raw": "PN G250.4-01.3",
+   "candidates": [
+    "Manzana"
+   ]
+  },
+  {
+   "key": "M44",
+   "raw": "M  44",
+   "candidates": [
+    "Beehive",
+    "Praesepe",
+    "Praesepe Cluster"
+   ]
+  },
+  {
+   "key": "NGC1049",
+   "raw": "NGC  1049",
+   "candidates": [
+    "Fornax C3",
+    "Cluster 3 in Fornax",
+    "Fornax Dwarf Cluster 3",
+    "Fornax H3"
+   ]
+  },
+  {
+   "key": "ESO60011",
+   "raw": "ESO 600-11",
+   "candidates": [
+    "Cap Galaxy",
+    "Capricorn Dwarf"
+   ]
+  },
+  {
+   "key": "NGC7293",
+   "raw": "NGC  7293",
+   "candidates": [
+    "HELICAL NEB",
+    "Helix Nebula"
+   ]
+  },
+  {
+   "key": "NGC7009",
+   "raw": "NGC  7009",
+   "candidates": [
+    "Saturn Nebula"
+   ]
+  },
+  {
+   "key": "UGC12613",
+   "raw": "UGC 12613",
+   "candidates": [
+    "PegDIG",
+    "Peg DIG",
+    "Peg Im V Dwarf",
+    "Pegasus DIG",
+    "Peg Galaxy",
+    "Pegasus Galaxy",
+    "Peg Dwarf Galaxy",
+    "Pegasus Dwarf Galaxy",
+    "Peg Dwarf Irregular Galaxy"
+   ]
+  },
+  {
+   "key": "M33",
+   "raw": "M  33",
+   "candidates": [
+    "Triangulum Galaxy",
+    "Triangulum Pinwheel"
+   ]
+  },
+  {
+   "key": "NGC7662",
+   "raw": "NGC  7662",
+   "candidates": [
+    "Copeland's Blue Snowball"
+   ]
+  },
+  {
+   "key": "UGC5364",
+   "raw": "UGC  5364",
+   "candidates": [
+    "Leo A",
+    "Leo A Im V Dwarf",
+    "Leo III",
+    "Leo Dwarf Galaxy",
+    "Leo Dwarf Irregular Galaxy"
+   ]
+  },
+  {
+   "key": "UGC5439",
+   "raw": "UGC  5439",
+   "candidates": [
+    "Sex C",
+    "Sextans C"
+   ]
+  },
+  {
+   "key": "NGC3115",
+   "raw": "NGC  3115",
+   "candidates": [
+    "Spindle Galaxy"
+   ]
+  },
+  {
+   "key": "NGC3132",
+   "raw": "NGC  3132",
+   "candidates": [
+    "Eight-Burst Nebula"
+   ]
+  },
+  {
+   "key": "UGC5470",
+   "raw": "UGC  5470",
+   "candidates": [
+    "Harrington-Wilson No1",
+    "Leo I",
+    "Leo I Dwarf Galaxy",
+    "Regulus Dwarf",
+    "Leo I Dwarf Spheroidal Galaxy",
+    "Leo I dSph"
+   ]
+  },
+  {
+   "key": "UGC6253",
+   "raw": "UGC  6253",
+   "candidates": [
+    "Harrington-Wilson No2",
+    "Leo B",
+    "Leo II",
+    "Leo II dSph",
+    "Leo II Dwarf Galaxy"
+   ]
+  },
+  {
+   "key": "VV786",
+   "raw": "VV  786",
+   "candidates": [
+    "Lemon"
+   ]
+  },
+  {
+   "key": "NGC4490",
+   "raw": "NGC  4490",
+   "candidates": [
+    "Cocoon Galaxy"
+   ]
+  },
+  {
+   "key": "NGC6302",
+   "raw": "NGC  6302",
+   "candidates": [
+    "Bug Nebula"
+   ]
+  },
+  {
+   "key": "NGC6380",
+   "raw": "NGC  6380",
+   "candidates": [
+    "Tonantzintla 1"
+   ]
+  },
+  {
+   "key": "ESO33316",
+   "raw": "ESO 333-16",
+   "candidates": [
+    "Tonantzintla 2"
+   ]
+  },
+  {
+   "key": "NGC6357",
+   "raw": "NGC  6357",
+   "candidates": [
+    "the War and Peace Nebula"
+   ]
+  },
+  {
+   "key": "NGC6334",
+   "raw": "NGC  6334",
+   "candidates": [
+    "Cat's Paw Nebula"
+   ]
+  },
+  {
+   "key": "M7",
+   "raw": "M   7",
+   "candidates": [
+    "Ptolemy's Cluster"
+   ]
+  },
+  {
+   "key": "SNRG357.700.1",
+   "raw": "SNR G357.7-00.1",
+   "candidates": [
+    "Tornado Nebula"
+   ]
+  },
+  {
+   "key": "M6",
+   "raw": "M   6",
+   "candidates": [
+    "Butterfly Cluster"
+   ]
+  },
+  {
+   "key": "IC4606",
+   "raw": "IC 4606",
+   "candidates": [
+    "Antares Nebula"
+   ]
+  },
+  {
+   "key": "SNRG000.0+00.0",
+   "raw": "SNR G000.0+00.0",
+   "candidates": [
+    "Sgr A East"
+   ]
+  },
+  {
+   "key": "IC4604",
+   "raw": "IC 4604",
+   "candidates": [
+    "rho Oph Nebula"
+   ]
+  },
+  {
+   "key": "NGC6369",
+   "raw": "NGC  6369",
+   "candidates": [
+    "Little Ghost Nebula"
+   ]
+  },
+  {
+   "key": "M8",
+   "raw": "M   8",
+   "candidates": [
+    "Lagoon",
+    "Lagoon Nebula"
+   ]
+  },
+  {
+   "key": "M20",
+   "raw": "M  20",
+   "candidates": [
+    "Trifid Nebula"
+   ]
+  },
+  {
+   "key": "NGC6445",
+   "raw": "NGC  6445",
+   "candidates": [
+    "Little Gem"
+   ]
+  },
+  {
+   "key": "NGC6537",
+   "raw": "NGC  6537",
+   "candidates": [
+    "Red Spider nebula"
+   ]
+  },
+  {
+   "key": "M17",
+   "raw": "M  17",
+   "candidates": [
+    "Checkmark Nebula",
+    "Lobster Nebula",
+    "omega Nebula",
+    "Swan Nebula"
+   ]
+  },
+  {
+   "key": "NGC6818",
+   "raw": "NGC  6818",
+   "candidates": [
+    "Little Gem Nebula"
+   ]
+  },
+  {
+   "key": "NGC6822",
+   "raw": "NGC  6822",
+   "candidates": [
+    "Barnard's Galaxy"
+   ]
+  },
+  {
+   "key": "NGC6309",
+   "raw": "NGC  6309",
+   "candidates": [
+    "Box Nebula"
+   ]
+  },
+  {
+   "key": "M16",
+   "raw": "M  16",
+   "candidates": [
+    "Eagle Nebula",
+    "Star Queen"
+   ]
+  },
+  {
+   "key": "M11",
+   "raw": "M  11",
+   "candidates": [
+    "Amas de l'Ecu de Sobieski",
+    "Wild Duck Cluster"
+   ]
+  },
+  {
+   "key": "UGC9792",
+   "raw": "UGC  9792",
+   "candidates": [
+    "Serpens Dwarf"
+   ]
+  },
+  {
+   "key": "NGC6741",
+   "raw": "NGC  6741",
+   "candidates": [
+    "Phantom Streak Nebula"
+   ]
+  },
+  {
+   "key": "NGC6905",
+   "raw": "NGC  6905",
+   "candidates": [
+    "Blue Flash Nebula"
+   ]
+  },
+  {
+   "key": "M27",
+   "raw": "M  27",
+   "candidates": [
+    "Diabolo Nebula",
+    "Dumbbell Nebula"
+   ]
+  },
+  {
+   "key": "M57",
+   "raw": "M  57",
+   "candidates": [
+    "Ring Nebula"
+   ]
+  },
+  {
+   "key": "M13",
+   "raw": "M  13",
+   "candidates": [
+    "Hercules Globular Cluster"
+   ]
+  },
+  {
+   "key": "NGC6960",
+   "raw": "NGC  6960",
+   "candidates": [
+    "Cirrus Nebula",
+    "Filamentary Nebula",
+    "Veil Nebula"
+   ]
+  },
+  {
+   "key": "SH2103",
+   "raw": "SH  2-103",
+   "candidates": [
+    "Cyg Loop",
+    "Cygnus Loop"
+   ]
+  },
+  {
+   "key": "NGC6819",
+   "raw": "NGC  6819",
+   "candidates": [
+    "Foxhead Cluster"
+   ]
+  },
+  {
+   "key": "SNRG260.403.4",
+   "raw": "SNR G260.4-03.4",
+   "candidates": [
+    "Pup A",
+    "Puppis A",
+    "Puppis SNR",
+    "SNR Pup A",
+    "SNR Puppis A"
+   ]
+  },
+  {
+   "key": "NGC2736",
+   "raw": "NGC  2736",
+   "candidates": [
+    "Pencil Nebula"
+   ]
+  },
+  {
+   "key": "SNRG266.201.2",
+   "raw": "SNR G266.2-01.2",
+   "candidates": [
+    "Vela Jr SN",
+    "Vela Junior"
+   ]
+  },
+  {
+   "key": "IC2391",
+   "raw": "IC 2391",
+   "candidates": [
+    "omi Vel Cluster"
+   ]
+  },
+  {
+   "key": "ESO11831",
+   "raw": "ESO 118-31",
+   "candidates": [
+    "SERSIC CL",
+    "Ret",
+    "Reticulum",
+    "Reticulum Cluster",
+    "Sersic Cluster",
+    "Reticulum Dwarf Galaxy"
+   ]
+  },
+  {
+   "key": "NGC2070",
+   "raw": "NGC  2070",
+   "candidates": [
+    "Tarantula",
+    "30 Dor Association",
+    "30 Dor Cluster"
+   ]
+  },
+  {
+   "key": "NGC2060",
+   "raw": "NGC  2060",
+   "candidates": [
+    "30 Dor B"
+   ]
+  },
+  {
+   "key": "NGC3372",
+   "raw": "NGC  3372",
+   "candidates": [
+    "Keyhole",
+    "Car Nebula",
+    "Carina Nebula",
+    "eta Car Nebula",
+    "Keyhole Nebula"
+   ]
+  },
+  {
+   "key": "IC2602",
+   "raw": "IC 2602",
+   "candidates": [
+    "THETA CAR Cluster",
+    "tet Car Cluster"
+   ]
+  },
+  {
+   "key": "NGC292",
+   "raw": "NGC   292",
+   "candidates": [
+    "SMC",
+    "Nubecula Minor",
+    "Small Magellanic Cloud"
+   ]
+  },
+  {
+   "key": "IC2944",
+   "raw": "IC 2944",
+   "candidates": [
+    "lam Cen Nebula"
+   ]
+  },
+  {
+   "key": "NGC104",
+   "raw": "NGC   104",
+   "candidates": [
+    "47 Tuc Cluster"
+   ]
+  },
+  {
+   "key": "NGC4609",
+   "raw": "NGC  4609",
+   "candidates": [
+    "Coalsack Cluster"
+   ]
+  },
+  {
+   "key": "NGC4755",
+   "raw": "NGC  4755",
+   "candidates": [
+    "Herschel's Jewel Box",
+    "Jewel Box",
+    "kap Cru Cluster",
+    "kappa Crucis Cluster"
+   ]
+  },
+  {
+   "key": "RCW77",
+   "raw": "RCW  77",
+   "candidates": [
+    "Engraved Hourglass Nebula",
+    "Etched Hourglass Nebula"
+   ]
+  },
+  {
+   "key": "NGC5139",
+   "raw": "NGC  5139",
+   "candidates": [
+    "ome Cen Cluster"
+   ]
+  },
+  {
+   "key": "SNRG315.900.0",
+   "raw": "SNR G315.9-00.0",
+   "candidates": [
+    "Frying Pan",
+    "the Frying Pan"
+   ]
+  },
+  {
+   "key": "NGC6087",
+   "raw": "NGC  6087",
+   "candidates": [
+    "S NORMA CL"
+   ]
+  },
+  {
+   "key": "RCW100",
+   "raw": "RCW 100",
+   "candidates": [
+    "Fine Ring Nebula"
+   ]
+  },
+  {
+   "key": "RCW101",
+   "raw": "RCW 101",
+   "candidates": [
+    "Ant Nebula"
+   ]
+  },
+  {
+   "key": "SNRG327.6+14.6",
+   "raw": "SNR G327.6+14.6",
+   "candidates": [
+    "Lupus SN"
+   ]
+  },
+  {
+   "key": "SNRG330.0+15.0",
+   "raw": "SNR G330.0+15.0",
+   "candidates": [
+    "Lup Loop",
+    "Lupus Loop"
+   ]
+  },
+  {
+   "key": "ESO27712",
+   "raw": "ESO 277-12",
+   "candidates": [
+    "Ara Cluster"
+   ]
+  },
+  {
+   "key": "NGC2246",
+   "raw": "NGC  2246",
+   "candidates": [
+    "Rosette B"
+   ]
+  },
+  {
+   "key": "NGC6188",
+   "raw": "NGC  6188",
+   "candidates": [
+    "Rim Nebula"
+   ]
+  },
+  {
+   "key": "IC4715",
+   "raw": "IC 4715",
+   "candidates": [
+    "Small Sgr Star Cloud"
+   ]
+  },
+  {
+   "key": "NGC6543",
+   "raw": "NGC  6543",
+   "candidates": [
+    "Sunflower Nebula",
+    "Snail Nebula",
+    "Cat's Eye Nebula"
+   ]
+  },
+  {
+   "key": "NGC3242",
+   "raw": "NGC  3242",
+   "candidates": [
+    "Jupiter's Ghost Nebula",
+    "Ghost of Jupiter"
+   ]
+  }
+ ],
+ "rejected_no_catalog_match": []
+}

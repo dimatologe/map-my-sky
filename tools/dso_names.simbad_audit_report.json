@@ -1,0 +1,714 @@
+[
+ {
+  "key": "ACO1132",
+  "raw_desig": "ACO 1132",
+  "name": "Ursa Major II Cluster",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "ACO780",
+  "raw_desig": "ACO 780",
+  "name": "Hydra A",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "ARP248",
+  "raw_desig": "ARP 248",
+  "name": "Wild's Triplet",
+  "star_identifier_hits": [
+   "GSC 04934-01128"
+  ],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "suspicious"
+ },
+ {
+  "key": "ESO11831",
+  "raw_desig": "ESO 118-31",
+  "name": "Sersic Cluster",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "ESO25218A",
+  "raw_desig": "ESO 252-18A",
+  "name": "Pictor A",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "IC1365",
+  "raw_desig": "IC 1365",
+  "name": "ZW II 108 Group",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "IC2431",
+  "raw_desig": "IC 2431",
+  "name": "Browning Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "IC4606",
+  "raw_desig": "IC 4606",
+  "name": "Antares Nebula",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "NGC1554",
+  "raw_desig": "NGC 1554",
+  "name": "Struve's Lost Nebula",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "NGC2060",
+  "raw_desig": "NGC 2060",
+  "name": "30 Dor B",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "NGC2409",
+  "raw_desig": "NGC 2409",
+  "name": "Firsse 213",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "NGC3031",
+  "raw_desig": "NGC 3031",
+  "name": "Bode's Nebula",
+  "star_identifier_hits": [
+   "BD+69   543",
+   "HD  85534"
+  ],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "suspicious"
+ },
+ {
+  "key": "NGC4254",
+  "raw_desig": "NGC 4254",
+  "name": "Coma Pinwheel Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "NGC5892",
+  "raw_desig": "NGC 5892",
+  "name": "Fath 703",
+  "star_identifier_hits": [
+   "GSC 06170-00741"
+  ],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "suspicious"
+ },
+ {
+  "key": "NGC6334",
+  "raw_desig": "NGC 6334",
+  "name": "Cat's Paw Nebula",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "NGC6380",
+  "raw_desig": "NGC 6380",
+  "name": "Tonantzintla 1",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "NGC6776",
+  "raw_desig": "NGC 6776",
+  "name": "Pentagon",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "NGC7252",
+  "raw_desig": "NGC 7252",
+  "name": "Atoms for Peace Galaxy",
+  "star_identifier_hits": [
+   "GSC 06962-01357"
+  ],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "suspicious"
+ },
+ {
+  "key": "PGC100169",
+  "raw_desig": "PGC 100169",
+  "name": "Cassiopeia 1",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC10074",
+  "raw_desig": "PGC 10074",
+  "name": "Fornax Dwarf Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC139235",
+  "raw_desig": "PGC 139235",
+  "name": "Sextans Ring",
+  "star_identifier_hits": [
+   "GSC 05476-01170"
+  ],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "suspicious"
+ },
+ {
+  "key": "PGC14212",
+  "raw_desig": "PGC 14212",
+  "name": "Schuster's Spiral Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC14225",
+  "raw_desig": "PGC 14225",
+  "name": "Horologium Dwarf Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC15172",
+  "raw_desig": "PGC 15172",
+  "name": "Carafe Nebula",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC17223",
+  "raw_desig": "PGC 17223",
+  "name": "Large Magellanic Cloud",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC17716",
+  "raw_desig": "PGC 17716",
+  "name": "Orion Dwarf Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC19441",
+  "raw_desig": "PGC 19441",
+  "name": "Carina Dwarf Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC19481",
+  "raw_desig": "PGC 19481",
+  "name": "Lindsay-Shapley Ring",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC20125",
+  "raw_desig": "PGC 20125",
+  "name": "Argo Dwarf Irregular Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC20348",
+  "raw_desig": "PGC 20348",
+  "name": "Integral Sign Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC2345",
+  "raw_desig": "PGC 2345",
+  "name": "Exclamation Mark Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC26071",
+  "raw_desig": "PGC 26071",
+  "name": "Holmberg III",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC26132",
+  "raw_desig": "PGC 26132",
+  "name": "Grasshopper A",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC26269",
+  "raw_desig": "PGC 26269",
+  "name": "Hydra A",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC2807155",
+  "raw_desig": "PGC 2807155",
+  "name": "Cassiopeia Dwarf Spheroidal Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC2807158",
+  "raw_desig": "PGC 2807158",
+  "name": "Pegasus Dwarf Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC29152",
+  "raw_desig": "PGC 29152",
+  "name": "Revolver Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC29529",
+  "raw_desig": "PGC 29529",
+  "name": "Vela Ring Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC29653",
+  "raw_desig": "PGC 29653",
+  "name": "Sextans A",
+  "star_identifier_hits": [
+   "GSC 04907-00713"
+  ],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "suspicious"
+ },
+ {
+  "key": "PGC3074547",
+  "raw_desig": "PGC 3074547",
+  "name": "Boomerang Nebula",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC3097691",
+  "raw_desig": "PGC 3097691",
+  "name": "Cetus Dwarf Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC31923",
+  "raw_desig": "PGC 31923",
+  "name": "Spider Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC32907",
+  "raw_desig": "PGC 32907",
+  "name": "Ant Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC34176",
+  "raw_desig": "PGC 34176",
+  "name": "Leo II Dwarf Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC34696",
+  "raw_desig": "PGC 34696",
+  "name": "A Flying Bird",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC36733",
+  "raw_desig": "PGC 36733",
+  "name": "Wild's Triplet",
+  "star_identifier_hits": [
+   "GSC 04934-01128"
+  ],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "suspicious"
+ },
+ {
+  "key": "PGC40012",
+  "raw_desig": "PGC 40012",
+  "name": "Syphon",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC41861",
+  "raw_desig": "PGC 41861",
+  "name": "Holmberg VII",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC45901",
+  "raw_desig": "PGC 45901",
+  "name": "Hardcastle's Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC47847",
+  "raw_desig": "PGC 47847",
+  "name": "Fourcade-Figueroa Object",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC49560",
+  "raw_desig": "PGC 49560",
+  "name": "The Dentist's Chair",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC50779",
+  "raw_desig": "PGC 50779",
+  "name": "Circinus Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC52283",
+  "raw_desig": "PGC 52283",
+  "name": "Segner's Wheel",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC59061",
+  "raw_desig": "PGC 59061",
+  "name": "Zwicky's Triplet",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC59867",
+  "raw_desig": "PGC 59867",
+  "name": "Beaver Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC621",
+  "raw_desig": "PGC 621",
+  "name": "Sculptor Dwarf Irregular Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC62946",
+  "raw_desig": "PGC 62946",
+  "name": "The Bird",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC64180",
+  "raw_desig": "PGC 64180",
+  "name": "McLeish's Object",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC6830",
+  "raw_desig": "PGC 6830",
+  "name": "Phoenix Dwarf Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC71938",
+  "raw_desig": "PGC 71938",
+  "name": "Barbon's Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC84913",
+  "raw_desig": "PGC 84913",
+  "name": "Superantennae Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC88608",
+  "raw_desig": "PGC 88608",
+  "name": "Sextans Dwarf Spheroidal Galaxy",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PGC90170",
+  "raw_desig": "PGC 90170",
+  "name": "Padova 3",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PK064+05.1",
+  "raw_desig": "PK 064+05.1",
+  "name": "Campbell's Hydrogen Star",
+  "star_identifier_hits": [
+   "HIP 96295",
+   "PLX 4591",
+   "AAVSO 1930+30B",
+   "BD+30  3639",
+   "GCRV 11983",
+   "GSC 02655-04032",
+   "HD 184738",
+   "PPM  83157"
+  ],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "suspicious"
+ },
+ {
+  "key": "PK16606.1",
+  "raw_desig": "PK 166-06.1",
+  "name": "Westbrook Nebula",
+  "star_identifier_hits": [
+   "V* V353 Aur"
+  ],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "suspicious"
+ },
+ {
+  "key": "PK315+09.1",
+  "raw_desig": "PK 315+09.1",
+  "name": "Southern Crab Nebula",
+  "star_identifier_hits": [
+   "V* V852 Cen"
+  ],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "suspicious"
+ },
+ {
+  "key": "PK34003.1",
+  "raw_desig": "PK 340-03.1",
+  "name": "Water Lily Nebula",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PNG004.2+02.1",
+  "raw_desig": "PNG 004.2+02.1",
+  "name": "Silkworm Nebula",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PNG054.203.4",
+  "raw_desig": "PNG 054.2-03.4",
+  "name": "Necklace Nebula",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PNG126.6+01.3",
+  "raw_desig": "PNG 126.6+01.3",
+  "name": "Principes de Asturias Nebula",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PNG250.401.3",
+  "raw_desig": "PNG 250.4-01.3",
+  "name": "Manzana",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "PNG353.8+02.9",
+  "raw_desig": "PNG 353.8+02.9",
+  "name": "Cotton Candy Nebula",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "UGC4841",
+  "raw_desig": "UGC 4841",
+  "name": "Holmberg III",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "UGC7739",
+  "raw_desig": "UGC 7739",
+  "name": "Holmberg VII",
+  "star_identifier_hits": [],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "ok"
+ },
+ {
+  "key": "VDB107",
+  "raw_desig": "VDB 107",
+  "name": "Antares Nebula",
+  "star_identifier_hits": [
+   "HIP 80763",
+   "PLX 3741",
+   "* alf Sco",
+   "*  21 Sco",
+   "CD-26 11359",
+   "CPD-26  5648",
+   "FK5  616",
+   "GCRV  9479"
+  ],
+  "still_matches_fuzzy": true,
+  "in_current_db": true,
+  "verdict": "suspicious"
+ }
+]

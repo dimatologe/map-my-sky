@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude
+            domain="file"
+            path="." />
+        <!-- Enthaelt u.a. den astrometry.net-API-Schluessel: nie ins Cloud-Backup, bleibt lokal. -->
+        <exclude
+            domain="sharedpref"
+            path="sternbild_mapper.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude
+            domain="file"
+            path="." />
+        <exclude
+            domain="sharedpref"
+            path="sternbild_mapper.xml" />
+    </device-transfer>
+</data-extraction-rules>

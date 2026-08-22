@@ -1,0 +1,4993 @@
+{
+ "accepted": [
+  {
+   "key": "ACO1132",
+   "name": "Ursa Major II Cluster",
+   "sources": [
+    "U2K"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "ACO1930",
+   "name": "Bootes Cluster",
+   "sources": [
+    "DSNI"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "ACO568",
+   "name": "Gemini Cluster",
+   "sources": [
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "ACO780",
+   "name": "Hydra A",
+   "sources": [
+    "NED"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "ARP248",
+   "name": "Wild's Triplet",
+   "sources": [
+    "RASC",
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "B142",
+   "name": "E Nebula",
+   "sources": [
+    "WK",
+    "DSW",
+    "PMW"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "B143",
+   "name": "E Nebula",
+   "sources": [
+    "WK",
+    "DSW",
+    "PMW"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "B33",
+   "name": "Horsehead Nebula",
+   "sources": [
+    "WK",
+    "BCH",
+    "DWH",
+    "PSA",
+    "DN",
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "B59",
+   "name": "Sink Hole",
+   "sources": [
+    "PMW"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "B72",
+   "name": "Snake Nebula",
+   "sources": [
+    "WK",
+    "PSA",
+    "DN",
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "C99",
+   "name": "Coalsack Nebula",
+   "sources": [
+    "WK",
+    "PSA",
+    "CO-HOT"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "CR285",
+   "name": "Ursa Major Moving Group",
+   "sources": [
+    "WP",
+    "CSOG-BCH"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "ESO11831",
+   "name": "Sersic Cluster",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "ESO25218A",
+   "name": "Pictor A",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "IC10",
+   "name": "Starburst Galaxy",
+   "sources": [],
+   "verified_via": "wikipedia",
+   "translations": [
+    "es"
+   ]
+  },
+  {
+   "key": "IC1365",
+   "name": "ZW II 108 Group",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "IC1396",
+   "name": "Elephant's Trunk Nebula",
+   "sources": [
+    "WK"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "IC2169",
+   "name": "Dreyer's Nebula",
+   "sources": [
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "IC2431",
+   "name": "Browning Galaxy",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "IC342",
+   "name": "Maffei 1 Group",
+   "sources": [
+    "DSW"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "IC3481",
+   "name": "Zwicky's Triplet",
+   "sources": [
+    "RNGCIC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "IC3483",
+   "name": "Zwicky's Triplet",
+   "sources": [
+    "RNGCIC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "IC4406",
+   "name": "Retina Nebula",
+   "sources": [
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "de"
+   ]
+  },
+  {
+   "key": "IC4593",
+   "name": "White-eyed Pea Nebula",
+   "sources": [
+    "DSW",
+    "DSC-SD",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "IC4606",
+   "name": "Antares Nebula",
+   "sources": [
+    "SIMBAD",
+    "U2K"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "IC4756",
+   "name": "Tweedledee Cluster",
+   "sources": [
+    "DSC-HT",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "IC5067",
+   "name": "Pelican Nebula",
+   "sources": [
+    "BCH",
+    "DN",
+    "RNGCIC",
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "IC5148",
+   "name": "Spare Tyre Nebula",
+   "sources": [
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "zh"
+   ]
+  },
+  {
+   "key": "LDN1613",
+   "name": "Cone Nebula",
+   "sources": [
+    "DSW"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "LDN43",
+   "name": "Cosmic Bat Nebula",
+   "sources": [
+    "APOD",
+    "ABIN",
+    "S&T"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC1039",
+   "name": "Spiral Cluster",
+   "sources": [
+    "CSOG-MSC",
+    "SEDSM"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "es",
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC1232",
+   "name": "Eye of God Galaxy",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC1245",
+   "name": "Patrick Starfish Cluster",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC1313",
+   "name": "Topsy Turvy Galaxy",
+   "sources": [
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC1350",
+   "name": "The Colossal Cosmic Eye",
+   "sources": [
+    "DSC-SG"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC1365",
+   "name": "Great Barred Spiral Galaxy",
+   "sources": [
+    "TSS",
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC1514",
+   "name": "Crystal Ball Nebula",
+   "sources": [
+    "DSW",
+    "DSC-SD",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC1554",
+   "name": "Struve's Lost Nebula",
+   "sources": [
+    "WSO",
+    "B500",
+    "RNGCIC"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "NGC1566",
+   "name": "Spanish Dancer Galaxy",
+   "sources": [
+    "NASA",
+    "CSOG-BCH"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC1579",
+   "name": "Northern Trifid Nebula",
+   "sources": [
+    "DSW",
+    "DSC-SD",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC1595",
+   "name": "Carafe Group",
+   "sources": [
+    "RNGCIC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC1598",
+   "name": "Carafe Group",
+   "sources": [
+    "RNGCIC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC1647",
+   "name": "Pirate Moon Cluster",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC1763",
+   "name": "Bean Nebula",
+   "sources": [
+    "ISS"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC1817",
+   "name": "Poor Man's Double Cluster",
+   "sources": [
+    "B500",
+    "OGSC",
+    "DSC-SD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC1912",
+   "name": "Starfish Cluster",
+   "sources": [
+    "ESKY",
+    "SEDSM"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC1973",
+   "name": "Running Man Nebula",
+   "sources": [
+    "DN",
+    "ESKY"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC1975",
+   "name": "Running Man Nebula",
+   "sources": [
+    "DN",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC2023",
+   "name": "Lump Star",
+   "sources": [
+    "ESKY"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC2060",
+   "name": "30 Dor B",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "NGC2080",
+   "name": "Ghost Head Nebula",
+   "sources": [],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC2146",
+   "name": "Dusty Hand Galaxy",
+   "sources": [
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC2168",
+   "name": "Shoe-Buckle Cluster",
+   "sources": [
+    "DSW"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "es",
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC2170",
+   "name": "Angel Nebula",
+   "sources": [
+    "APOD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC225",
+   "name": "Sailboat Cluster",
+   "sources": [
+    "DSC-HT",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC2287",
+   "name": "Little Beehive Cluster",
+   "sources": [
+    "DSC-MO",
+    "B500",
+    "CSOG-MSC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC2323",
+   "name": "Heart-Shaped Cluster",
+   "sources": [
+    "CSOG-MSC",
+    "B500",
+    "SEDSM"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "es",
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC2371",
+   "name": "Double Bubble Nebula",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC2409",
+   "name": "Firsse 213",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "NGC2447",
+   "name": "Butterfly Cluster",
+   "sources": [
+    "CSOG-MSC",
+    "SEDSM"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC246",
+   "name": "Skull Nebula",
+   "sources": [
+    "ESKY",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC247",
+   "name": "Needle's Eye Galaxy",
+   "sources": [
+    "APOD",
+    "CSOG-BCH"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC2477",
+   "name": "Termite Hole Cluster",
+   "sources": [
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC2516",
+   "name": "Southern Beehive",
+   "sources": [
+    "ESKY",
+    "DSC-SG",
+    "TLO",
+    "DSC-CO"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC2563",
+   "name": "Cancer Cluster",
+   "sources": [
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC2682",
+   "name": "King Cobra Cluster",
+   "sources": [
+    "DSC-MO",
+    "B500",
+    "CSOG-MSC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "zh",
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC2770",
+   "name": "Supernova Factory",
+   "sources": [],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC281",
+   "name": "Pacman Nebula",
+   "sources": [
+    "ESKY",
+    "DSC-HT",
+    "B500",
+    "TLO"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC2936",
+   "name": "The Penguin Galaxy",
+   "sources": [
+    "S&T"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC300",
+   "name": "Sculptor Pinwheel Galaxy",
+   "sources": [
+    "S&T",
+    "MISC",
+    "WP",
+    "DOCdb",
+    "ABIN"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC3031",
+   "name": "Bode's Nebula",
+   "sources": [
+    "WK",
+    "WSO",
+    "WSG",
+    "PSA",
+    "B500",
+    "RNGCIC",
+    "SEDSM",
+    "U2K"
+   ],
+   "verified_via": "simbad",
+   "translations": [
+    "zh",
+    "es",
+    "ru",
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC3247",
+   "name": "Whirling Dervish Nebula",
+   "sources": [
+    "ISS"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC3324",
+   "name": "The Gabriela Mistral Nebula",
+   "sources": [
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC3344",
+   "name": "Sliced Onion Galaxy",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC3556",
+   "name": "Surfboard Galaxy",
+   "sources": [
+    "SEDS",
+    "SEDSM"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "es",
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC3576",
+   "name": "Statue of Liberty Nebula",
+   "sources": [
+    "APOD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC3628",
+   "name": "Leo Triplet",
+   "sources": [
+    "WK",
+    "DSW",
+    "WSG",
+    "PSA",
+    "CC",
+    "SEDSM",
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC3758",
+   "name": "Owl Galaxy",
+   "sources": [
+    "SGN"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC3992",
+   "name": "Vacuum Cleaner Galaxy",
+   "sources": [
+    "SEDS",
+    "SEDSM"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "es",
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC404",
+   "name": "Mirach's Ghost",
+   "sources": [
+    "DSW",
+    "DSC-HT",
+    "B500",
+    "RNGCIC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC4216",
+   "name": "Silver Streak Galaxy",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC4244",
+   "name": "Silver Needle Galaxy",
+   "sources": [
+    "ESKY",
+    "B500",
+    "DSC-CO",
+    "CO-HOT"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC4254",
+   "name": "Coma Pinwheel Galaxy",
+   "sources": [
+    "SIMBAD",
+    "B500",
+    "SEDSM"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "NGC4303",
+   "name": "Swelling Spiral Galaxy",
+   "sources": [
+    "DSC-MO",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "es",
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC4321",
+   "name": "Mirror Galaxy",
+   "sources": [
+    "DSC-MO",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC4325",
+   "name": "Galaxy Cluster",
+   "sources": [],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC4374",
+   "name": "Markarian's Chain",
+   "sources": [
+    "DSW",
+    "WSG",
+    "CC",
+    "TLO",
+    "RNGCIC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC4406",
+   "name": "Markarian's Chain",
+   "sources": [
+    "WSG",
+    "CC",
+    "TLO",
+    "RNGCIC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "es",
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC4458",
+   "name": "Markarian's Chain",
+   "sources": [
+    "RNGCIC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC4461",
+   "name": "Markarian's Chain",
+   "sources": [
+    "TLO",
+    "RNGCIC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC4473",
+   "name": "Markarian's Chain",
+   "sources": [
+    "CC",
+    "TLO",
+    "RNGCIC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC4477",
+   "name": "Markarian's Chain",
+   "sources": [
+    "CC",
+    "TLO",
+    "RNGCIC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC4535",
+   "name": "The Lost Galaxy of Copeland",
+   "sources": [
+    "B500",
+    "BCH"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC4559",
+   "name": "Koi Fish Galaxy",
+   "sources": [
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC4622",
+   "name": "Backward Galaxy",
+   "sources": [
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC4656",
+   "name": "Hockey Stick Galaxy",
+   "sources": [
+    "B500",
+    "DSW",
+    "DSC-HT"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC4666",
+   "name": "Superwind-Galaxy",
+   "sources": [],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC4736",
+   "name": "Croc's Eye Galaxy",
+   "sources": [
+    "DSC-MO",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "zh",
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC4774",
+   "name": "Kidney Bean Galaxy",
+   "sources": [
+    "WSO",
+    "WSG",
+    "RNGCIC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC4889",
+   "name": "Coma B",
+   "sources": [
+    "ESKY"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC5189",
+   "name": "Spiral Planetary Nebula",
+   "sources": [
+    "TSS",
+    "DSC-SG",
+    "TLO"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC5216",
+   "name": "Keenan's System",
+   "sources": [
+    "NED",
+    "SIMBAD",
+    "RNGCIC",
+    "RASC",
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC541",
+   "name": "Minkowski's Object",
+   "sources": [
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC5892",
+   "name": "Fath 703",
+   "sources": [
+    "NED",
+    "RASC"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "NGC5906",
+   "name": "Splinter Galaxy",
+   "sources": [
+    "WSG",
+    "DSW",
+    "DSC-SD",
+    "DN"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC6171",
+   "name": "The Crucifix Cluster",
+   "sources": [
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "es",
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC6210",
+   "name": "Turtle Nebula",
+   "sources": [
+    "DSW",
+    "DSC-HT",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC6218",
+   "name": "Gumball Globular Cluster",
+   "sources": [
+    "DSC-MO",
+    "CSOG-MSC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC6266",
+   "name": "Flickering Globular Cluster",
+   "sources": [
+    "DSC-MO",
+    "B500",
+    "CSOG-MSC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "es",
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC628",
+   "name": "Phantom Galaxy",
+   "sources": [
+    "DSC-MO",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC6334",
+   "name": "Cat's Paw Nebula",
+   "sources": [
+    "WK",
+    "DSW",
+    "TSS",
+    "DN"
+   ],
+   "verified_via": "simbad",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC6337",
+   "name": "Cheerio Nebula",
+   "sources": [],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC6380",
+   "name": "Tonantzintla 1",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "NGC6531",
+   "name": "Webb's Cross",
+   "sources": [
+    "OGSC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC659",
+   "name": "Yin-Yang Cluster",
+   "sources": [
+    "DSC-HT"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC6613",
+   "name": "Black Swan Cluster",
+   "sources": [
+    "DSC-MO",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC6633",
+   "name": "Tweedledum Cluster",
+   "sources": [
+    "ESKY",
+    "DSC-HT"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC6656",
+   "name": "Great Sagittarius Cluster",
+   "sources": [
+    "B500",
+    "DSC-SG",
+    "CSOG-MSC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC6709",
+   "name": "Flying Unicorn Cluster",
+   "sources": [
+    "DSC-HT"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC6726",
+   "name": "Anteater Nebula",
+   "sources": [
+    "ISS"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC6729",
+   "name": "R CrA Nebula",
+   "sources": [
+    "PAS",
+    "DSC-CO"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC6751",
+   "name": "Dandelion Puffball Nebula",
+   "sources": [
+    "WP",
+    "DSC-SD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC6776",
+   "name": "Pentagon",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "NGC6781",
+   "name": "Snowglobe Nebula",
+   "sources": [
+    "WP",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC6811",
+   "name": "Hole in a Cluster",
+   "sources": [
+    "WP",
+    "DSC-SD",
+    "CSOG-MSC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC6823",
+   "name": "Cloud Sculpting Star Cluster",
+   "sources": [
+    "APOD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC6830",
+   "name": "Poodle Cluster",
+   "sources": [
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC6838",
+   "name": "Angelfish Cluster",
+   "sources": [
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC6885",
+   "name": "20 Vulpeculae Cluster",
+   "sources": [
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC6913",
+   "name": "Cooling Tower Cluster",
+   "sources": [
+    "B500",
+    "SEDSM"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "es",
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC6940",
+   "name": "Mothra Cluster",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC6974",
+   "name": "Veil Nebula",
+   "sources": [
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC6979",
+   "name": "Veil Nebula",
+   "sources": [
+    "DN",
+    "B500",
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC7026",
+   "name": "Cheeseburger Nebula",
+   "sources": [
+    "DSW",
+    "DSC-SD",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC7099",
+   "name": "Jellyfish Cluster",
+   "sources": [
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "es",
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC7209",
+   "name": "Star Lizard Cluster",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC7252",
+   "name": "Atoms for Peace Galaxy",
+   "sources": [
+    "NED",
+    "SIMBAD",
+    "WSG",
+    "RNGCIC",
+    "RASC"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "NGC7317",
+   "name": "Stephan's Quintet",
+   "sources": [
+    "NED",
+    "DSW",
+    "BCH",
+    "DWH",
+    "WSG",
+    "PSA",
+    "RNGCIC",
+    "RASC",
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC7318",
+   "name": "Stephan's Quintet",
+   "sources": [
+    "NED",
+    "DSW",
+    "BCH",
+    "DWH",
+    "WSG",
+    "PSA",
+    "RNGCIC",
+    "RASC",
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC7319",
+   "name": "Stephan's Quintet",
+   "sources": [
+    "NED",
+    "DSW",
+    "BCH",
+    "DWH",
+    "WSG",
+    "PSA",
+    "RNGCIC",
+    "RASC",
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC7320",
+   "name": "Stephan's Quintet",
+   "sources": [
+    "NED",
+    "DSW",
+    "BCH",
+    "DWH",
+    "WSG",
+    "PSA",
+    "RNGCIC",
+    "RASC",
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC7331",
+   "name": "Deer Lick Group",
+   "sources": [
+    "CC",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC7552",
+   "name": "Grus Quartet",
+   "sources": [
+    "NED",
+    "RNGCIC",
+    "RASC",
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC7582",
+   "name": "Grus Quartet",
+   "sources": [
+    "NED",
+    "RNGCIC",
+    "RASC",
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC7654",
+   "name": "The Scorpion Cluster",
+   "sources": [
+    "DSC-MO",
+    "CSOG-MSC",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "NGC7742",
+   "name": "Fried-egg Galaxy",
+   "sources": [],
+   "verified_via": "wikipedia",
+   "translations": [
+    "zh"
+   ]
+  },
+  {
+   "key": "NGC7789",
+   "name": "Caroline's Rose Cluster",
+   "sources": [
+    "OGSC",
+    "APOD",
+    "CSOG-MSC",
+    "B500"
+   ],
+   "verified_via": "wikipedia",
+   "translations": [
+    "es"
+   ]
+  },
+  {
+   "key": "NGC7822",
+   "name": "Question Mark Nebula",
+   "sources": [
+    "APOD",
+    "ABIN"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC87",
+   "name": "Robert's Quartet",
+   "sources": [
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "NGC936",
+   "name": "Darth Vader's Starfighter",
+   "sources": [
+    "DSC-SD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "PGC100169",
+   "name": "Cassiopeia 1",
+   "sources": [
+    "SIMBAD",
+    "WSG"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC10074",
+   "name": "Fornax Dwarf Galaxy",
+   "sources": [
+    "SIMBAD",
+    "RASC"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC139235",
+   "name": "Sextans Ring",
+   "sources": [],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC14212",
+   "name": "Schuster's Spiral Galaxy",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC14225",
+   "name": "Horologium Dwarf Galaxy",
+   "sources": [
+    "NED",
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC15172",
+   "name": "Carafe Nebula",
+   "sources": [
+    "SIMBAD",
+    "NED"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC17223",
+   "name": "Large Magellanic Cloud",
+   "sources": [
+    "WK",
+    "SIMBAD",
+    "BCH",
+    "CCG",
+    "ANO",
+    "TLO"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC17716",
+   "name": "Orion Dwarf Galaxy",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC19441",
+   "name": "Carina Dwarf Galaxy",
+   "sources": [
+    "NED",
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC19481",
+   "name": "Lindsay-Shapley Ring",
+   "sources": [
+    "NED",
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC20125",
+   "name": "Argo Dwarf Irregular Galaxy",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC20348",
+   "name": "Integral Sign Galaxy",
+   "sources": [
+    "NED",
+    "SIMBAD",
+    "WSG"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC2345",
+   "name": "Exclamation Mark Galaxy",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC26071",
+   "name": "Holmberg III",
+   "sources": [
+    "WSG"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC26132",
+   "name": "Grasshopper A",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC26269",
+   "name": "Hydra A",
+   "sources": [
+    "NED",
+    "SIMBAD",
+    "RASC"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC2807155",
+   "name": "Cassiopeia Dwarf Spheroidal Galaxy",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC2807158",
+   "name": "Pegasus Dwarf Galaxy",
+   "sources": [],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC29152",
+   "name": "Revolver Galaxy",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC29529",
+   "name": "Vela Ring Galaxy",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC29653",
+   "name": "Sextans A",
+   "sources": [
+    "NED",
+    "SIMBAD",
+    "U2K"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC3074547",
+   "name": "Boomerang Nebula",
+   "sources": [
+    "SIMBAD",
+    "DSNI"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC3097691",
+   "name": "Cetus Dwarf Galaxy",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC31923",
+   "name": "Spider Galaxy",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC32907",
+   "name": "Ant Galaxy",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC34176",
+   "name": "Leo II Dwarf Galaxy",
+   "sources": [
+    "NED",
+    "SIMBAD",
+    "DWH"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC34696",
+   "name": "A Flying Bird",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC36723",
+   "name": "Wild's Triplet",
+   "sources": [
+    "NED",
+    "SIMBAD",
+    "PSA",
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "PGC36733",
+   "name": "Wild's Triplet",
+   "sources": [
+    "NED",
+    "SIMBAD",
+    "PSA",
+    "U2K"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC36742",
+   "name": "Wild's Triplet",
+   "sources": [
+    "NED",
+    "SIMBAD",
+    "PSA",
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "PGC40012",
+   "name": "Syphon",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC41861",
+   "name": "Holmberg VII",
+   "sources": [
+    "WSG"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC45901",
+   "name": "Hardcastle's Galaxy",
+   "sources": [
+    "NED",
+    "SIMBAD",
+    "RASC"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC47847",
+   "name": "Fourcade-Figueroa Object",
+   "sources": [
+    "NED",
+    "SIMBAD",
+    "RASC"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC49560",
+   "name": "The Dentist's Chair",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC50779",
+   "name": "Circinus Galaxy",
+   "sources": [
+    "NED",
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC52283",
+   "name": "Segner's Wheel",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC59061",
+   "name": "Zwicky's Triplet",
+   "sources": [
+    "NED",
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC59102",
+   "name": "Zwicky's Triplet",
+   "sources": [
+    "NED",
+    "SIMBAD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "PGC59867",
+   "name": "Beaver Galaxy",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC621",
+   "name": "Sculptor Dwarf Irregular Galaxy",
+   "sources": [
+    "NED",
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC6240",
+   "name": "White Rose Galaxy",
+   "sources": [
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "PGC62946",
+   "name": "The Bird",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC64180",
+   "name": "McLeish's Object",
+   "sources": [
+    "NED",
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC6830",
+   "name": "Phoenix Dwarf Galaxy",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC71938",
+   "name": "Barbon's Galaxy",
+   "sources": [
+    "NED",
+    "DSNI",
+    "RASC",
+    "U2K"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC84913",
+   "name": "Superantennae Galaxy",
+   "sources": [
+    "NED"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC88608",
+   "name": "Sextans Dwarf Spheroidal Galaxy",
+   "sources": [],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PGC90170",
+   "name": "Padova 3",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PK064+05.1",
+   "name": "Campbell's Hydrogen Star",
+   "sources": [
+    "SIMBAD",
+    "S&T"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PK164+31.1",
+   "name": "Headphone Nebula",
+   "sources": [
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "PK16606.1",
+   "name": "Westbrook Nebula",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PK283+25.1",
+   "name": "Southern Owl Nebula",
+   "sources": [
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "PK315+09.1",
+   "name": "Southern Crab Nebula",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PK34003.1",
+   "name": "Water Lily Nebula",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PNG004.2+02.1",
+   "name": "Silkworm Nebula",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PNG054.203.4",
+   "name": "Necklace Nebula",
+   "sources": [
+    "HST"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PNG126.6+01.3",
+   "name": "Principes de Asturias Nebula",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PNG250.401.3",
+   "name": "Manzana",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "PNG353.8+02.9",
+   "name": "Cotton Candy Nebula",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "SH2101",
+   "name": "Cygnus Star Cloud",
+   "sources": [],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SH2103",
+   "name": "Cygnus Loop",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SH2106",
+   "name": "Celestial Snow Angel",
+   "sources": [
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SH2114",
+   "name": "Flying Dragon Nebula",
+   "sources": [
+    "WK"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SH2129",
+   "name": "Flying Bat Nebula",
+   "sources": [
+    "APOD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SH2132",
+   "name": "Lion Nebula",
+   "sources": [
+    "ABIN"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SH2174",
+   "name": "Valentine Rose Nebula",
+   "sources": [
+    "MISC"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SH2211",
+   "name": "Tribble Nebulae",
+   "sources": [
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SH2245",
+   "name": "Eridanus Loop",
+   "sources": [
+    "APOD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SH2274",
+   "name": "Medusa Nebula",
+   "sources": [
+    "DSW",
+    "PSA",
+    "DN",
+    "S&T",
+    "SIMBAD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SH2275",
+   "name": "Rosette Nebula",
+   "sources": [
+    "WK",
+    "SIMBAD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SH2276",
+   "name": "Barnard's Loop",
+   "sources": [
+    "WK",
+    "DWH",
+    "DSC-SD",
+    "SIMBAD",
+    "U2K"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SH2296",
+   "name": "Seagull's wings",
+   "sources": [
+    "DSW"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SH282",
+   "name": "Little Cocoon Nebula",
+   "sources": [],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SNRG039.702.0",
+   "name": "Manatee Nebula",
+   "sources": [
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SNRG111.702.1",
+   "name": "Cassiopeia A",
+   "sources": [
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SNRG260.403.4",
+   "name": "Puppis A",
+   "sources": [
+    "WP"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "SNRG315.900.0",
+   "name": "Frying Pan",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "wikipedia",
+   "translations": []
+  },
+  {
+   "key": "UGC4841",
+   "name": "Holmberg III",
+   "sources": [
+    "RASC"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "UGC7739",
+   "name": "Holmberg VII",
+   "sources": [
+    "RASC"
+   ],
+   "verified_via": "simbad",
+   "translations": []
+  },
+  {
+   "key": "UGC9618",
+   "name": "Exclamation Point Galaxy",
+   "sources": [],
+   "verified_via": "wikipedia",
+   "translations": [
+    "ar"
+   ]
+  },
+  {
+   "key": "VDB107",
+   "name": "Antares Nebula",
+   "sources": [
+    "SIMBAD"
+   ],
+   "verified_via": "simbad",
+   "translations": [
+    "de",
+    "zh",
+    "es",
+    "ru",
+    "ar",
+    "ja"
+   ]
+  },
+  {
+   "key": "VDB141",
+   "name": "Ghost Nebula",
+   "sources": [],
+   "verified_via": "wikipedia",
+   "translations": []
+  }
+ ],
+ "rejected_no_confirmation": [
+  {
+   "key": "ACO1020",
+   "name": "Leo Cluster",
+   "sources": [
+    "U2K"
+   ],
+   "stellarium_desig": "ACO 1020"
+  },
+  {
+   "key": "ACO1185",
+   "name": "Leo A Cluster",
+   "sources": [
+    "U2K"
+   ],
+   "stellarium_desig": "ACO 1185"
+  },
+  {
+   "key": "ACO1367",
+   "name": "Leo Cluster",
+   "sources": [
+    "NED",
+    "WP",
+    "WSO",
+    "WSG"
+   ],
+   "stellarium_desig": "ACO 1367"
+  },
+  {
+   "key": "ACO1377",
+   "name": "Ursa Major I",
+   "sources": [
+    "WSG"
+   ],
+   "stellarium_desig": "ACO 1377"
+  },
+  {
+   "key": "ACO151",
+   "name": "Haufen A",
+   "sources": [
+    "WSG",
+    "U2K"
+   ],
+   "stellarium_desig": "ACO 151"
+  },
+  {
+   "key": "ACO194",
+   "name": "Cetus Cluster",
+   "sources": [
+    "WSO"
+   ],
+   "stellarium_desig": "ACO 194"
+  },
+  {
+   "key": "ACO2065",
+   "name": "Corona Borealis Cluster",
+   "sources": [
+    "WP",
+    "DWH",
+    "WSG"
+   ],
+   "stellarium_desig": "ACO 2065"
+  },
+  {
+   "key": "ACO2218",
+   "name": "KESR Galaxy",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "ACO 2218"
+  },
+  {
+   "key": "ACO407",
+   "name": "Zwicky's Nonet",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "ACO 407"
+  },
+  {
+   "key": "ACO520",
+   "name": "Train Wreck Cluster",
+   "sources": [
+    "WP"
+   ],
+   "stellarium_desig": "ACO 520"
+  },
+  {
+   "key": "ACO732",
+   "name": "Hydra II Cluster",
+   "sources": [
+    "U2K"
+   ],
+   "stellarium_desig": "ACO 732"
+  },
+  {
+   "key": "B138",
+   "name": "Black Lizard Nebula",
+   "sources": [
+    "PMW"
+   ],
+   "stellarium_desig": "B 138"
+  },
+  {
+   "key": "B144",
+   "name": "Fish on the Platter",
+   "sources": [
+    "U2K"
+   ],
+   "stellarium_desig": "B 144"
+  },
+  {
+   "key": "B168",
+   "name": "Cocoon Nebula",
+   "sources": [
+    "DN"
+   ],
+   "stellarium_desig": "B 168"
+  },
+  {
+   "key": "B218",
+   "name": "Northern Streamer",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "B 218"
+  },
+  {
+   "key": "B22",
+   "name": "Taurus Dark Cloud",
+   "sources": [
+    "U2K"
+   ],
+   "stellarium_desig": "B 22"
+  },
+  {
+   "key": "B228",
+   "name": "Dark Wolf Nebula",
+   "sources": [
+    "APOD"
+   ],
+   "stellarium_desig": "B 228"
+  },
+  {
+   "key": "B65",
+   "name": "Pipe (stem)",
+   "sources": [
+    "WK"
+   ],
+   "stellarium_desig": "B 65"
+  },
+  {
+   "key": "B66",
+   "name": "Pipe (stem)",
+   "sources": [
+    "WK"
+   ],
+   "stellarium_desig": "B 66"
+  },
+  {
+   "key": "B67",
+   "name": "Pipe (stem)",
+   "sources": [
+    "WK"
+   ],
+   "stellarium_desig": "B 67"
+  },
+  {
+   "key": "B68",
+   "name": "Ink Spot Nebula",
+   "sources": [
+    "WK"
+   ],
+   "stellarium_desig": "B 68"
+  },
+  {
+   "key": "B78",
+   "name": "Pipe (bowl)",
+   "sources": [
+    "WK",
+    "PMW"
+   ],
+   "stellarium_desig": "B 78"
+  },
+  {
+   "key": "B86",
+   "name": "Ink Spot Nebula",
+   "sources": [
+    "WK",
+    "DSW",
+    "CC",
+    "DN",
+    "B500"
+   ],
+   "stellarium_desig": "B 86"
+  },
+  {
+   "key": "B87",
+   "name": "Parrot's Head Nebula",
+   "sources": [
+    "DSW",
+    "PMW",
+    "U2K"
+   ],
+   "stellarium_desig": "B 87"
+  },
+  {
+   "key": "B92",
+   "name": "Black Hole Nebula",
+   "sources": [
+    "DSNI"
+   ],
+   "stellarium_desig": "B 92"
+  },
+  {
+   "key": "B93",
+   "name": "Black Spot Nebula",
+   "sources": [
+    "PMW"
+   ],
+   "stellarium_desig": "B 93"
+  },
+  {
+   "key": "C41",
+   "name": "Hyades",
+   "sources": [
+    "WK",
+    "BCH",
+    "DWH",
+    "PSA",
+    "BH",
+    "CCG",
+    "CSOG-MSC",
+    "PAS",
+    "ANO",
+    "DSC-CO",
+    "CO-HOT"
+   ],
+   "stellarium_desig": "C 41"
+  },
+  {
+   "key": "CED19O",
+   "name": "Atlas Nebula",
+   "sources": [
+    "DSNI"
+   ],
+   "stellarium_desig": "CED 19O"
+  },
+  {
+   "key": "CED211",
+   "name": "R Aqr Nebula",
+   "sources": [
+    "BCH"
+   ],
+   "stellarium_desig": "CED 211"
+  },
+  {
+   "key": "CR135",
+   "name": "π Pup Cluster",
+   "sources": [
+    "OGSC"
+   ],
+   "stellarium_desig": "CR 135"
+  },
+  {
+   "key": "CR140",
+   "name": "Tuft in the Tail of the Dog Cluster",
+   "sources": [],
+   "stellarium_desig": "CR 140"
+  },
+  {
+   "key": "CR233",
+   "name": "η Car Cluster",
+   "sources": [],
+   "stellarium_desig": "CR 233"
+  },
+  {
+   "key": "CR249",
+   "name": "λ Cen Cluster",
+   "sources": [
+    "DSC-CO"
+   ],
+   "stellarium_desig": "CR 249"
+  },
+  {
+   "key": "CR302",
+   "name": "Antares Cluster",
+   "sources": [],
+   "stellarium_desig": "CR 302"
+  },
+  {
+   "key": "CR399",
+   "name": "Coathanger",
+   "sources": [
+    "OGSC",
+    "DSW",
+    "DSC-HT",
+    "BH",
+    "TLO",
+    "U2K"
+   ],
+   "stellarium_desig": "CR 399"
+  },
+  {
+   "key": "CR463",
+   "name": "Loch Ness Moster Cluster",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "CR 463"
+  },
+  {
+   "key": "CR69",
+   "name": "λ Ori Cluster",
+   "sources": [
+    "DSC-HT"
+   ],
+   "stellarium_desig": "CR 69"
+  },
+  {
+   "key": "CR70",
+   "name": "Orion Belt Cluster",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "CR 70"
+  },
+  {
+   "key": "CR89",
+   "name": "9-12 Geminorum Cluster",
+   "sources": [
+    "MISC"
+   ],
+   "stellarium_desig": "CR 89"
+  },
+  {
+   "key": "IC1613",
+   "name": "Scarecrow Galaxy",
+   "sources": [
+    "DSC-CO",
+    "CO-HOT"
+   ],
+   "stellarium_desig": "IC 1613"
+  },
+  {
+   "key": "IC2087",
+   "name": "Little Flame Nebula",
+   "sources": [
+    "MISC",
+    "CSOG-BCH"
+   ],
+   "stellarium_desig": "IC 2087"
+  },
+  {
+   "key": "IC2488",
+   "name": "Strings of Pearl Cluster",
+   "sources": [
+    "DSC-HT"
+   ],
+   "stellarium_desig": "IC 2488"
+  },
+  {
+   "key": "IC2714",
+   "name": "The Rip-Torn Cluster",
+   "sources": [
+    "DSC-SG"
+   ],
+   "stellarium_desig": "IC 2714"
+  },
+  {
+   "key": "IC2948",
+   "name": "λ Cen Nebula",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "IC 2948"
+  },
+  {
+   "key": "IC417",
+   "name": "Spider Nebula",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "IC 417"
+  },
+  {
+   "key": "IC423",
+   "name": "Teardrop Nebula",
+   "sources": [
+    "MISC",
+    "CSOG-BCH"
+   ],
+   "stellarium_desig": "IC 423"
+  },
+  {
+   "key": "IC4321",
+   "name": "Seashell Galaxy",
+   "sources": [
+    "NED"
+   ],
+   "stellarium_desig": "IC 4321"
+  },
+  {
+   "key": "IC4665",
+   "name": "Poseidon's Trident Cluster",
+   "sources": [
+    "B500",
+    "DSW"
+   ],
+   "stellarium_desig": "IC 4665"
+  },
+  {
+   "key": "IC4946",
+   "name": "Shapley-Ames 5",
+   "sources": [
+    "NED"
+   ],
+   "stellarium_desig": "IC 4946"
+  },
+  {
+   "key": "IC4996",
+   "name": "P Cyg Cluster",
+   "sources": [
+    "DSW"
+   ],
+   "stellarium_desig": "IC 4996"
+  },
+  {
+   "key": "IC5173",
+   "name": "Southern Integral Sign",
+   "sources": [
+    "WSG",
+    "RNGCIC"
+   ],
+   "stellarium_desig": "IC 5173"
+  },
+  {
+   "key": "IC59",
+   "name": "γ Cas Nebula",
+   "sources": [
+    "RNGCIC"
+   ],
+   "stellarium_desig": "IC 59"
+  },
+  {
+   "key": "IC63",
+   "name": "γ Cas Nebula",
+   "sources": [
+    "RNGCIC"
+   ],
+   "stellarium_desig": "IC 63"
+  },
+  {
+   "key": "IC708",
+   "name": "Papillon",
+   "sources": [
+    "RNGCIC",
+    "RASC"
+   ],
+   "stellarium_desig": "IC 708"
+  },
+  {
+   "key": "LBN437",
+   "name": "Gecko Nebula",
+   "sources": [
+    "WK"
+   ],
+   "stellarium_desig": "LBN 437"
+  },
+  {
+   "key": "LBN777",
+   "name": "Vulture Head Nebula",
+   "sources": [],
+   "stellarium_desig": "LBN 777"
+  },
+  {
+   "key": "LBN953",
+   "name": "Orion B",
+   "sources": [],
+   "stellarium_desig": "LBN 953"
+  },
+  {
+   "key": "LDN810",
+   "name": "Coalman Nebula",
+   "sources": [
+    "DSW"
+   ],
+   "stellarium_desig": "LDN 810"
+  },
+  {
+   "key": "LDN988",
+   "name": "Pincushion Cloud",
+   "sources": [
+    "S&T",
+    "MISC"
+   ],
+   "stellarium_desig": "LDN 988"
+  },
+  {
+   "key": "NGC1023",
+   "name": "Perseus Lenticular Galaxy",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 1023"
+  },
+  {
+   "key": "NGC1269",
+   "name": "Snow Collar Galaxy",
+   "sources": [
+    "DSC-SG",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 1269"
+  },
+  {
+   "key": "NGC1277",
+   "name": "Relic Galaxy",
+   "sources": [
+    "WP"
+   ],
+   "stellarium_desig": "NGC 1277"
+  },
+  {
+   "key": "NGC1325",
+   "name": "Holmberg VI",
+   "sources": [
+    "RASC"
+   ],
+   "stellarium_desig": "NGC 1325"
+  },
+  {
+   "key": "NGC1333",
+   "name": "Embryo Nebula",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 1333"
+  },
+  {
+   "key": "NGC1342",
+   "name": "Stingray Cluster",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 1342"
+  },
+  {
+   "key": "NGC1360",
+   "name": "Comet Planetary Nebula",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 1360"
+  },
+  {
+   "key": "NGC1407",
+   "name": "Eridanus A Group",
+   "sources": [
+    "DSW"
+   ],
+   "stellarium_desig": "NGC 1407"
+  },
+  {
+   "key": "NGC1528",
+   "name": "m & m Double Cluster",
+   "sources": [
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 1528"
+  },
+  {
+   "key": "NGC1532",
+   "name": "Haley's Coronet",
+   "sources": [
+    "WP"
+   ],
+   "stellarium_desig": "NGC 1532"
+  },
+  {
+   "key": "NGC1545",
+   "name": "m & m Double Cluster",
+   "sources": [
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 1545"
+  },
+  {
+   "key": "NGC1788",
+   "name": "Cosmic Bat Nebula",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 1788"
+  },
+  {
+   "key": "NGC1807",
+   "name": "Poor Man's Double Cluster",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 1807"
+  },
+  {
+   "key": "NGC1893",
+   "name": "Letter Y Cluster",
+   "sources": [
+    "CSOG-MSC"
+   ],
+   "stellarium_desig": "NGC 1893"
+  },
+  {
+   "key": "NGC1910",
+   "name": "S Dor Cluster",
+   "sources": [
+    "BCH"
+   ],
+   "stellarium_desig": "NGC 1910"
+  },
+  {
+   "key": "NGC1931",
+   "name": "The Fly Nebula",
+   "sources": [
+    "ESKY",
+    "DSC-SD",
+    "B500"
+   ],
+   "stellarium_desig": "NGC 1931"
+  },
+  {
+   "key": "NGC1999",
+   "name": "13th Pearl Nebula",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 1999"
+  },
+  {
+   "key": "NGC2018",
+   "name": "Chalice Nebula",
+   "sources": [
+    "ISS"
+   ],
+   "stellarium_desig": "NGC 2018"
+  },
+  {
+   "key": "NGC2022",
+   "name": "Kissing Crescents Nebula",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 2022"
+  },
+  {
+   "key": "NGC2029",
+   "name": "Seagull Nebula",
+   "sources": [
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 2029"
+  },
+  {
+   "key": "NGC2032",
+   "name": "Southern Seagull Nebula",
+   "sources": [
+    "ADI"
+   ],
+   "stellarium_desig": "NGC 2032"
+  },
+  {
+   "key": "NGC2035",
+   "name": "Dragon’s Head Nebula",
+   "sources": [
+    "ESKY",
+    "ADI"
+   ],
+   "stellarium_desig": "NGC 2035"
+  },
+  {
+   "key": "NGC206",
+   "name": "Great Star Cloud in Andromeda Galaxy",
+   "sources": [
+    "B500"
+   ],
+   "stellarium_desig": "NGC 206"
+  },
+  {
+   "key": "NGC2068",
+   "name": "Casper the Friendly Ghost Nebula",
+   "sources": [
+    "B500"
+   ],
+   "stellarium_desig": "NGC 2068"
+  },
+  {
+   "key": "NGC2099",
+   "name": "Auriga Salt and Pepper Cluster",
+   "sources": [
+    "CSOG-MSC",
+    "SEDSM"
+   ],
+   "stellarium_desig": "NGC 2099"
+  },
+  {
+   "key": "NGC2169",
+   "name": "The 37 Cluster",
+   "sources": [
+    "DSC-HT",
+    "B500"
+   ],
+   "stellarium_desig": "NGC 2169"
+  },
+  {
+   "key": "NGC2232",
+   "name": "Double Wedge Cluster",
+   "sources": [
+    "DSW"
+   ],
+   "stellarium_desig": "NGC 2232"
+  },
+  {
+   "key": "NGC2244",
+   "name": "Rosette Nebula",
+   "sources": [
+    "WK",
+    "DSW",
+    "BCH",
+    "DWH",
+    "PSA",
+    "CC",
+    "DN",
+    "CSOG-MSC",
+    "TLO",
+    "RNGCIC",
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 2244"
+  },
+  {
+   "key": "NGC2269",
+   "name": "Head Hunter Cluster",
+   "sources": [
+    "B500"
+   ],
+   "stellarium_desig": "NGC 2269"
+  },
+  {
+   "key": "NGC2327",
+   "name": "Parrot Nebula",
+   "sources": [
+    "APOD",
+    "CSOG-BCH"
+   ],
+   "stellarium_desig": "NGC 2327"
+  },
+  {
+   "key": "NGC2343",
+   "name": "Doublemint Cluster",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 2343"
+  },
+  {
+   "key": "NGC2353",
+   "name": "Avery's Island",
+   "sources": [
+    "DSC-HT",
+    "B500"
+   ],
+   "stellarium_desig": "NGC 2353"
+  },
+  {
+   "key": "NGC2362",
+   "name": "τ CMa Cluster",
+   "sources": [
+    "SIMBAD",
+    "DSW",
+    "CSOG-MSC",
+    "PAS",
+    "DSC-CO",
+    "CO-HOT"
+   ],
+   "stellarium_desig": "NGC 2362"
+  },
+  {
+   "key": "NGC2367",
+   "name": "Charlie Brown's Christmas Tree",
+   "sources": [
+    "DSW"
+   ],
+   "stellarium_desig": "NGC 2367"
+  },
+  {
+   "key": "NGC2420",
+   "name": "Twinkling Comet Cluster",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 2420"
+  },
+  {
+   "key": "NGC2439",
+   "name": "Bold Arrow Cluster",
+   "sources": [
+    "CSOG-MSC"
+   ],
+   "stellarium_desig": "NGC 2439"
+  },
+  {
+   "key": "NGC2440",
+   "name": "Albino Butterfly Nebula",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 2440"
+  },
+  {
+   "key": "NGC2442",
+   "name": "Meathook Galaxy",
+   "sources": [
+    "TSS"
+   ],
+   "stellarium_desig": "NGC 2442"
+  },
+  {
+   "key": "NGC2451",
+   "name": "Stinging Scorpion Cluster",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 2451"
+  },
+  {
+   "key": "NGC249",
+   "name": "Magnificent Seven",
+   "sources": [
+    "ISS"
+   ],
+   "stellarium_desig": "NGC 249"
+  },
+  {
+   "key": "NGC2539",
+   "name": "The Dish Cluster",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 2539"
+  },
+  {
+   "key": "NGC2546",
+   "name": "Heart and Dagger Cluster",
+   "sources": [
+    "B500",
+    "DSC-SG",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 2546"
+  },
+  {
+   "key": "NGC2547",
+   "name": "Golden Earring Cluster",
+   "sources": [
+    "DSC-SG",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 2547"
+  },
+  {
+   "key": "NGC261",
+   "name": "Magnificent Seven",
+   "sources": [
+    "ISS"
+   ],
+   "stellarium_desig": "NGC 261"
+  },
+  {
+   "key": "NGC267",
+   "name": "Magnificent Seven",
+   "sources": [
+    "ISS"
+   ],
+   "stellarium_desig": "NGC 267"
+  },
+  {
+   "key": "NGC2683",
+   "name": "UFO Galaxy",
+   "sources": [
+    "B500",
+    "DSW",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 2683"
+  },
+  {
+   "key": "NGC2686",
+   "name": "Spindle Galaxy",
+   "sources": [],
+   "stellarium_desig": "NGC 2686"
+  },
+  {
+   "key": "NGC2841",
+   "name": "Tiger's Eye Galaxy",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 2841"
+  },
+  {
+   "key": "NGC2899",
+   "name": "Flying Jaw Nebula",
+   "sources": [
+    "ISS"
+   ],
+   "stellarium_desig": "NGC 2899"
+  },
+  {
+   "key": "NGC2937",
+   "name": "The Egg Galaxy",
+   "sources": [
+    "S&T"
+   ],
+   "stellarium_desig": "NGC 2937"
+  },
+  {
+   "key": "NGC3034",
+   "name": "Bode's Nebula",
+   "sources": [
+    "WSO",
+    "WSG",
+    "PSA",
+    "RNGCIC",
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 3034"
+  },
+  {
+   "key": "NGC3077",
+   "name": "The Garland Galaxy",
+   "sources": [
+    "B500",
+    "RASC"
+   ],
+   "stellarium_desig": "NGC 3077"
+  },
+  {
+   "key": "NGC3079",
+   "name": "The Phantom Frisbee Galaxy",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 3079"
+  },
+  {
+   "key": "NGC3114",
+   "name": "Hand Cluster",
+   "sources": [
+    "CSOG-MSC"
+   ],
+   "stellarium_desig": "NGC 3114"
+  },
+  {
+   "key": "NGC3180",
+   "name": "Little Pinwheel Galaxy",
+   "sources": [
+    "DSC-HT",
+    "B500"
+   ],
+   "stellarium_desig": "NGC 3180"
+  },
+  {
+   "key": "NGC3185",
+   "name": "Leo Quartet",
+   "sources": [
+    "WSG"
+   ],
+   "stellarium_desig": "NGC 3185"
+  },
+  {
+   "key": "NGC3187",
+   "name": "Leo Quartet",
+   "sources": [
+    "WSG"
+   ],
+   "stellarium_desig": "NGC 3187"
+  },
+  {
+   "key": "NGC3193",
+   "name": "Leo Quartet",
+   "sources": [
+    "WSG"
+   ],
+   "stellarium_desig": "NGC 3193"
+  },
+  {
+   "key": "NGC3199",
+   "name": "Banana Nebula",
+   "sources": [
+    "WP",
+    "ISS"
+   ],
+   "stellarium_desig": "NGC 3199"
+  },
+  {
+   "key": "NGC3228",
+   "name": "Queen's Cache Cluster",
+   "sources": [
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 3228"
+  },
+  {
+   "key": "NGC3235",
+   "name": "Pincushion Cluster",
+   "sources": [
+    "DSC-CO"
+   ],
+   "stellarium_desig": "NGC 3235"
+  },
+  {
+   "key": "NGC3293",
+   "name": "Gem Cluster",
+   "sources": [
+    "OGSC",
+    "CSOG-MSC",
+    "TLO",
+    "RNGCIC"
+   ],
+   "stellarium_desig": "NGC 3293"
+  },
+  {
+   "key": "NGC3310",
+   "name": "Bow and Arrow Galaxy",
+   "sources": [
+    "MISC",
+    "CSOG-BCH"
+   ],
+   "stellarium_desig": "NGC 3310"
+  },
+  {
+   "key": "NGC3432",
+   "name": "Knitting Needle Galaxy",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 3432"
+  },
+  {
+   "key": "NGC3521",
+   "name": "Bubble Galaxy",
+   "sources": [
+    "ESA-Hubble",
+    "AAPOD2"
+   ],
+   "stellarium_desig": "NGC 3521"
+  },
+  {
+   "key": "NGC362",
+   "name": "75 Tucanae",
+   "sources": [
+    "ISS"
+   ],
+   "stellarium_desig": "NGC 362"
+  },
+  {
+   "key": "NGC3621",
+   "name": "Frame Galaxy",
+   "sources": [
+    "B500",
+    "DSC-SG",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 3621"
+  },
+  {
+   "key": "NGC3623",
+   "name": "Leo Triplet",
+   "sources": [
+    "WK",
+    "DSW",
+    "PSA",
+    "CC",
+    "SEDSM",
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 3623"
+  },
+  {
+   "key": "NGC3627",
+   "name": "Leo Triplet",
+   "sources": [
+    "WK",
+    "DSW",
+    "PSA",
+    "CC",
+    "SEDSM",
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 3627"
+  },
+  {
+   "key": "NGC3745",
+   "name": "Copeland's Septet",
+   "sources": [
+    "NED",
+    "WSO",
+    "WSG",
+    "RNGCIC",
+    "RASC"
+   ],
+   "stellarium_desig": "NGC 3745"
+  },
+  {
+   "key": "NGC3746",
+   "name": "Copeland's Septet",
+   "sources": [
+    "NED",
+    "WSO",
+    "WSG",
+    "RNGCIC",
+    "RASC"
+   ],
+   "stellarium_desig": "NGC 3746"
+  },
+  {
+   "key": "NGC3748",
+   "name": "Copeland's Septet",
+   "sources": [
+    "NED",
+    "WSO",
+    "WSG",
+    "RNGCIC",
+    "RASC"
+   ],
+   "stellarium_desig": "NGC 3748"
+  },
+  {
+   "key": "NGC375",
+   "name": "Pisces Cloud",
+   "sources": [
+    "NED"
+   ],
+   "stellarium_desig": "NGC 375"
+  },
+  {
+   "key": "NGC3750",
+   "name": "Copeland's Septet",
+   "sources": [
+    "NED",
+    "WSO",
+    "WSG",
+    "RNGCIC",
+    "RASC"
+   ],
+   "stellarium_desig": "NGC 3750"
+  },
+  {
+   "key": "NGC3751",
+   "name": "Copeland's Septet",
+   "sources": [
+    "NED",
+    "WSO",
+    "WSG",
+    "RNGCIC",
+    "RASC"
+   ],
+   "stellarium_desig": "NGC 3751"
+  },
+  {
+   "key": "NGC3753",
+   "name": "Copeland's Septet",
+   "sources": [
+    "NED",
+    "WSO",
+    "WSG",
+    "RNGCIC",
+    "RASC"
+   ],
+   "stellarium_desig": "NGC 3753"
+  },
+  {
+   "key": "NGC3754",
+   "name": "Copeland's Septet",
+   "sources": [
+    "NED",
+    "WSO",
+    "WSG",
+    "RNGCIC",
+    "RASC"
+   ],
+   "stellarium_desig": "NGC 3754"
+  },
+  {
+   "key": "NGC4103",
+   "name": "The Longtail",
+   "sources": [
+    "DSC-SG"
+   ],
+   "stellarium_desig": "NGC 4103"
+  },
+  {
+   "key": "NGC4147",
+   "name": "Kick the Can Cluster",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 4147"
+  },
+  {
+   "key": "NGC4169",
+   "name": "The Box",
+   "sources": [
+    "DSW",
+    "WSO",
+    "WSG",
+    "RNGCIC",
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 4169"
+  },
+  {
+   "key": "NGC4170",
+   "name": "The Box",
+   "sources": [
+    "DSW",
+    "WSO",
+    "WSG"
+   ],
+   "stellarium_desig": "NGC 4170"
+  },
+  {
+   "key": "NGC4174",
+   "name": "The Box",
+   "sources": [
+    "DSW",
+    "WSO",
+    "WSG",
+    "RNGCIC",
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 4174"
+  },
+  {
+   "key": "NGC4175",
+   "name": "The Box",
+   "sources": [
+    "DSW",
+    "WSO",
+    "WSG",
+    "RNGCIC",
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 4175"
+  },
+  {
+   "key": "NGC4387",
+   "name": "Great Galactic Face",
+   "sources": [
+    "DSW"
+   ],
+   "stellarium_desig": "NGC 4387"
+  },
+  {
+   "key": "NGC4449",
+   "name": "The Box Galaxy",
+   "sources": [
+    "B500",
+    "DSC-CO",
+    "CO-HOT"
+   ],
+   "stellarium_desig": "NGC 4449"
+  },
+  {
+   "key": "NGC4507",
+   "name": "Shapley-Ames 2",
+   "sources": [
+    "NED"
+   ],
+   "stellarium_desig": "NGC 4507"
+  },
+  {
+   "key": "NGC4526",
+   "name": "Hairy Eyebrow Galaxy",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 4526"
+  },
+  {
+   "key": "NGC4605",
+   "name": "Faberge Egg Galaxy",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 4605"
+  },
+  {
+   "key": "NGC4627",
+   "name": "Pup Galaxy",
+   "sources": [
+    "SGN"
+   ],
+   "stellarium_desig": "NGC 4627"
+  },
+  {
+   "key": "NGC4650",
+   "name": "Centaurus Chain",
+   "sources": [
+    "WSG"
+   ],
+   "stellarium_desig": "NGC 4650"
+  },
+  {
+   "key": "NGC4657",
+   "name": "Fishhook Galaxy",
+   "sources": [
+    "B500"
+   ],
+   "stellarium_desig": "NGC 4657"
+  },
+  {
+   "key": "NGC4699",
+   "name": "Vinyl LP Galaxy",
+   "sources": [
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 4699"
+  },
+  {
+   "key": "NGC4753",
+   "name": "Dust Devil Galaxy",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 4753"
+  },
+  {
+   "key": "NGC4762",
+   "name": "Paper-Kite Galaxy",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 4762"
+  },
+  {
+   "key": "NGC4833",
+   "name": "The Southern Butterfly",
+   "sources": [
+    "DSC-SG",
+    "DSC-CO"
+   ],
+   "stellarium_desig": "NGC 4833"
+  },
+  {
+   "key": "NGC488",
+   "name": "Whirligig Galaxy",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 488"
+  },
+  {
+   "key": "NGC4945",
+   "name": "The Tweezers Galaxy",
+   "sources": [
+    "DSC-SG",
+    "DSC-CO",
+    "CO-HOT"
+   ],
+   "stellarium_desig": "NGC 4945"
+  },
+  {
+   "key": "NGC5033",
+   "name": "Waterbug Galaxy",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 5033"
+  },
+  {
+   "key": "NGC5152",
+   "name": "Fly's Wing Galaxy",
+   "sources": [
+    "SGN"
+   ],
+   "stellarium_desig": "NGC 5152"
+  },
+  {
+   "key": "NGC5153",
+   "name": "Fly's Wing Galaxy",
+   "sources": [
+    "SGN"
+   ],
+   "stellarium_desig": "NGC 5153"
+  },
+  {
+   "key": "NGC5218",
+   "name": "Keenan's System",
+   "sources": [
+    "NED",
+    "SIMBAD",
+    "RNGCIC",
+    "RASC",
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 5218"
+  },
+  {
+   "key": "NGC5281",
+   "name": "Little Scorpion Cluster",
+   "sources": [
+    "DSC-SG",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 5281"
+  },
+  {
+   "key": "NGC5291",
+   "name": "Seashell Galaxy",
+   "sources": [
+    "ESKY"
+   ],
+   "stellarium_desig": "NGC 5291"
+  },
+  {
+   "key": "NGC5394",
+   "name": "The Heron Galaxy",
+   "sources": [
+    "S&T",
+    "DSW"
+   ],
+   "stellarium_desig": "NGC 5394"
+  },
+  {
+   "key": "NGC5395",
+   "name": "The Heron Galaxy",
+   "sources": [
+    "S&T",
+    "DSW"
+   ],
+   "stellarium_desig": "NGC 5395"
+  },
+  {
+   "key": "NGC5421",
+   "name": "Flying Ant Galaxies",
+   "sources": [
+    "SGN"
+   ],
+   "stellarium_desig": "NGC 5421"
+  },
+  {
+   "key": "NGC5466",
+   "name": "Snowglobe Cluster",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 5466"
+  },
+  {
+   "key": "NGC55",
+   "name": "String of Pearls",
+   "sources": [
+    "DSC-SG",
+    "CO-HOT"
+   ],
+   "stellarium_desig": "NGC 55"
+  },
+  {
+   "key": "NGC559",
+   "name": "Ghost's Goblet",
+   "sources": [
+    "DSC-CO"
+   ],
+   "stellarium_desig": "NGC 559"
+  },
+  {
+   "key": "NGC5617",
+   "name": "Dracula Cluster",
+   "sources": [
+    "DSC-SG"
+   ],
+   "stellarium_desig": "NGC 5617"
+  },
+  {
+   "key": "NGC5662",
+   "name": "Gypsy Moth Cluster",
+   "sources": [
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 5662"
+  },
+  {
+   "key": "NGC5882",
+   "name": "Ghost of Uranus",
+   "sources": [
+    "DSC-SG"
+   ],
+   "stellarium_desig": "NGC 5882"
+  },
+  {
+   "key": "NGC5897",
+   "name": "Ghost Globular Cluster",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 5897"
+  },
+  {
+   "key": "NGC5904",
+   "name": "Rose Cluster",
+   "sources": [
+    "B500"
+   ],
+   "stellarium_desig": "NGC 5904"
+  },
+  {
+   "key": "NGC602",
+   "name": "Flying Lizard Nebula",
+   "sources": [
+    "APOD",
+    "CSOG-BCH"
+   ],
+   "stellarium_desig": "NGC 602"
+  },
+  {
+   "key": "NGC6121",
+   "name": "Crab Globular Cluster",
+   "sources": [
+    "B500"
+   ],
+   "stellarium_desig": "NGC 6121"
+  },
+  {
+   "key": "NGC6134",
+   "name": "Little Pincushion",
+   "sources": [
+    "DSC-SG"
+   ],
+   "stellarium_desig": "NGC 6134"
+  },
+  {
+   "key": "NGC6169",
+   "name": "μ Normae Cluster",
+   "sources": [
+    "OGSC"
+   ],
+   "stellarium_desig": "NGC 6169"
+  },
+  {
+   "key": "NGC6229",
+   "name": "Prize Comet Globular Cluster",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 6229"
+  },
+  {
+   "key": "NGC6231",
+   "name": "False Comet Nebula",
+   "sources": [
+    "DSW",
+    "DSC-SG"
+   ],
+   "stellarium_desig": "NGC 6231"
+  },
+  {
+   "key": "NGC6240",
+   "name": "Rumpled Starfish Galaxy",
+   "sources": [
+    "SGN"
+   ],
+   "stellarium_desig": "NGC 6240"
+  },
+  {
+   "key": "NGC6397",
+   "name": "Ara Globular Cluster",
+   "sources": [
+    "ABIN"
+   ],
+   "stellarium_desig": "NGC 6397"
+  },
+  {
+   "key": "NGC6400",
+   "name": "Phantom Cluster",
+   "sources": [
+    "B500",
+    "DSC-SG",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 6400"
+  },
+  {
+   "key": "NGC6451",
+   "name": "Tom Thumb Cluster",
+   "sources": [
+    "CSOG-MSC",
+    "B500"
+   ],
+   "stellarium_desig": "NGC 6451"
+  },
+  {
+   "key": "NGC6503",
+   "name": "Lost in Space Galaxy",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 6503"
+  },
+  {
+   "key": "NGC6520",
+   "name": "Dead Man's Chest Cluster",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 6520"
+  },
+  {
+   "key": "NGC6530",
+   "name": "Herschel 36",
+   "sources": [],
+   "stellarium_desig": "NGC 6530"
+  },
+  {
+   "key": "NGC654",
+   "name": "Fuzzy Butterfly Cluster",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 654"
+  },
+  {
+   "key": "NGC6541",
+   "name": "Cacciatore Cluster",
+   "sources": [
+    "DSC-SG"
+   ],
+   "stellarium_desig": "NGC 6541"
+  },
+  {
+   "key": "NGC6544",
+   "name": "Starfish Cluster",
+   "sources": [
+    "B500",
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 6544"
+  },
+  {
+   "key": "NGC6559",
+   "name": "Chinese Dragon Nebula",
+   "sources": [
+    "MISC",
+    "CSOG-BCH"
+   ],
+   "stellarium_desig": "NGC 6559"
+  },
+  {
+   "key": "NGC6563",
+   "name": "Southern Ring Nebula",
+   "sources": [
+    "B500",
+    "DSC-SG",
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 6563"
+  },
+  {
+   "key": "NGC6621",
+   "name": "Edward's Galaxy",
+   "sources": [
+    "S&T"
+   ],
+   "stellarium_desig": "NGC 6621"
+  },
+  {
+   "key": "NGC6622",
+   "name": "Edward's Galaxy",
+   "sources": [
+    "S&T"
+   ],
+   "stellarium_desig": "NGC 6622"
+  },
+  {
+   "key": "NGC663",
+   "name": "Horseshoe Cluster",
+   "sources": [
+    "DSC-CO",
+    "CO-HOT"
+   ],
+   "stellarium_desig": "NGC 663"
+  },
+  {
+   "key": "NGC6642",
+   "name": "Tadpole Cluster",
+   "sources": [
+    "DSW"
+   ],
+   "stellarium_desig": "NGC 6642"
+  },
+  {
+   "key": "NGC6664",
+   "name": "Santa's Sleigh Cluster",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 6664"
+  },
+  {
+   "key": "NGC6745",
+   "name": "Bird's Head",
+   "sources": [],
+   "stellarium_desig": "NGC 6745"
+  },
+  {
+   "key": "NGC6752",
+   "name": "The Starfish",
+   "sources": [
+    "OGSC",
+    "DSC-SG"
+   ],
+   "stellarium_desig": "NGC 6752"
+  },
+  {
+   "key": "NGC6755",
+   "name": "Possible Binary Cluster",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 6755"
+  },
+  {
+   "key": "NGC6756",
+   "name": "Possible Binary Cluster",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 6756"
+  },
+  {
+   "key": "NGC6778",
+   "name": "Son of M76",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 6778"
+  },
+  {
+   "key": "NGC6804",
+   "name": "Snowball Nebula",
+   "sources": [
+    "DSC-SD",
+    "B500"
+   ],
+   "stellarium_desig": "NGC 6804"
+  },
+  {
+   "key": "NGC6809",
+   "name": "The Summer Rose Star",
+   "sources": [
+    "UT",
+    "AM",
+    "ESKY"
+   ],
+   "stellarium_desig": "NGC 6809"
+  },
+  {
+   "key": "NGC6868",
+   "name": "Telescopium Cluster",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "NGC 6868"
+  },
+  {
+   "key": "NGC6876",
+   "name": "Pavo Galaxy Cluster",
+   "sources": [
+    "ISS"
+   ],
+   "stellarium_desig": "NGC 6876"
+  },
+  {
+   "key": "NGC6894",
+   "name": "Diamond Ring Nebula",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 6894"
+  },
+  {
+   "key": "NGC6907",
+   "name": "Giant Behemoth Galaxy",
+   "sources": [],
+   "stellarium_desig": "NGC 6907"
+  },
+  {
+   "key": "NGC6910",
+   "name": "The Inchworm Cluster",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 6910"
+  },
+  {
+   "key": "NGC6939",
+   "name": "Flying Geese Cluster",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 6939"
+  },
+  {
+   "key": "NGC6996",
+   "name": "Bird's Nest",
+   "sources": [
+    "DSW"
+   ],
+   "stellarium_desig": "NGC 6996"
+  },
+  {
+   "key": "NGC7048",
+   "name": "Peek-a-Boo Nebula",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 7048"
+  },
+  {
+   "key": "NGC7078",
+   "name": "Great Pegasus Cluster",
+   "sources": [
+    "ESKY",
+    "CSOG-MSC"
+   ],
+   "stellarium_desig": "NGC 7078"
+  },
+  {
+   "key": "NGC7160",
+   "name": "Bruce Lee Cluster",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 7160"
+  },
+  {
+   "key": "NGC7380",
+   "name": "Harry Potter and the Golden Snitch",
+   "sources": [
+    "DSC-HT"
+   ],
+   "stellarium_desig": "NGC 7380"
+  },
+  {
+   "key": "NGC7424",
+   "name": "Grand Design Galaxy",
+   "sources": [],
+   "stellarium_desig": "NGC 7424"
+  },
+  {
+   "key": "NGC7499",
+   "name": "Pegasus II",
+   "sources": [
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 7499"
+  },
+  {
+   "key": "NGC7501",
+   "name": "Pegasus II",
+   "sources": [
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 7501"
+  },
+  {
+   "key": "NGC7503",
+   "name": "Pegasus II",
+   "sources": [
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 7503"
+  },
+  {
+   "key": "NGC7510",
+   "name": "The Dormouse Cluster",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 7510"
+  },
+  {
+   "key": "NGC7538",
+   "name": "Northern Lagoon Nebula",
+   "sources": [
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 7538"
+  },
+  {
+   "key": "NGC7590",
+   "name": "Grus Quartet",
+   "sources": [
+    "NED",
+    "RNGCIC",
+    "RASC",
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 7590"
+  },
+  {
+   "key": "NGC7599",
+   "name": "Grus Quartet",
+   "sources": [
+    "NED",
+    "RNGCIC",
+    "RASC",
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 7599"
+  },
+  {
+   "key": "NGC7611",
+   "name": "Pegasus I Cluster",
+   "sources": [
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 7611"
+  },
+  {
+   "key": "NGC7619",
+   "name": "Pegasus I Cluster",
+   "sources": [
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 7619"
+  },
+  {
+   "key": "NGC7626",
+   "name": "Pegasus I Cluster",
+   "sources": [
+    "U2K"
+   ],
+   "stellarium_desig": "NGC 7626"
+  },
+  {
+   "key": "NGC7656",
+   "name": "Anthead Galaxy",
+   "sources": [
+    "SGN"
+   ],
+   "stellarium_desig": "NGC 7656"
+  },
+  {
+   "key": "NGC7732",
+   "name": "Zwicky's Pierced Galaxy",
+   "sources": [
+    "SGN"
+   ],
+   "stellarium_desig": "NGC 7732"
+  },
+  {
+   "key": "NGC7790",
+   "name": "The Widow's Web Cluster",
+   "sources": [
+    "B500",
+    "DSC-SD"
+   ],
+   "stellarium_desig": "NGC 7790"
+  },
+  {
+   "key": "NGC7793",
+   "name": "Bond's Galaxy",
+   "sources": [
+    "DSC-HT",
+    "B500"
+   ],
+   "stellarium_desig": "NGC 7793"
+  },
+  {
+   "key": "NGC7814",
+   "name": "Electric Arc Galaxy",
+   "sources": [
+    "B500",
+    "DSC-CO",
+    "CO-HOT"
+   ],
+   "stellarium_desig": "NGC 7814"
+  },
+  {
+   "key": "NGC89",
+   "name": "Robert's Quartet",
+   "sources": [
+    "WP"
+   ],
+   "stellarium_desig": "NGC 89"
+  },
+  {
+   "key": "NGC891",
+   "name": "The Silver Sliver Galaxy",
+   "sources": [
+    "ESKY",
+    "B500",
+    "WP"
+   ],
+   "stellarium_desig": "NGC 891"
+  },
+  {
+   "key": "PGC120",
+   "name": "Taffy System",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "PGC 120"
+  },
+  {
+   "key": "PGC129",
+   "name": "Taffy System",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "PGC 129"
+  },
+  {
+   "key": "PGC166082",
+   "name": "Camelopardalis A",
+   "sources": [
+    "WSG"
+   ],
+   "stellarium_desig": "PGC 166082"
+  },
+  {
+   "key": "PGC166084",
+   "name": "Camelopardalis B",
+   "sources": [
+    "WSG"
+   ],
+   "stellarium_desig": "PGC 166084"
+  },
+  {
+   "key": "PGC22641",
+   "name": "Phoenix Galaxy",
+   "sources": [
+    "NED"
+   ],
+   "stellarium_desig": "PGC 22641"
+  },
+  {
+   "key": "PGC2513233",
+   "name": "TIE Fighter Galaxy",
+   "sources": [
+    "NASA"
+   ],
+   "stellarium_desig": "PGC 2513233"
+  },
+  {
+   "key": "PGC2791",
+   "name": "Burbidge Chain",
+   "sources": [
+    "RASC",
+    "SIMBAD"
+   ],
+   "stellarium_desig": "PGC 2791"
+  },
+  {
+   "key": "PGC2794",
+   "name": "Burbidge Chain",
+   "sources": [
+    "RASC",
+    "SIMBAD"
+   ],
+   "stellarium_desig": "PGC 2794"
+  },
+  {
+   "key": "PGC2796",
+   "name": "Burbidge Chain",
+   "sources": [
+    "NED",
+    "WSG",
+    "RASC",
+    "SIMBAD"
+   ],
+   "stellarium_desig": "PGC 2796"
+  },
+  {
+   "key": "PGC2906",
+   "name": "Baade's Galaxy A",
+   "sources": [
+    "NED",
+    "RASC"
+   ],
+   "stellarium_desig": "PGC 2906"
+  },
+  {
+   "key": "PGC3097690",
+   "name": "Cepheus I",
+   "sources": [],
+   "stellarium_desig": "PGC 3097690"
+  },
+  {
+   "key": "PGC31141",
+   "name": "Haro II",
+   "sources": [],
+   "stellarium_desig": "PGC 31141"
+  },
+  {
+   "key": "PGC3853",
+   "name": "Shapley-Ames 1",
+   "sources": [
+    "NED"
+   ],
+   "stellarium_desig": "PGC 3853"
+  },
+  {
+   "key": "PGC42911",
+   "name": "Centaurus Chain",
+   "sources": [
+    "WSG"
+   ],
+   "stellarium_desig": "PGC 42911"
+  },
+  {
+   "key": "PGC43345",
+   "name": "Shapley-Ames 3",
+   "sources": [
+    "NED"
+   ],
+   "stellarium_desig": "PGC 43345"
+  },
+  {
+   "key": "PGC44014",
+   "name": "Shapley-Ames 4",
+   "sources": [
+    "NED"
+   ],
+   "stellarium_desig": "PGC 44014"
+  },
+  {
+   "key": "PGC44491",
+   "name": "Imprint of a Foot Galaxy",
+   "sources": [
+    "NED"
+   ],
+   "stellarium_desig": "PGC 44491"
+  },
+  {
+   "key": "PGC54817",
+   "name": "Hooked Galaxy",
+   "sources": [],
+   "stellarium_desig": "PGC 54817"
+  },
+  {
+   "key": "PGC66669",
+   "name": "Shapley-Ames 6",
+   "sources": [
+    "NED"
+   ],
+   "stellarium_desig": "PGC 66669"
+  },
+  {
+   "key": "PGC86622",
+   "name": "Malin II",
+   "sources": [],
+   "stellarium_desig": "PGC 86622"
+  },
+  {
+   "key": "PK010+18.2",
+   "name": "Minkowski's Butterfly",
+   "sources": [
+    "DSW"
+   ],
+   "stellarium_desig": "PK 010+18.2"
+  },
+  {
+   "key": "PK08010.1",
+   "name": "Methuselah Nebula",
+   "sources": [
+    "APOD"
+   ],
+   "stellarium_desig": "PK 080-10.1"
+  },
+  {
+   "key": "PK08608.1",
+   "name": "Baby Dumbbell Nebula",
+   "sources": [
+    "S&T"
+   ],
+   "stellarium_desig": "PK 086-08.1"
+  },
+  {
+   "key": "RCW114",
+   "name": "Dragon's Heart Nebula",
+   "sources": [
+    "APOD"
+   ],
+   "stellarium_desig": "RCW 114"
+  },
+  {
+   "key": "RCW98",
+   "name": "Coffee Bean Nebula",
+   "sources": [
+    "ISS"
+   ],
+   "stellarium_desig": "RCW 98"
+  },
+  {
+   "key": "SH2108",
+   "name": "Sadr Region",
+   "sources": [],
+   "stellarium_desig": "SH2 108"
+  },
+  {
+   "key": "SH2123",
+   "name": "Tick Nebula",
+   "sources": [
+    "ABIN"
+   ],
+   "stellarium_desig": "SH2 123"
+  },
+  {
+   "key": "SH2155",
+   "name": "Cave Nebula",
+   "sources": [
+    "PSA",
+    "PAS",
+    "U2K",
+    "DSC-CO",
+    "CO-HOT"
+   ],
+   "stellarium_desig": "SH2 155"
+  },
+  {
+   "key": "SH2157",
+   "name": "Lobster Claw Nebula",
+   "sources": [
+    "WK"
+   ],
+   "stellarium_desig": "SH2 157"
+  },
+  {
+   "key": "SH2170",
+   "name": "Little Rosette Nebula",
+   "sources": [
+    "ABIN"
+   ],
+   "stellarium_desig": "SH2 170"
+  },
+  {
+   "key": "SH2173",
+   "name": "The Phantom Of The Opera Nebula",
+   "sources": [
+    "MISC"
+   ],
+   "stellarium_desig": "SH2 173"
+  },
+  {
+   "key": "SH2216",
+   "name": "Second Closest Planetary",
+   "sources": [],
+   "stellarium_desig": "SH2 216"
+  },
+  {
+   "key": "SH2261",
+   "name": "Lower's Nebula",
+   "sources": [
+    "PSA",
+    "SIMBAD"
+   ],
+   "stellarium_desig": "SH2 261"
+  },
+  {
+   "key": "SH2264",
+   "name": "λ Ori Molecular Ring",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "SH2 264"
+  },
+  {
+   "key": "SH23",
+   "name": "Green Ring Nebula",
+   "sources": [],
+   "stellarium_desig": "SH2 3"
+  },
+  {
+   "key": "SH2302",
+   "name": "Snowman Nebula",
+   "sources": [],
+   "stellarium_desig": "SH2 302"
+  },
+  {
+   "key": "SH28",
+   "name": "Bear's Claw Nebula",
+   "sources": [
+    "WP"
+   ],
+   "stellarium_desig": "SH2 8"
+  },
+  {
+   "key": "SNRG000.0+00.0",
+   "name": "Sagittarius A East",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "SNRG 000.0+00.0"
+  },
+  {
+   "key": "SNRG078.2+02.1",
+   "name": "γ Cyg supernova remnant",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "SNRG 078.2+02.1"
+  },
+  {
+   "key": "SNRG194.7+00.4",
+   "name": "Origem Loop",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "SNRG 194.7+00.4"
+  },
+  {
+   "key": "SNRG205.5+00.5",
+   "name": "Monoceros Nebula",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "SNRG 205.5+00.5"
+  },
+  {
+   "key": "SNRG266.201.2",
+   "name": "Vela Junior",
+   "sources": [
+    "WP"
+   ],
+   "stellarium_desig": "SNRG 266.2-01.2"
+  },
+  {
+   "key": "SNRG327.6+14.6",
+   "name": "Lupus supernova remnant",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "SNRG 327.6+14.6"
+  },
+  {
+   "key": "SNRG330.0+15.0",
+   "name": "Lupus Loop",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "SNRG 330.0+15.0"
+  },
+  {
+   "key": "SNRG357.7+00.3",
+   "name": "Square Nebula",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "SNRG 357.7+00.3"
+  },
+  {
+   "key": "SNRG357.700.1",
+   "name": "Tornado Nebula",
+   "sources": [
+    "SIMBAD"
+   ],
+   "stellarium_desig": "SNRG 357.7-00.1"
+  },
+  {
+   "key": "VDB149",
+   "name": "Dark Shark Nebula",
+   "sources": [
+    "WK"
+   ],
+   "stellarium_desig": "VDB 149"
+  },
+  {
+   "key": "VDB150",
+   "name": "Dark Shark Nebula",
+   "sources": [
+    "WK"
+   ],
+   "stellarium_desig": "VDB 150"
+  },
+  {
+   "key": "VDB152",
+   "name": "Wolf's Cave Nebula",
+   "sources": [
+    "NASA"
+   ],
+   "stellarium_desig": "VDB 152"
+  }
+ ],
+ "rejected_implausible": [
+  {
+   "key": "CR205",
+   "name": "Markarian 18 Cluster",
+   "sources": []
+  },
+  {
+   "key": "ESO1208",
+   "name": "E2 Cluster",
+   "sources": [
+    "SIMBAD"
+   ]
+  },
+  {
+   "key": "ESO5776",
+   "name": "Hodge 11",
+   "sources": [
+    "SIMBAD"
+   ]
+  },
+  {
+   "key": "ESO869",
+   "name": "Hodge 4",
+   "sources": [
+    "SIMBAD"
+   ]
+  },
+  {
+   "key": "IC2199",
+   "name": "IC 2199 group",
+   "sources": [
+    "WSG"
+   ]
+  },
+  {
+   "key": "NGC128",
+   "name": "NGC 128 group",
+   "sources": [
+    "WSG"
+   ]
+  },
+  {
+   "key": "NGC262",
+   "name": "Markarian 348",
+   "sources": []
+  },
+  {
+   "key": "NGC2769",
+   "name": "NGC 2769 Group",
+   "sources": [
+    "SIMBAD"
+   ]
+  },
+  {
+   "key": "NGC3189",
+   "name": "NGC 3190 Group",
+   "sources": [
+    "BCH",
+    "SIMBAD"
+   ]
+  },
+  {
+   "key": "NGC383",
+   "name": "NGC 383 group",
+   "sources": [
+    "WSG"
+   ]
+  },
+  {
+   "key": "NGC4005",
+   "name": "NGC 4005 group",
+   "sources": [
+    "WSG"
+   ]
+  },
+  {
+   "key": "NGC5044",
+   "name": "NGC 5044 group",
+   "sources": [
+    "WSG"
+   ]
+  },
+  {
+   "key": "NGC507",
+   "name": "NGC 507 group",
+   "sources": [
+    "WSG"
+   ]
+  },
+  {
+   "key": "NGC5195",
+   "name": "M51B",
+   "sources": [
+    "WK"
+   ]
+  },
+  {
+   "key": "NGC5353",
+   "name": "NGC 5353 group",
+   "sources": [
+    "WSG"
+   ]
+  },
+  {
+   "key": "NGC5416",
+   "name": "NGC 5416 group",
+   "sources": [
+    "WSG"
+   ]
+  },
+  {
+   "key": "NGC5629",
+   "name": "NGC 5629 group",
+   "sources": [
+    "WSG"
+   ]
+  },
+  {
+   "key": "NGC7129",
+   "name": "NGC 7129 IR Cluster",
+   "sources": [
+    "SIMBAD"
+   ]
+  },
+  {
+   "key": "NGC7385",
+   "name": "NGC 7385 group",
+   "sources": [
+    "WSG"
+   ]
+  },
+  {
+   "key": "PGC14098",
+   "name": "E1 Cluster",
+   "sources": [
+    "SIMBAD"
+   ]
+  },
+  {
+   "key": "PGC29284",
+   "name": "M81 Dwarf B",
+   "sources": [
+    "SIMBAD"
+   ]
+  },
+  {
+   "key": "SH2240",
+   "name": "Simeis 147",
+   "sources": [
+    "WP",
+    "PSA"
+   ]
+  },
+  {
+   "key": "UGC8058",
+   "name": "Markarian 231",
+   "sources": []
+  }
+ ]
+}

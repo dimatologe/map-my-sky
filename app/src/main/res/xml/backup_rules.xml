@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Enthaelt u.a. den astrometry.net-API-Schluessel: nie ins Legacy-Full-Backup (API 23-30), bleibt lokal. -->
+    <exclude domain="sharedpref" path="sternbild_mapper.xml" />
+</full-backup-content>
