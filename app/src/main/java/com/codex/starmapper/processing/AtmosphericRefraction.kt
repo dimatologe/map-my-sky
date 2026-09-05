@@ -77,4 +77,15 @@ class RefractedPanoramaWcsSolution(
         val pred = projection.directionToPixel(rotEquToPano * apparent) ?: return null
         return residual?.correct(pred) ?: pred
     }
+
+    // Ohne diese Überschreibung würde der 3-Parameter-Aufruf die geerbte, nahtstellensichere
+    // PanoramaWcsSolution-Variante nutzen -- die rechnet mit dem WAHREN statt dem REFRAKTIONS-
+    // gehobenen Richtungsvektor, die Refraktionskorrektur würde also für jeden Aufruf mit
+    // reference!=null stillschweigend übersprungen.
+    override fun skyToImage(point: SkyPoint, imageHeight: Int, reference: Offset?): Offset? {
+        val trueDir = raDecToVector(point.raDegrees.toDouble(), point.decDegrees.toDouble())
+        val apparent = AtmosphericRefraction.apparentDirection(trueDir, zenithEq)
+        val pred = projection.directionToPixel(rotEquToPano * apparent, reference) ?: return null
+        return residual?.correct(pred) ?: pred
+    }
 }

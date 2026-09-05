@@ -16,27 +16,150 @@ import android.os.Environment
 import android.provider.MediaStore
 import androidx.compose.ui.geometry.Offset
 import androidx.core.content.FileProvider
+import androidx.exifinterface.media.ExifInterface
+import com.codex.starmapper.diagnostics.AppDiagnostics
 import com.codex.starmapper.domain.AnnotationLayer
 import com.codex.starmapper.domain.AnnotationOverlay
 import com.codex.starmapper.domain.DEFAULT_DRAW_LAYER_ORDER
 import com.codex.starmapper.domain.DrawLayer
+import com.codex.starmapper.domain.ExportImageFormat
+import com.codex.starmapper.domain.ExportProjectionMode
 import com.codex.starmapper.domain.ExportScale
 import com.codex.starmapper.domain.OverlayLineStyle
 import com.codex.starmapper.domain.OverlayKind
 import com.codex.starmapper.domain.ReticleStyle
 import com.codex.starmapper.domain.constellationImagePoints
 import com.codex.starmapper.domain.constellationNameAnchor
+import com.codex.starmapper.domain.localizedDisplayName
 import com.codex.starmapper.domain.trimmedLineEndpoints
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
+/**
+ * Zusatzkontext NUR für die Export-Diagnose (Nutzer-Auftrag 2026-09-02, "Originalexport"-Audit) -- rein
+ * additiv, betrifft nichts am eigentlichen Render-/Kompressionsverhalten. `null` (Default an beiden
+ * Aufrufstellen) unterdrückt die neue `export_pixel_source`-Diagnosezeile komplett, z.B. für
+ * `onExportSolveCrop`, das kein Original-vs-Working-Bitmap-Unterscheidungsbedürfnis hat.
+ */
+data class ExportSourceDiagnostics(
+    val originalWidth: Int,
+    val originalHeight: Int,
+    val workingWidth: Int,
+    val workingHeight: Int,
+    // "ORIGINAL_FILE", wenn source aus einem frischen Volldekodierung der Bilddatei stammt (nur bei
+    // ExportScale.Original versucht), sonst "WORKING_BITMAP" (das bereits geladene, ggf. für die Anzeige
+    // herunterskalierte Editor-Bitmap -- bei Small/Medium immer, bei Original nur als Rückfall, falls die
+    // Volldekodierung fehlschlug, s. decodeOriginalBitmap-KDoc in StarMapperApp.kt).
+    val backgroundSource: String,
+    val originalFileBytes: Long?,
+)
+
 object ExportRenderer {
+    // JPEG-Kompressionsqualität für den "mit Hintergrund"-Export (Nutzer-Einstellung Jpeg) bei Small/
+    // Medium-Skalierung. 95 statt 100: bei JPEG bringt 100 dort kaum sichtbaren Zusatznutzen, aber oft
+    // spürbar größere Dateien -- etablierter Kompromiss ("visuell verlustfrei") für diese kleineren
+    // Vorschau-/Teilen-Größen. Für ExportScale.Original gilt das NICHT (s. qualityFor) -- dort soll
+    // laut Nutzer-Auftrag 2026-09-02 die höchstmögliche Qualität verwendet werden (kein zusätzlicher
+    // Kompressions-Kompromiss auf Original-Pixeln, nur die ohnehin unvermeidliche JPEG-Neukodierung
+    // selbst, s. Kommentar an writeGPanoXmpMetadata/Bericht "Originalexport").
+    private const val JPEG_QUALITY_SCALED = 95
+    private const val JPEG_QUALITY_ORIGINAL = 100
+
+    // "nur Overlay" (includeBackground=false) bleibt UNABHÄNGIG von der Nutzer-Einstellung immer Png --
+    // JPEG kennt keine Transparenz, ein transparentes Overlay-PNG würde als JPEG seinen Zweck verlieren.
+    // Öffentlich (nicht private): der Aufrufer (StarMapperApp.kt) braucht denselben Wert, um beim Teilen
+    // (Share-Intent) den korrekten MIME-Typ zu setzen -- eine zweite, duplizierte Formel könnte auseinanderlaufen.
+    fun effectiveFormat(imageFormat: ExportImageFormat, includeBackground: Boolean): ExportImageFormat =
+        if (includeBackground) imageFormat else ExportImageFormat.Png
+
+    private fun compressFormatFor(format: ExportImageFormat): Bitmap.CompressFormat = when (format) {
+        ExportImageFormat.Png -> Bitmap.CompressFormat.PNG
+        ExportImageFormat.Jpeg -> Bitmap.CompressFormat.JPEG
+    }
+
+    private fun qualityFor(format: ExportImageFormat, scale: ExportScale): Int = when (format) {
+        ExportImageFormat.Png -> 100 // von Bitmap.compress für PNG ohnehin ignoriert (verlustfrei).
+        ExportImageFormat.Jpeg -> if (scale == ExportScale.Original) JPEG_QUALITY_ORIGINAL else JPEG_QUALITY_SCALED
+    }
+
+    private fun extensionFor(format: ExportImageFormat): String = when (format) {
+        ExportImageFormat.Png -> "png"
+        ExportImageFormat.Jpeg -> "jpg"
+    }
+
+    // Öffentlich, s. effectiveFormat-Kommentar -- derselbe Grund (StarMapperApp.kt braucht den MIME-Typ
+    // fürs Teilen).
+    fun mimeTypeFor(format: ExportImageFormat): String = when (format) {
+        ExportImageFormat.Png -> "image/png"
+        ExportImageFormat.Jpeg -> "image/jpeg"
+    }
+
+    /**
+     * XMP-Paket nach dem Google-"Photo Sphere"-Standard (GPano-Namensraum) -- macht externe Galerie-Apps
+     * (z.B. Samsung, Google Fotos) auf ein volles, unbeschnittenes äquirektangulares 360°-Panorama
+     * aufmerksam (dieselbe Bildgröße für Full-/CroppedArea, da der Export nie beschnitten ist). Nur für
+     * JPEG einbettbar (s. writeGPanoXmpMetadata) -- PNG-Einbettung ist von Betrachter-Apps praktisch nicht
+     * zuverlässig unterstützt.
+     */
+    private fun buildGPanoXmpPacket(widthPx: Int, heightPx: Int): String {
+        // BOM (U+FEFF) im begin-Attribut ist Teil des XMP-Pakethülle-Standards (dient Lesern zur
+        // Kodierungserkennung) -- über den Zahlenwert erzeugt statt eines literalen Zeichens im
+        // Quelltext, um jedes Risiko einer stillen Beschädigung des unsichtbaren Zeichens auszuschließen.
+        val bom = 0xFEFF.toChar()
+        return "<?xpacket begin=\"$bom\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n" +
+            "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n" +
+            " <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n" +
+            "  <rdf:Description rdf:about=\"\"\n" +
+            "    xmlns:GPano=\"http://ns.google.com/photos/1.0/panorama/\"\n" +
+            "    GPano:UsePanoramaViewer=\"True\"\n" +
+            "    GPano:ProjectionType=\"equirectangular\"\n" +
+            "    GPano:FullPanoWidthPixels=\"$widthPx\"\n" +
+            "    GPano:FullPanoHeightPixels=\"$heightPx\"\n" +
+            "    GPano:CroppedAreaImageWidthPixels=\"$widthPx\"\n" +
+            "    GPano:CroppedAreaImageHeightPixels=\"$heightPx\"\n" +
+            "    GPano:CroppedAreaLeftPixels=\"0\"\n" +
+            "    GPano:CroppedAreaTopPixels=\"0\"/>\n" +
+            " </rdf:RDF>\n" +
+            "</x:xmpmeta>\n" +
+            "<?xpacket end=\"w\"?>"
+    }
+
+    /** XMP-Schreiben ist eine sekundäre Zusatz-Eigenschaft -- ein Fehlschlag hier darf den Export selbst
+     *  (bereits erfolgreich geschrieben) nicht ungültig machen, daher `runCatching` mit Diagnose-Log statt
+     *  Exception nach außen. */
+    private fun writeGPanoXmpMetadata(file: File, widthPx: Int, heightPx: Int) {
+        runCatching {
+            val exif = ExifInterface(file.absolutePath)
+            exif.setAttribute(ExifInterface.TAG_XMP, buildGPanoXmpPacket(widthPx, heightPx))
+            exif.saveAttributes()
+        }.onFailure {
+            AppDiagnostics.record("export_xmp_write_failed target=file error=${it.javaClass.simpleName}")
+        }
+    }
+
+    /** Wie [writeGPanoXmpMetadata] (File), aber für einen MediaStore-`Uri` (s. [saveToPictures]) -- über
+     *  einen zweiten, beschreibbaren FileDescriptor auf denselben (bereits geschriebenen) Eintrag, da
+     *  `ExifInterface` einen seekbaren Zugriff zum nachträglichen Einfügen des XMP-Segments braucht (ein
+     *  reiner `OutputStream` von `ContentResolver.openOutputStream` reicht dafür nicht). */
+    private fun writeGPanoXmpMetadata(context: Context, uri: Uri, widthPx: Int, heightPx: Int) {
+        runCatching {
+            context.contentResolver.openFileDescriptor(uri, "rw")?.use { pfd ->
+                val exif = ExifInterface(pfd.fileDescriptor)
+                exif.setAttribute(ExifInterface.TAG_XMP, buildGPanoXmpPacket(widthPx, heightPx))
+                exif.saveAttributes()
+            }
+        }.onFailure {
+            AppDiagnostics.record("export_xmp_write_failed target=uri error=${it.javaClass.simpleName}")
+        }
+    }
+
     fun renderToShareUri(
         context: Context,
         source: Bitmap,
@@ -57,18 +180,47 @@ object ExportRenderer {
         imageInverted: Boolean = false,
         overlayCoordScale: Float = 1f,
         layerDrawOrder: List<DrawLayer> = DEFAULT_DRAW_LAYER_ORDER,
+        imageFormat: ExportImageFormat = ExportImageFormat.Png,
+        // 360°-optimierter Export (neu, additiv -- Default = bisheriges Verhalten für ALLE bestehenden
+        // Aufrufer). wcs wird NUR für die Spherical360-Qualifikationsprüfung + den neuen Renderpfad
+        // gebraucht (s. SphericalOverlayRenderer) -- beeinflusst sonst nichts am bestehenden Export.
+        wcs: WcsSolutionLike? = null,
+        projectionMode: ExportProjectionMode = ExportProjectionMode.Flat,
+        // Reines Qualitäts-EXPERIMENT (Nutzer-Vorgabe 2026-08-30, s. SphericalOverlayRenderer.drawTextMesh)
+        // -- 1 = bisheriges Verhalten für ALLE bestehenden Aufrufer. Wirkt NUR auf Spherical360-Text-Meshes.
+        textSupersampleFactor: Int = 1,
+        // Sprachkürzel für Sternbildnamen (Punkt 10-Nebenfund 2026-08-31: der Konstellations-Namenszweig in
+        // drawOverlays() nutzte bisher IMMER ConstellationPattern.germanName, unabhängig von der App-
+        // Sprache -- anders als DSO-/Sternnamen, die bereits über overlay.text/lang korrekt lokalisiert
+        // sind). Default "en" NUR für Aufrufer ohne Sprachbezug (z.B. onExportSolveCrop, das immer mit
+        // overlays=emptyList() aufruft -- der Wert wird dort nie gelesen); Aufrufer MIT echten Overlays
+        // sollen den tatsächlichen AppLocale.resolvedLanguageTag übergeben.
+        lang: String = "en",
+        sourceDiagnostics: ExportSourceDiagnostics? = null,
     ): Uri {
         val output = renderBitmap(
             source, overlays, scale, includeBackground, includeConstellationAnchors, annotationEraseMask,
             graticule, graticuleThickness, graticuleColorArgb, graticuleOpacity, graticuleShowLabels,
             milkyWay, milkyWayOpacity,
             imageBlurIntensity, imageGrayscale, imageInverted,
-            overlayCoordScale, layerDrawOrder,
+            overlayCoordScale, layerDrawOrder, wcs, projectionMode, textSupersampleFactor, lang,
         )
+        val format = effectiveFormat(imageFormat, includeBackground)
+        val jpegQuality = qualityFor(format, scale)
+        // Bestätigt Plan-Punkt "Spherical360-Renderer nicht an JPEG gekoppelt": renderBitmap() oben
+        // erhält NIE das Zielformat -- die 360°-Warp-Geometrie/-Auflösung/-Qualität ist damit bauartbedingt
+        // für JPEG und PNG identisch, nur dieser eine Kompressionsschritt danach unterscheidet sich.
+        AppDiagnostics.record("spherical_export_format target=share imageFormat=${format.name} outputWidth=${output.width} outputHeight=${output.height}")
         val dir = File(context.cacheDir, "exports").apply { mkdirs() }
         val suffix = if (includeBackground) "bild" else "overlay"
-        val file = File(dir, "sternbild_mapper_${suffix}_${System.currentTimeMillis()}.png")
-        FileOutputStream(file).use { output.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        val file = File(dir, "sternbild_mapper_${suffix}_${System.currentTimeMillis()}.${extensionFor(format)}")
+        FileOutputStream(file).use { output.compress(compressFormatFor(format), jpegQuality, it) }
+        if (format == ExportImageFormat.Jpeg) {
+            writeGPanoXmpMetadata(file, output.width, output.height)
+        }
+        if (sourceDiagnostics != null) {
+            recordPixelSourceDiagnostic(sourceDiagnostics, source, output, jpegQuality, file.length())
+        }
         output.recycle()
 
         return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
@@ -94,6 +246,13 @@ object ExportRenderer {
         imageInverted: Boolean = false,
         overlayCoordScale: Float = 1f,
         layerDrawOrder: List<DrawLayer> = DEFAULT_DRAW_LAYER_ORDER,
+        imageFormat: ExportImageFormat = ExportImageFormat.Png,
+        wcs: WcsSolutionLike? = null,
+        projectionMode: ExportProjectionMode = ExportProjectionMode.Flat,
+        textSupersampleFactor: Int = 1,
+        // s. renderToShareUri-KDoc (Punkt 10-Nebenfund 2026-08-31).
+        lang: String = "en",
+        sourceDiagnostics: ExportSourceDiagnostics? = null,
     ): Uri {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             return renderToShareUri(
@@ -101,7 +260,8 @@ object ExportRenderer {
                 graticule, graticuleThickness, graticuleColorArgb, graticuleOpacity, graticuleShowLabels,
                 milkyWay, milkyWayOpacity,
                 imageBlurIntensity, imageGrayscale, imageInverted,
-                overlayCoordScale, layerDrawOrder,
+                overlayCoordScale, layerDrawOrder, imageFormat, wcs, projectionMode, textSupersampleFactor, lang,
+                sourceDiagnostics,
             )
         }
 
@@ -110,12 +270,15 @@ object ExportRenderer {
             graticule, graticuleThickness, graticuleColorArgb, graticuleOpacity, graticuleShowLabels,
             milkyWay, milkyWayOpacity,
             imageBlurIntensity, imageGrayscale, imageInverted,
-            overlayCoordScale, layerDrawOrder,
+            overlayCoordScale, layerDrawOrder, wcs, projectionMode, textSupersampleFactor, lang,
         )
+        val format = effectiveFormat(imageFormat, includeBackground)
+        val jpegQuality = qualityFor(format, scale)
+        AppDiagnostics.record("spherical_export_format target=save imageFormat=${format.name} outputWidth=${output.width} outputHeight=${output.height}")
         val suffix = if (includeBackground) "bild" else "overlay"
         val values = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, "sternbild_mapper_${suffix}_${System.currentTimeMillis()}.png")
-            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.DISPLAY_NAME, "sternbild_mapper_${suffix}_${System.currentTimeMillis()}.${extensionFor(format)}")
+            put(MediaStore.Images.Media.MIME_TYPE, mimeTypeFor(format))
             put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/Sternbild Mapper")
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }
@@ -125,14 +288,54 @@ object ExportRenderer {
             ?: error("MediaStore konnte keinen Export-URI erzeugen.")
         resolver.openOutputStream(uri).use { stream ->
             requireNotNull(stream) { "MediaStore OutputStream ist null." }
-            output.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            output.compress(compressFormatFor(format), jpegQuality, stream)
+        }
+        if (format == ExportImageFormat.Jpeg) {
+            // Vor dem Freigeben (IS_PENDING=0) -- unser Prozess darf den gerade selbst geschriebenen,
+            // noch ausstehenden Eintrag weiterhin per zweitem FileDescriptor bearbeiten.
+            writeGPanoXmpMetadata(context, uri, output.width, output.height)
         }
         values.clear()
         values.put(MediaStore.Images.Media.IS_PENDING, 0)
         resolver.update(uri, values, null, null)
+        if (sourceDiagnostics != null) {
+            // Dateigröße nach dem Freigeben über den MediaStore-Uri selbst abfragen (kein separater
+            // File-Pfad wie bei renderToShareUri verfügbar) -- statSize liefert die tatsächlich
+            // geschriebene Byte-Zahl, unabhängig vom Kompressions-/Metadaten-Overhead danach.
+            val exportBytes = runCatching {
+                resolver.openFileDescriptor(uri, "r")?.use { it.statSize }
+            }.getOrNull()
+            recordPixelSourceDiagnostic(sourceDiagnostics, source, output, jpegQuality, exportBytes)
+        }
         output.recycle()
         return uri
     }
+
+    /** Gemeinsame Diagnose-Zeile für beide Export-Wege (Nutzer-Auftrag 2026-09-02, "Originalexport"). */
+    private fun recordPixelSourceDiagnostic(
+        d: ExportSourceDiagnostics,
+        source: Bitmap,
+        output: Bitmap,
+        jpegQuality: Int,
+        exportFileBytes: Long?,
+    ) {
+        val backgroundUpscaled = source.width < output.width || source.height < output.height
+        AppDiagnostics.record(
+            "export_pixel_source originalWidth=${d.originalWidth} originalHeight=${d.originalHeight} " +
+                "workingWidth=${d.workingWidth} workingHeight=${d.workingHeight} " +
+                "backgroundSource=${d.backgroundSource} " +
+                "backgroundDecodedWidth=${source.width} backgroundDecodedHeight=${source.height} " +
+                "outputWidth=${output.width} outputHeight=${output.height} backgroundUpscaled=$backgroundUpscaled " +
+                "jpegQuality=$jpegQuality originalFileBytes=${d.originalFileBytes ?: "unknown"} " +
+                "exportFileBytes=${exportFileBytes ?: "unknown"} " +
+                "originalColorProfile=${source.colorSpaceNameOrUnknown()} exportColorProfile=${output.colorSpaceNameOrUnknown()} " +
+                "originalExifPreserved=false",
+        )
+    }
+
+    // Bitmap.getColorSpace() ist erst ab API 26 vorhanden (App-minSdk=26, also immer verfügbar) -- kann
+    // trotzdem null sein (z.B. bei manchen Software-Dekodierungen ohne explizites Profil).
+    private fun Bitmap.colorSpaceNameOrUnknown(): String = colorSpace?.name ?: "unknown"
 
     private fun renderBitmap(
         source: Bitmap,
@@ -153,6 +356,11 @@ object ExportRenderer {
         imageInverted: Boolean = false,
         overlayCoordScale: Float = 1f,
         layerDrawOrder: List<DrawLayer> = DEFAULT_DRAW_LAYER_ORDER,
+        wcs: WcsSolutionLike? = null,
+        projectionMode: ExportProjectionMode = ExportProjectionMode.Flat,
+        textSupersampleFactor: Int = 1,
+        // s. renderToShareUri-KDoc (Punkt 10-Nebenfund 2026-08-31).
+        lang: String = "en",
     ): Bitmap {
         val renderScale = renderScale(source, scale)
         val width = max(1, (source.width * renderScale).toInt())
@@ -182,13 +390,42 @@ object ExportRenderer {
         // Größen/Anker/Namen ist dann die ANZEIGE-Dimension (coordW/coordH).
         val coordW = max(1, (source.width / overlayCoordScale).roundToInt())
         val coordH = max(1, (source.height / overlayCoordScale).roundToInt())
+        // Verhältnis Ziel-Ausgabepixel / logischer Koordinatenraum -- derselbe Faktor, den
+        // canvas.scale(...) gleich auf ALLE Vektor-Zeichenbefehle anwendet (die dadurch verlustfrei in
+        // voller Zielauflösung rasterisieren). Ein Text-MESH ist dagegen ein Rasterbild -- ohne diesen
+        // Faktor an SphericalOverlayRenderer weiterzugeben, würde dessen Zwischen-Bitmap nur in
+        // logischer (Anzeige-)Auflösung gerendert und beim Original-Export (oft outputScale > 1, das
+        // Quellbild wird ja in voller nativer Auflösung neu dekodiert) sichtbar verpixelt hochskaliert
+        // -- Nutzer-Befund 2026-08-30 "360°-Export sichtbar pixeliger als normaler Export".
+        val outputScale = renderScale * overlayCoordScale
         canvas.save()
-        canvas.scale(renderScale * overlayCoordScale, renderScale * overlayCoordScale)
+        canvas.scale(outputScale, outputScale)
 
         // Zeichenreihenfolge der 5 Schichten frei konfigurierbar (Katalog bearbeiten -> Schichten,
         // Nutzerwunsch 2026-08-20) -- 1:1 zur Editor-Vorschau (StarMapperApp.kt EditorCanvas). Bei
         // layerDrawOrder == DEFAULT_DRAW_LAYER_ORDER identisch zur vorherigen fest verdrahteten Reihenfolge
         // (Milchstraße -> Gradnetz -> Sternbilder/Objekte/Sterne).
+        // 360°-optimierter Export (neu): NUR aktiv, wenn explizit gewählt UND die WCS tatsächlich einem
+        // vollständigen 2:1-Panorama mit horizontaler Periode entspricht (dieselbe Projektionsfamilie,
+        // die SphericalOverlayRenderer.pixelToDirection/directionToPixel voraussetzt) -- sonst 100%
+        // unverändertes Altverhalten. `sphericalProjection` bleibt `null`, wenn nicht qualifiziert;
+        // ExportRenderer.drawOverlays (unverändert) bleibt in JEDEM Fall der alleinige Zeichenpfad für
+        // alle Overlays, die SphericalOverlayRenderer.isEligible nicht als warp-fähig einstuft.
+        val qualification = if (projectionMode == ExportProjectionMode.Spherical360) {
+            qualifySpherical(wcs, coordW, coordH)
+        } else {
+            null
+        }
+        val sphericalProjection = (qualification as? SphericalQualification.Qualified)?.projection
+
+        // Diagnose-Zähler (2026-08-29, Nutzer-Vorgabe): reine Mitzählung, ändert nichts am Zeichnen
+        // selbst -- s. spherical_export_dispatch/spherical_export_components am Ende dieser Funktion.
+        var sphericalOverlayCount = 0
+        var normalFallbackCount = 0
+        var skippedAlreadySphericalCount = 0
+        var fallbackUnsupportedCount = 0
+        var warpStats = SphericalOverlayRenderer.WarpStats()
+
         val groupedOverlays = OverlayGeometry.groupByDrawLayer(overlays)
         layerDrawOrder.forEach { layer ->
             when (layer) {
@@ -206,7 +443,24 @@ object ExportRenderer {
                         // Bereiche ausstanzen (das Hintergrundbild liegt außerhalb des Layers und
                         // bleibt erhalten). WYSIWYG zum Editor.
                         val eraseLayer = if (annotationEraseMask != null) canvas.saveLayer(null, null) else -1
-                        drawOverlays(canvas, bucket, includeConstellationAnchors, coordW, coordH)
+                        if (sphericalProjection != null) {
+                            val (warped, flat) = bucket.partition { SphericalOverlayRenderer.isEligible(it) }
+                            warpStats += drawOverlays(
+                                canvas, flat, includeConstellationAnchors, coordW, coordH,
+                                lang, sphericalProjection, outputScale,
+                            )
+                            warpStats += SphericalOverlayRenderer.drawOverlays(
+                                canvas, warped, sphericalProjection, coordW, coordH, outputScale, textSupersampleFactor,
+                            )
+                            sphericalOverlayCount += warped.size
+                            normalFallbackCount += flat.size
+                            flat.forEach { ov ->
+                                if (ov.kind == OverlayKind.Constellation) skippedAlreadySphericalCount++ else fallbackUnsupportedCount++
+                            }
+                        } else {
+                            drawOverlays(canvas, bucket, includeConstellationAnchors, coordW, coordH, lang)
+                            normalFallbackCount += bucket.size
+                        }
                         if (annotationEraseMask != null) {
                             SolveMask.punchOut(canvas, annotationEraseMask, coordW, coordH)
                             canvas.restoreToCount(eraseLayer)
@@ -217,7 +471,111 @@ object ExportRenderer {
         }
         canvas.restore()
 
+        // Diagnose (2026-08-29, Nutzer-Vorgabe "läuft der 360°-Export überhaupt durch den Renderer?"):
+        // exakt EINE Zeile pro Export, egal ob Flat oder Spherical360 gewählt wurde -- zeigt sofort, ob
+        // der Modus überhaupt ankam, ob die WCS qualifiziert hat (und falls nicht: welcher der 4 Checks
+        // sie ablehnte), und wie viele Overlays tatsächlich welchen Zeichenpfad durchlaufen haben.
+        AppDiagnostics.record(
+            "spherical_export_dispatch exportMode=${projectionMode.name} " +
+                "renderer=${if (sphericalProjection != null) "Spherical360" else "Flat"} " +
+                "wcsType=${wcs?.javaClass?.simpleName ?: "null"} " +
+                "qualifyReject=${(qualification as? SphericalQualification.Rejected)?.reason ?: "none"} " +
+                "sphericalRenderWidth=$coordW sphericalRenderHeight=$coordH " +
+                "outputWidth=$width outputHeight=$height textIntermediateScale=${"%.3f".format(outputScale)} " +
+                "supersampleFactor=$textSupersampleFactor antialiasing=true bitmapFiltering=true " +
+                "overlayCount=${overlays.size} " +
+                "sphericalOverlayCount=$sphericalOverlayCount normalFallbackCount=$normalFallbackCount",
+        )
+        if (projectionMode == ExportProjectionMode.Spherical360) {
+            // Nur bei tatsächlich gewähltem Spherical360 -- bei Flat sind alle diese Zähler bedeutungslos
+            // (der gesamte Bestand läuft ohnehin über den unveränderten Flat-Pfad, s. oben).
+            // warpedMarkerCount/warpedEllipseCount sind in diesem PoC-Stand identisch (die einzige heute
+            // warp-fähige Marker-Form IST der näherungsweise kreisförmige Ellipse-Marker) -- getrennt
+            // gehalten, damit ein künftiger zweiter Marker-Typ (z.B. echte Ellipsen) ohne Formatänderung
+            // dazukommen kann. *Attempted-Felder zusätzlich zu den vom Nutzer angefragten *Count-Feldern:
+            // Differenz zu *WarpedCount deckt lautlose Fehlschläge (entartete Basis/Mesh) auf, die vorher
+            // spurlos blieben.
+            AppDiagnostics.record(
+                "spherical_export_components warpedTextCount=${warpStats.textWarped} " +
+                    "warpedMarkerCount=${warpStats.markerWarped} warpedEllipseCount=${warpStats.markerWarped} " +
+                    "warpedLeaderCount=${warpStats.leaderWarped} " +
+                    "skippedAlreadySphericalCount=$skippedAlreadySphericalCount " +
+                    "fallbackUnsupportedCount=$fallbackUnsupportedCount " +
+                    "textAttempted=${warpStats.textAttempted} markerAttempted=${warpStats.markerAttempted} " +
+                    "leaderAttempted=${warpStats.leaderAttempted}",
+            )
+            // Nutzer-Vorgabe 2026-08-30 (zweiter Gerätetest, Semantik-/Größen-/Kollisions-/Tessellations-
+            // Fehler): starDotCount = Sterne korrekt als gefüllter Punkt gezeichnet, starBoundaryCount MUSS
+            // 0 sein (Regressions-Kanarienvogel -- ein Stern als volle Kontur wäre exakt der gemeldete
+            // "Punkt sieht aus wie Ring"-Bug), starSkippedCount = Sterne ohne jede Form (markerRing=false
+            // UND kein markerDot). avgCircleSegments = Ø tatsächlich gezeichnete Pfad-Vertices pro Kreis/
+            // Punkt (Tessellationsdichte). collisionCandidates/-Resolved/-Unresolved = Marker mit Namen,
+            // davon wie viele die Kollisions-Ausweiche (steigende Führungslinienlänge) tatsächlich lösen
+            // konnte.
+            val avgCircleSegments = if (warpStats.circleCount > 0) {
+                warpStats.circleSegmentSum.toFloat() / warpStats.circleCount.toFloat()
+            } else {
+                0f
+            }
+            AppDiagnostics.record(
+                "spherical_export_shapes starDotCount=${warpStats.starDotCount} " +
+                    "starBoundaryCount=${warpStats.starBoundaryCount} starSkippedCount=${warpStats.starSkippedCount} " +
+                    "nonStarBoundaryCount=${warpStats.nonStarBoundaryCount} circleCount=${warpStats.circleCount} " +
+                    "avgCircleSegments=${"%.1f".format(avgCircleSegments)} maxCircleSegments=${warpStats.maxCircleSegments} " +
+                    "collisionCandidates=${warpStats.collisionCandidates} " +
+                    "collisionResolved=${warpStats.collisionResolved} collisionUnresolved=${warpStats.collisionUnresolved}",
+            )
+            // Punkt 14 (Nutzer-Vorgabe 2026-08-31): Zenit-/Nadir-Beschriftung (PolarArcLabel). Min/Max-
+            // Latitude nur aussagekräftig, wenn mindestens ein polar/blend-Label vorkam (sonst bleiben die
+            // WarpStats-Defaults MAX_VALUE/-MAX_VALUE stehen) -- deshalb defensiv auf "n/a" abgebildet statt
+            // einen irreführenden Extremwert zu loggen.
+            val hasPolarLabels = warpStats.polarArcLabelCount + warpStats.poleBlendLabelCount > 0
+            AppDiagnostics.record(
+                "spherical_export_polar normalSphericalLabelCount=${warpStats.normalSphericalLabelCount} " +
+                    "polarArcLabelCount=${warpStats.polarArcLabelCount} poleBlendLabelCount=${warpStats.poleBlendLabelCount} " +
+                    "exactPoleFallbackCount=${warpStats.exactPoleFallbackCount} polarArcGlyphCount=${warpStats.polarArcGlyphCount} " +
+                    "polarArcMinLatitude=${if (hasPolarLabels) "%.2f".format(warpStats.polarArcMinLatitude) else "n/a"} " +
+                    "polarArcMaxLatitude=${if (hasPolarLabels) "%.2f".format(warpStats.polarArcMaxLatitude) else "n/a"} " +
+                    "polarCollisionResolved=${warpStats.polarCollisionResolved} polarCollisionHidden=${warpStats.polarCollisionHidden} " +
+                    "circleMaxProjectedDeviationPx=${"%.3f".format(warpStats.circleMaxProjectedDeviationPx)}",
+            )
+        }
+
         return output
+    }
+
+    /**
+     * Diagnose-Ergebnis der Spherical360-Qualifikationsprüfung (2026-08-29, Nutzer-Vorgabe "läuft der
+     * 360°-Export überhaupt durch den Renderer?"): dieselbe Logik wie zuvor, aber statt bei Nicht-
+     * Qualifikation stillschweigend `null` zu liefern, trägt [Rejected] jetzt einen menschenlesbaren
+     * Grund -- landet unverändert in [spherical_export_dispatch]/im Diagnose-Log, ändert NICHTS an der
+     * eigentlichen Entscheidung (der Aufrufer fällt bei [Rejected] exakt wie vorher aufs Flat-Verhalten
+     * zurück).
+     */
+    private sealed interface SphericalQualification {
+        data class Qualified(val projection: PanoramaProjection) : SphericalQualification
+        data class Rejected(val reason: String) : SphericalQualification
+    }
+
+    /**
+     * Prüft, ob [wcs] für den 360°-optimierten Export tatsächlich geeignet ist: eine [PanoramaWcsSolution]
+     * mit [CylindricalProjection] (die einzige Familie mit einer horizontalen Periode/einem `fx`, s.
+     * [SphericalOverlayRenderer]-Klassenkommentar) UND ein (nahezu) vollständiges 2:1-Bild -- dieselbe
+     * Toleranz wie [FisheyeRefiner.FULL_PANORAMA_ASPECT_TOLERANCE] (2%), hier eigenständig als
+     * Literal geführt, da jene Konstante `private` im Fit-Code bleibt (bewusst nicht exponiert, um den
+     * für das Gradnetz/den Astrometrie-Fit gesperrten Code nicht anzufassen).
+     */
+    private fun qualifySpherical(wcs: WcsSolutionLike?, imageWidth: Int, imageHeight: Int): SphericalQualification {
+        if (wcs == null) return SphericalQualification.Rejected("wcs_null")
+        if (wcs !is PanoramaWcsSolution) return SphericalQualification.Rejected("wcs_type=${wcs.javaClass.simpleName}")
+        val projection = wcs.projection
+        if (projection !is CylindricalProjection) {
+            return SphericalQualification.Rejected("projection_type=${projection.javaClass.simpleName}")
+        }
+        if (imageWidth <= 0 || imageHeight <= 0) return SphericalQualification.Rejected("invalid_image_dimensions")
+        val aspect = imageWidth.toDouble() / imageHeight.toDouble()
+        if (abs(aspect - 2.0) > 0.02) return SphericalQualification.Rejected("aspect_ratio=${"%.4f".format(aspect)}")
+        return SphericalQualification.Qualified(projection)
     }
 
     /** Kombinierte Graustufen-/Invertier-Farbmatrix fürs Basisbild (Export-Pendant zum Editor-ColorFilter). */
@@ -336,13 +694,25 @@ object ExportRenderer {
         }
     }
 
+    /** [lang]/[sphericalProjection]/[outputScale]: Punkt-10-Erweiterung (2026-08-31) -- Sternbild-NAMEN
+     *  (nicht die Linien, die bleiben unverändert flach, s. `SphericalOverlayRenderer.drawConstellationName`-
+     *  KDoc) werden bei gesetztem [sphericalProjection] UND Zenit-/Nadir-Nähe an die sphärische Export-
+     *  Darstellung delegiert; [lang] behebt nebenbei einen eigenständigen Fund (Sternbildnamen nutzten
+     *  bisher IMMER `germanName`, unabhängig von der App-Sprache). Rückgabe = akkumulierte
+     *  [SphericalOverlayRenderer.WarpStats]-Beiträge aus genau diesem Zweig (leer, wenn nie qualifiziert
+     *  -- ALLE bestehenden Aufrufer, die diese 3 Parameter nicht setzen, sehen dadurch exakt das bisherige
+     *  Verhalten UND können die Rückgabe ignorieren). */
     private fun drawOverlays(
         canvas: Canvas,
         overlays: List<AnnotationOverlay>,
         includeConstellationAnchors: Boolean,
         coordWidth: Int,
         coordHeight: Int,
-    ) {
+        lang: String = "en",
+        sphericalProjection: PanoramaProjection? = null,
+        outputScale: Float = 1f,
+    ): SphericalOverlayRenderer.WarpStats {
+        var constellationWarpStats = SphericalOverlayRenderer.WarpStats()
         // "Bildgröße" im Overlay-Koordinatenraum (= Anzeige-Auflösung, NICHT die Ausgabe-Pixel des
         // skalierten Canvas) – wichtig für Anker-/Namen-Maße beim Original-Export.
         val imageMinDim = min(coordWidth, coordHeight)
@@ -412,9 +782,22 @@ object ExportRenderer {
                     }
                     val edgePolylines = overlay.edgePolylines
                     if (edgePolylines != null) {
+                        // Trimmen ZUERST (echte Sternanker), DANACH an der Bild-Naht aufteilen -- die
+                        // neuen Schnittpunkte sind keine Anker und dürfen nicht nochmal angeschnitten
+                        // werden. Identisches Vorgehen wie im Editor (s. StarMapperApp.kt).
                         edgePolylines.forEachIndexed { edgeIndex, poly ->
                             if (poly.size < 2) return@forEachIndexed
-                            drawEdge(trimPolylineEnds(poly, lineTrimGap), edgeIndex)
+                            val trimmed = trimPolylineEnds(poly, lineTrimGap)
+                            // GOLDEN-RUECKBAU 2026-09-03: identisch zum Editor -- Naht-Aufteilung nur
+                            // bei periodischer Projektion (overlay.seamAware, s. dessen KDoc). WYSIWYG.
+                            val pieces = if (overlay.seamAware) {
+                                OverlayGeometry.splitPolylineAtSeam(trimmed, coordWidth)
+                            } else {
+                                listOf(trimmed)
+                            }
+                            pieces.forEach { piece ->
+                                if (piece.size >= 2) drawEdge(piece, edgeIndex)
+                            }
                         }
                     } else {
                         overlay.constellation?.edges.orEmpty().forEachIndexed { edgeIndex, (a, b) ->
@@ -438,26 +821,38 @@ object ExportRenderer {
                         // Anker nur aus den im Bild liegenden Sternen; off-field/gefaltete Sternbilder
                         // bekommen GAR KEINEN Namen (behebt den falsch platzierten Klumpen, wie im Editor).
                         val nameAnchor = overlay.constellationNameAnchor(imgW, imgH)
-                        if (nameAnchor != null) {
-                            // Beschriftung immer voll deckend – Opazität wirkt nur auf Linien/Anker.
-                            textPaint.color = withAlpha(overlay.colorArgb, 1f)
-                            textPaint.textAlign = Paint.Align.CENTER
-                            textPaint.typeface = overlay.font.toTypeface(bold = true)
-                            val nameImg = OverlayGeometry.constellationNameTextSize(overlay)
-                            textPaint.textSize = nameImg
-                            // Abstand zu Ankern/Linien (wie im Editor).
-                            val clearImg = anchorRadius + OverlayGeometry.strokeWidth(overlay.strokeWidth) +
-                                OverlayGeometry.CONSTELLATION_NAME_GAP
-                            val labelX = nameAnchor.x.coerceIn(nameImg, (imgW - nameImg).coerceAtLeast(nameImg))
-                            var baselineY = nameAnchor.y - clearImg
-                            if (baselineY - nameImg < 0f) baselineY = nameAnchor.y + clearImg + nameImg
-                            baselineY = baselineY.coerceIn(nameImg, (imgH - nameImg * 0.3f).coerceAtLeast(nameImg))
-                            canvas.drawText(
-                                overlay.constellation?.germanName.orEmpty(),
-                                labelX,
-                                baselineY,
-                                textPaint,
-                            )
+                        // Punkt-10-Nebenfund: vorher IMMER germanName, unabhängig von der App-Sprache --
+                        // s. Funktions-KDoc. localizedDisplayName ist dieselbe Logik wie die Editor-
+                        // Vorschau (ConstellationPattern.localizedName(), StarMapperApp.kt), nur als reine
+                        // Funktion von [lang] statt Compose-reaktiv.
+                        val displayName = overlay.constellation?.localizedDisplayName(lang).orEmpty()
+                        if (nameAnchor != null && displayName.isNotEmpty()) {
+                            // Punkt 10: nahe Zenit/Nadir -> sphärische PolarArc-/Mesh-Darstellung statt der
+                            // flachen (die Linien/Anker oben bleiben in JEDEM Fall unverändert flach --
+                            // bereits korrekt sky-abgetastet, s. SphericalOverlayRenderer-Klassenkommentar).
+                            val sphericalStats = sphericalProjection?.let { proj ->
+                                SphericalOverlayRenderer.drawConstellationName(
+                                    canvas, overlay, displayName, nameAnchor, proj, coordWidth, coordHeight, outputScale,
+                                )
+                            }
+                            if (sphericalStats != null) {
+                                constellationWarpStats += sphericalStats
+                            } else {
+                                // Beschriftung immer voll deckend – Opazität wirkt nur auf Linien/Anker.
+                                textPaint.color = withAlpha(overlay.colorArgb, 1f)
+                                textPaint.textAlign = Paint.Align.CENTER
+                                textPaint.typeface = overlay.font.toTypeface(bold = true)
+                                val nameImg = OverlayGeometry.constellationNameTextSize(overlay)
+                                textPaint.textSize = nameImg
+                                // Abstand zu Ankern/Linien (wie im Editor).
+                                val clearImg = anchorRadius + OverlayGeometry.strokeWidth(overlay.strokeWidth) +
+                                    OverlayGeometry.CONSTELLATION_NAME_GAP
+                                val labelX = nameAnchor.x.coerceIn(nameImg, (imgW - nameImg).coerceAtLeast(nameImg))
+                                var baselineY = nameAnchor.y - clearImg
+                                if (baselineY - nameImg < 0f) baselineY = nameAnchor.y + clearImg + nameImg
+                                baselineY = baselineY.coerceIn(nameImg, (imgH - nameImg * 0.3f).coerceAtLeast(nameImg))
+                                canvas.drawText(displayName, labelX, baselineY, textPaint)
+                            }
                         }
                     }
                 }
@@ -588,13 +983,16 @@ object ExportRenderer {
                 }
             }
         }
+        return constellationWarpStats
     }
 }
 
 /** Zeichnet den Marker-Namen (DSO/Stern) rechts neben das Symbol – wie im Editor. */
 private fun drawMarkerName(canvas: Canvas, overlay: AnnotationOverlay) {
     // Sternnamen (Star-Ebene) folgen dem Deckkraft-Regler; andere Marker-Namen bleiben voll deckend.
-    val nameAlpha = if (overlay.layer == AnnotationLayer.Star) overlay.opacity else 1f
+    // Punkt 6 (Nutzer-Vorgabe 2026-08-30): overlay.nameOpacityLinked koppelt die Beschriftung
+    // zusätzlich an die Objekt-Deckkraft, unabhängig von der Ebene (bisher NUR für Star fest verdrahtet).
+    val nameAlpha = if (overlay.layer == AnnotationLayer.Star || overlay.nameOpacityLinked) overlay.opacity else 1f
     // Schatten-Alpha an die Namens-Deckkraft koppeln, sonst wirkt der Name bei niedriger Deckkraft dunkel.
     val shadowAlpha = (nameAlpha.coerceIn(0f, 1f) * 255f).roundToInt()
     // Muss 1:1 zu drawShapeNameLabel() im Editor (StarMapperApp.kt) passen -- sonst weicht der Export
@@ -630,19 +1028,13 @@ private fun drawMarkerName(canvas: Canvas, overlay: AnnotationOverlay) {
             OverlayGeometry.LabelAlign.Right -> Paint.Align.RIGHT
             OverlayGeometry.LabelAlign.Center -> Paint.Align.CENTER
         }
-        canvas.drawText(
-            overlay.text,
-            cx + layout.nameAnchor.x,
-            cy + layout.nameAnchor.y + paint.textSize * 0.35f,
-            paint,
-        )
+        val nameX = cx + layout.nameAnchor.x
+        val nameY = cy + layout.nameAnchor.y + paint.textSize * 0.35f
+        canvas.drawText(overlay.text, nameX, nameY, paint)
     } else {
-        canvas.drawText(
-            overlay.text,
-            overlay.center.x + overlay.size.width / 2f + OverlayGeometry.MARKER_NAME_GAP,
-            overlay.center.y + paint.textSize * 0.35f,
-            paint,
-        )
+        val nameX = overlay.center.x + overlay.size.width / 2f + OverlayGeometry.MARKER_NAME_GAP
+        val nameY = overlay.center.y + paint.textSize * 0.35f
+        canvas.drawText(overlay.text, nameX, nameY, paint)
     }
 }
 

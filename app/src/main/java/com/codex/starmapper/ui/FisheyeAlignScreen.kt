@@ -254,8 +254,13 @@ fun FisheyeAlignScreen(
         val active = refs.filter { it.active && !it.deleted }
         if (active.size >= 3) {
             // Mit dem beim Kachel-Lösen gewählten Modell fitten (Fisheye/Equirect/Zyl/Mercator).
+            // enforceFullPanoramaPeriod=true: dieser manuelle Feinjustier-"Goldstandard" kann per
+            // onApply direkt zu lastSolvedWcs werden (s. [[project_gradnetz_randbeschriftung]]
+            // Runde-3-Aufrufstellen-Analyse) -- soll die 360°-Periode genauso respektieren wie der
+            // automatische Kachel-Solve.
             FisheyeRefiner.calibratePanorama(
                 active.map { it.imagePos to it.dir }, imageW, imageH, setOf(projectionKind),
+                enforceFullPanoramaPeriod = true,
             )?.let { currentFit = it.solution; currentRms = it.rms }
         }
         for (r in refs) {

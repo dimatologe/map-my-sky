@@ -103,7 +103,11 @@ object StrokeRenderer {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = colorArgb
             style = Paint.Style.STROKE
-            strokeWidth = width.coerceAtLeast(1f)
+            // Untergrenze 2026-08-30 gesenkt (vorher 1f), konsistent mit OverlayGeometry.strokeWidth --
+            // sonst bliebe ein Zeichnen-/Feature-Strich am Slider-Minimum trotzdem sichtbar dicker als
+            // beabsichtigt (dieser Boden wirkte NACH der Skalierung, hat den Editor-Regler also
+            // stillschweigend übersteuert).
+            strokeWidth = width.coerceAtLeast(0.3f)
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }

@@ -108,6 +108,26 @@ fun isNearAnyAnchor(dir: Vec3, anchorDirs: List<Vec3>, marginRad: Double): Boole
 interface PanoramaProjection {
     fun pixelToDirection(px: Double, py: Double): Vec3?
     fun directionToPixel(dir: Vec3): Offset?
+
+    // Bei periodischen Projektionen (Cylindrical-Familie, Azimut wickelt bei ±180° um) wird der
+    // Azimut relativ zu [reference] entfaltet (auf den Ast am nächsten zu reference gebracht) statt
+    // immer den atan2-Hauptzweig zu liefern -- macht Mehrpunkt-Umrechnungen (z.B. die 4 Ecken eines
+    // Overlays in convertOverlayGeometry) nahtstellen-konsistent: ohne dies würden Ecken, die knapp
+    // auf verschiedenen Seiten der Bild-Naht liegen, auf x-Werte nahe 0 UND nahe der Bildbreite
+    // abgebildet und eine Bounding-Box würde fälschlich fast die volle Breite aufspannen.
+    // reference=null -> Hauptzweig (identisch zu directionToPixel(dir)); Default für alle
+    // nicht-periodischen Projektionen (Stereographic/Fisheye/Rectilinear/Mesh).
+    fun directionToPixel(dir: Vec3, reference: Offset?): Offset? = directionToPixel(dir)
+
+    // Horizontale Periode in BILD-PIXELN, falls diese Projektion horizontal periodisch ist (Cylindrical-
+    // Familie -- eine volle Azimut-Umrundung entspricht exakt dieser Pixel-Distanz in x). `null` für
+    // alle nicht-periodischen Projektionen (Fisheye/Stereographic/Rectilinear/Mesh) -- KEIN horizontales
+    // Umwickeln, unverändertes Verhalten. Nutzer-Vorgabe 2026-08-27: eine Referenz-entfaltete (unwrapped)
+    // Linie kann über mehr als eine Periode hinaus wandern (z.B. bei einem >360°-RA-Schwenk) -- ohne
+    // diese Periode explizit zu kennen, kann ein reines Bildrechteck-Zuschneiden nicht erkennen, dass ein
+    // Linienstück, das knapp außerhalb [0,width] liegt, eine periodisch äquivalente Kopie hat, die knapp
+    // INNERHALB liegen würde -- genau der Mechanismus hinter der ursprünglich gemeldeten Randlücke.
+    fun horizontalPeriodPx(): Double? = null
 }
 
 /** Projektionsart der globalen Panorama-Lösung (Auto-Wahl nach kleinstem Restfehler).
@@ -167,6 +187,17 @@ class CylindricalProjection(
         return Offset(x.toFloat(), y.toFloat())
     }
 
+    override fun directionToPixel(dir: Vec3, reference: Offset?): Offset? {
+        val base = directionToPixel(dir) ?: return null
+        if (reference == null || fx == 0.0) return base
+        // Eine volle Umrundung entspricht 2π im Azimut, also 2π*fx Pixeln in x.
+        val period = abs(fx * 2.0 * PI)
+        if (period == 0.0 || !period.isFinite()) return base
+        val diff = base.x - reference.x
+        val wraps = Math.round(diff / period)
+        return if (wraps == 0L) base else Offset((base.x - wraps * period).toFloat(), base.y)
+    }
+
     override fun pixelToDirection(px: Double, py: Double): Vec3? {
         if (fx == 0.0 || fy == 0.0) return null
         val lambda = (px - cx) / fx
@@ -174,6 +205,14 @@ class CylindricalProjection(
         if (!lambda.isFinite() || !phi.isFinite()) return null
         val cosPhi = cos(phi)
         return Vec3(cosPhi * cos(lambda), cosPhi * sin(lambda), sin(phi))
+    }
+
+    // Identische Formel wie in directionToPixel(dir, reference) oben (dieselbe Periode) -- hier nur
+    // als eigenständig abfragbarer Wert statt in die Ast-Auswahl eingebettet.
+    override fun horizontalPeriodPx(): Double? {
+        if (fx == 0.0) return null
+        val period = abs(fx * 2.0 * PI)
+        return if (period.isFinite() && period > 0.0) period else null
     }
 
     companion object {

@@ -12,6 +12,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Ignore
 import org.junit.Test
+import kotlin.math.abs
 import kotlin.math.hypot
 
 class AstapOverlayMapperTest {
@@ -417,6 +418,56 @@ class AstapOverlayMapperTest {
             "Stern 30 Grad jenseits der Anker-Abdeckung darf nicht gezeichnet werden, auch wenn er " +
                 "nah genug am (zu großzügigen) Schwerpunkt-Radius läge",
             overlays.isEmpty(),
+        )
+    }
+
+    @Test
+    fun edgeAcrossImageSeamStaysConnectedInsteadOfCulled() {
+        // Zwei Sterne 2 Grad auseinander (RA 179/181), straddeln also die 360-Grad-Bild-Naht
+        // (Equirectangular-Hauptzweig bei RA=180 Grad -> Azimut kippt von +pi auf -pi). VOR dem
+        // Nahtstellen-Fix (2026-08-24) projizierte jeder Stern unabhängig über den Hauptzweig:
+        // x ~= 812,4 bzw. ~= 187,6 (~625px auseinander, weit über der 3.5x-erwartet-Kante-Cull-
+        // Schwelle) -> die Kante wurde verworfen, das ganze 2-Sterne/1-Kanten-Muster damit leer.
+        // Nach dem Fix (gemeinsame Muster-Mitte als Entfaltungs-Referenz) landen beide auf demselben
+        // Ast (~812-816, ~3,5px auseinander, passend zur wahren 2-Grad-Trennung x 1,745 px/Grad bei
+        // fx=100) -> Kante bleibt erhalten.
+        val solution = PanoramaWcsSolution(
+            CylindricalProjection(cx = 500.0, cy = 400.0, fx = 100.0, fy = 100.0, kind = PanoProjectionKind.Equirectangular),
+            Mat3.IDENTITY,
+        )
+        val pattern = ConstellationPattern(
+            id = "Tst",
+            name = "Test",
+            germanName = "Test",
+            hemisphere = Hemisphere.Both,
+            stars = listOf(
+                StarNode("A", 0f, 0f, 179f / 15f, 0f),
+                StarNode("B", 0f, 0f, 181f / 15f, 0f),
+            ),
+            edges = listOf(0 to 1),
+        )
+
+        val overlays = AstapOverlayMapper.createConstellationOverlays(
+            catalog = listOf(pattern),
+            solution = solution,
+            imageWidth = 1000,
+            imageHeight = 800,
+            colorArgb = 0xFFFFFFFF,
+            strokeWidth = 3f,
+            anchorRadiusRatio = 0.045f,
+            lineStyle = OverlayLineStyle.Solid,
+            opacity = 1f,
+            showNames = true,
+            nameTextSize = 30f,
+        )
+
+        assertEquals(1, overlays.size)
+        val anchors = overlays.single().anchorOverrides
+        assertEquals(2, anchors.size)
+        assertTrue(
+            "Beide Sterne müssen nach der Entfaltung auf demselben Ast liegen (nah beieinander), " +
+                "nicht ~625px auseinander wie vor dem Fix",
+            abs(anchors[0]!!.x - anchors[1]!!.x) < 20f,
         )
     }
 

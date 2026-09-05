@@ -65,6 +65,29 @@ object FisheyeRefiner {
     // Stereographic/Zylinder-Modelle: verringern.
     private const val COMPLEXITY_PENALTY_WEIGHT = 1.0
 
+    // Nutzer-Vorgabe 2026-08-28 (Runde 3, Punkt 1/2 -- Periodenfehler-Root-Cause): fitCylindrical()
+    // fittet cx/cy/fx/fy/Rotation vollkommen frei per Levenberg-Marquardt gegen die beobachteten
+    // Sternpositionen -- NICHTS in diesem Fit kennt/erzwingt, dass ein vollständiges 2:1-Equirectangular-
+    // Panorama seine Textur-Periode exakt bei imageWidth hat (`horizontalPeriodPx = |fx*2π|` ist ein
+    // reines FIT-Ergebnis, kein geometrischer Fakt). Für dieses Testfoto (6500x3250) ergab der freie Fit
+    // horizontalPeriodPx=6477.4297 statt 6500 -- 22,57px Differenz, exakt der vom Nutzer gemessene
+    // verbleibende DEC-Abschlussfehler in microGapFindings. FULL_PANORAMA_ASPECT_TOLERANCE: wie nah
+    // imageWidth/imageHeight an exakt 2,0 liegen muss, um als "echtes vollständiges 2:1-Panorama" zu
+    // gelten (2% -- ein sauber gestitchtes Panorama liegt normalerweise auf wenige Pixel genau bei
+    // exakt 2:1, 2% ist großzügig genug für Rundungsreste beim Stitchen/Export, aber eng genug, um ein
+    // zufällig ähnlich breites normales Foto nicht fälschlich als Panorama zu behandeln).
+    private const val FULL_PANORAMA_ASPECT_TOLERANCE = 0.02
+
+    // Wie viel relativer RMS-Anstieg akzeptiert wird, um die harte horizontalPeriodPx=imageWidth-
+    // Nebenbedingung zu übernehmen (>1.0 = Verschlechterung erlaubt, 1.0 = keine). 1.10 = höchstens 10%
+    // schlechter als der freie Fit -- bewusst konservativ ("ohne die Sternanpassung unnötig zu
+    // verschlechtern", Nutzer-Vorgabe): die verbleibenden 6 freien Parameter (cx,cy,fy,Rotation) fangen
+    // den Großteil der durch die fx-Fixierung "verlorenen" Fit-Freiheit i.d.R. wieder auf, wenn das Foto
+    // tatsächlich sauber gestitcht ist -- ein GROSSER RMS-Sprung wäre dagegen ein Signal, dass das Foto
+    // selbst nicht wirklich diese exakte Periode hat (z.B. echte Stitching-Verzerrung), dann bleibt der
+    // freie Fit die bessere Wahl für die Sternpositionsgenauigkeit (Vorrang vor perfekter Netz-Topologie).
+    private const val FULL_PANORAMA_PERIOD_MAX_RMS_RATIO = 1.10
+
     data class Result(
         val solution: PanoramaWcsSolution,
         val matchedStars: Int,
@@ -339,8 +362,15 @@ object FisheyeRefiner {
             val stride = refs.size.toDouble() / maxPerTile
             (0 until maxPerTile).map { i -> refs[(i * stride).toInt().coerceAtMost(refs.size - 1)] }
         }
+        // FIX (Untersuchungsauftrag 2026-08-31, Stage-2-Koordinatenfehler): für eine Tiny-Sky-Kachel
+        // (tw.corrRefsAlreadyNative) ist [local] bereits eine native Pixel-Position (s. TileWcs-KDoc) --
+        // die Addition von tileOffsetX/Y (dort nur eine grobe Mosaik-Fallback-Näherung, KEIN Kachel-
+        // Ursprung) würde sie um genau diesen -- oft tausende Pixel großen -- Betrag verfälschen. Für
+        // eine normale Kachel (tw.corrRefsAlreadyNative == false, unverändertes Verhalten) bleibt die
+        // Addition unverändert nötig, da [local] dort weiterhin kachel-lokal ist.
         sampled.map { (local, dir) ->
-            Offset(local.x + tw.tileOffsetX, local.y + tw.tileOffsetY) to dir
+            val global = if (tw.corrRefsAlreadyNative) local else Offset(local.x + tw.tileOffsetX, local.y + tw.tileOffsetY)
+            global to dir
         }
     }
 
@@ -411,6 +441,134 @@ object FisheyeRefiner {
         2.0 * n * ln(rms) + COMPLEXITY_PENALTY_WEIGHT * paramCountFor(kind) * ln(n.toDouble())
 
     /**
+     * Geometrische Plausibilität des Bild-FUSSABDRUCKS eines Kandidaten (Nutzer-Auftrag 2026-09-03, A4).
+     *
+     * Hintergrund (Gerätebefund): ein Mercator-Fit gewann die Auswahl mit dem besten RMS auf den Ankern,
+     * bildete danach aber PRAKTISCH DEN GANZEN HIMMEL ins Bildrechteck ab (`constellation_audit ...
+     * not_in_fov=0` bei einem normalen 6392x4101-Foto). Das ist kein Bug in der FOV-Prüfung, sondern
+     * echte Geometrie eines entarteten Fits: die Cylindrical-Familie bildet mit `x = cx + fx*lambda` ab,
+     * die volle Azimut-Umrundung belegt also nur `2*PI*fx` Pixel. Wird der Bildausschnitt beim Fit nahe
+     * den Mercator-Pol gelegt (dort ist `asinh(tan(phi))` extrem expansiv), passt derselbe kleine
+     * Ankersatz auch mit WINZIGEM `fx` -- und dann liegt der komplette Himmel innerhalb weniger tausend
+     * Pixel. Der Fit ist auf den Ankern gut und trotzdem als Kameramodell absurd.
+     *
+     * Messgrößen, beide rein geometrisch (keine Sternbild-Zählung, keine Namensliste):
+     * - [angularSpanDeg]: größter paarweiser Winkelabstand der Richtungen, auf die das BILDRECHTECK
+     *   (Rand + Mitte) unter diesem Modell abbildet -- "wie viel Himmel behauptet das Modell zu zeigen".
+     * - [supportSpanDeg]: derselbe Wert für die tatsächlich GELÖSTEN Anker -- "wie viel Himmel ist
+     *   wirklich belegt".
+     * - [wrapDetected]: das Bild enthält mindestens eine volle Azimut-Umrundung (nur bei periodischen
+     *   Projektionen möglich) -- rein informativ, allein KEIN Ausschlussgrund (ein echtes 360°-Panorama
+     *   tut das zu Recht).
+     *
+     * [plausible] hängt bewusst NICHT an einem getunten Winkel-Schwellwert, sondern an einer
+     * strukturellen Aussage:
+     *
+     *   abgelehnt genau dann, wenn (a) EINE VOLLE Azimut-Umrundung in den Bildbereich passt, den die
+     *   Sternbild-Platzierung als "nah am Bild" wertet ([wrapDetected]; nur bei periodischen
+     *   Projektionen überhaupt möglich, `horizontalPeriodPx <= 2*imageWidth` -- exakt der ±50%-Überstand
+     *   aus `AstapOverlayMapper.createConstellationOverlays`), UND (b) die gelösten Anker selbst nicht
+     *   einmal die halbe Umrundung belegen ([supportAzimuthSpanDeg] < 180°).
+     *
+     * Damit ist ein echtes 360°-Panorama nie betroffen (dort belegen die Kacheln den vollen Azimut), und
+     * Fisheye/Stereographic/Rectilinear können strukturell gar nicht betroffen sein (`horizontalPeriodPx`
+     * ist dort `null` -- kein Wrap, keine Ablehnung). Betroffen ist ausschließlich die Cylindrical-
+     * Familie in genau dem Fall, in dem sie den ganzen Himmel ins Bild faltet, ohne dass die Daten das
+     * hergeben. [angularSpanDeg]/[supportSpanDeg] werden weiterhin gemessen und protokolliert, gehen aber
+     * NICHT in die Entscheidung ein (reine Transparenz-Größen).
+     */
+    data class FootprintSanity(
+        val angularSpanDeg: Double,
+        val supportSpanDeg: Double,
+        val supportAzimuthSpanDeg: Double,
+        val wrapDetected: Boolean,
+        val plausible: Boolean,
+        val reason: String,
+    )
+
+    private const val FOOTPRINT_MAX_SAMPLED_REFERENCES = 200
+
+    /** Azimut-Abdeckung (Grad) der Anker IM PANO-RAHMEN des Kandidaten: 360° minus der größten Lücke
+     *  auf dem Kreis. Weniger als 2 Anker -> 0. */
+    private fun azimuthSpanDeg(lambdasDeg: List<Double>): Double {
+        if (lambdasDeg.size < 2) return 0.0
+        val sorted = lambdasDeg.map { ((it % 360.0) + 360.0) % 360.0 }.sorted()
+        var largestGap = 360.0 - (sorted.last() - sorted.first())
+        for (i in 1 until sorted.size) {
+            val gap = sorted[i] - sorted[i - 1]
+            if (gap > largestGap) largestGap = gap
+        }
+        return (360.0 - largestGap).coerceIn(0.0, 360.0)
+    }
+
+    private fun maxPairwiseAngleDeg(dirs: List<Vec3>): Double {
+        var best = 0.0
+        for (i in dirs.indices) {
+            for (j in i + 1 until dirs.size) {
+                val dot = (dirs[i].x * dirs[j].x + dirs[i].y * dirs[j].y + dirs[i].z * dirs[j].z)
+                    .coerceIn(-1.0, 1.0)
+                val a = Math.toDegrees(acos(dot))
+                if (a > best) best = a
+            }
+        }
+        return best
+    }
+
+    fun evaluateFootprint(
+        calibration: PanoCalibration,
+        references: List<Pair<Offset, Vec3>>,
+        imageWidth: Int,
+        imageHeight: Int,
+    ): FootprintSanity {
+        val proj = calibration.solution.projection
+        val w = imageWidth.toDouble()
+        val h = imageHeight.toDouble()
+        val samples = ArrayList<Vec3>(25)
+        for (iy in 0..4) {
+            for (ix in 0..4) {
+                proj.pixelToDirection(w * ix / 4.0, h * iy / 4.0)?.let { samples += it.normalized() }
+            }
+        }
+        // "Nah am Bild" ist in AstapOverlayMapper.createConstellationOverlays [-0.5W, 1.5W], also 2W
+        // breit -- passt eine volle Umrundung (horizontalPeriodPx) da hinein, gilt JEDE Himmelsrichtung
+        // als bildnah. Genau das ist die beobachtete Pathologie (not_in_fov=0).
+        val wrapDetected = proj.horizontalPeriodPx()?.let { it <= 2.0 * w } == true
+        val rot = calibration.solution.rotEquToPano
+        // maxPairwiseAngleDeg ist O(n^2) und diese Bewertung läuft pro Kandidat (also bis zu 7x je Fit,
+        // auch bei jedem Projektionswechsel). Bei sehr vielen Ankern gleichmäßig ausdünnen -- für eine
+        // Spannweiten-/Abdeckungs-Aussage völlig ausreichend, hält die Kosten konstant.
+        val stride = maxOf(1, references.size / FOOTPRINT_MAX_SAMPLED_REFERENCES)
+        val sampledRefs = references.filterIndexed { i, _ -> i % stride == 0 }
+        val supportAzimuthSpan = azimuthSpanDeg(
+            sampledRefs.map { (_, dir) ->
+                val p = rot * dir.normalized()
+                Math.toDegrees(kotlin.math.atan2(p.y, p.x))
+            },
+        )
+        val angularSpan = if (samples.size >= 3) maxPairwiseAngleDeg(samples) else 0.0
+        val supportSpan = maxPairwiseAngleDeg(sampledRefs.map { it.second.normalized() })
+        // Ein Bild mit echtem 2:1-Seitenverhältnis IST ein Vollpanorama -- dort ist eine volle
+        // Umrundung im Bild per Definition richtig, auch wenn (noch) nur wenige, gebündelte Kacheln
+        // gelöst sind. Diese Klasse wird deshalb NIE ausgeschlossen: sonst könnte ein sparsam gekacheltes
+        // Panorama plötzlich Fisheye statt Cylindrical/Equirectangular wählen und damit die
+        // eingefrorene Gradnetz-/Perioden-Mechanik (enforceFullPanoramaPeriod) umgehen.
+        val looksLikeFullPanorama = h > 0.0 && abs(w / h - 2.0) <= FULL_PANORAMA_ASPECT_TOLERANCE
+        val implausible = wrapDetected && !looksLikeFullPanorama && supportAzimuthSpan < 180.0
+        return FootprintSanity(
+            angularSpanDeg = angularSpan,
+            supportSpanDeg = supportSpan,
+            supportAzimuthSpanDeg = supportAzimuthSpan,
+            wrapDetected = wrapDetected,
+            plausible = !implausible,
+            reason = when {
+                implausible -> "full_azimuth_wrap_inside_image_without_anchor_support"
+                wrapDetected -> "ok_full_wrap_but_anchors_cover_azimuth"
+                else -> "ok"
+            },
+        )
+    }
+
+    /**
      * Fittet aus festen Referenzen (Pixel ↔ äquatoriale Richtung) das am besten passende
      * Panorama-Modell aus [allowed] und gibt das mit dem kleinsten Reprojektions-Restfehler zurück.
      * So funktioniert es für echte Fisheye-Objektive UND für gestitchte Panoramen (Equirectangular/
@@ -431,6 +589,20 @@ object FisheyeRefiner {
         // im Nachhinein prüfen lässt, ob z. B. Fisheye/Rectilinear für ein bestimmtes Anker-Set
         // schlicht scheitern (statt nur knapp zu verlieren), bevor an der Auswahl-Logik gedreht wird.
         onCandidate: (PanoProjectionKind, Double?) -> Unit = { _, _ -> },
+        // Diagnose-Rückkanal für die Fußabdruck-Plausibilität je Kandidat (s. evaluateFootprint) --
+        // Default = No-Op, verändert für keinen bestehenden Aufrufer etwas.
+        onFootprint: (PanoProjectionKind, FootprintSanity) -> Unit = { _, _ -> },
+        // Nutzer-Vorgabe 2026-08-28 (Runde 3, Punkt 1/2): `false` (Default) = bisheriges, unverändertes
+        // Verhalten für ALLE bestehenden Aufrufer (Kachel-lokale Fits, Positions-/Feinjustier-Hinweise,
+        // Ausreißer-/Qualitäts-Scoring -- s. [[project_gradnetz_randbeschriftung]] für die vollständige
+        // Aufrufstellen-Analyse, WARUM dieser Parameter bewusst opt-in statt automatisch aus
+        // imageWidth/imageHeight hergeleitet ist: 11 von 12 bestehenden Aufrufstellen bekommen bereits
+        // die vollen Bild-Maße übergeben, auch reine Zwischen-/Scoring-Fits -- ein automatischer
+        // Dimensions-Check allein würde die Nebenbedingung dort ungewollt mit-aktivieren). `true` NUR an
+        // den Aufrufstellen, deren Ergebnis tatsächlich zur finalen, nutzersichtbaren WCS wird -- prüft
+        // dann INTERN (s. u.), ob [imageWidth]/[imageHeight] überhaupt einem vollständigen 2:1-Panorama
+        // entsprechen, bevor irgendetwas erzwungen wird.
+        enforceFullPanoramaPeriod: Boolean = false,
     ): PanoCalibration? {
         if (references.size < 3 || allowed.isEmpty()) return null
         if (weights != null && weights.size != references.size) return null
@@ -477,7 +649,66 @@ object FisheyeRefiner {
             best?.let { out += PanoCalibration(it.first, kind, it.second) }
         }
         val n = references.size
-        return out.minByOrNull { complexityPenalizedScore(it.rms, it.kind, n) }
+        // A4 (Nutzer-Auftrag 2026-09-03): geometrisch offensichtlich unplausible Kandidaten dürfen die
+        // AUTOMATIK nicht gewinnen (s. evaluateFootprint). Bewusst als reiner AUSSCHLUSS formuliert, nie
+        // als Bevorzugung: bleibt nach dem Filter kein Kandidat übrig, wird der ungefilterte Satz
+        // verwendet -- dadurch bleibt eine MANUELLE Einzelwahl (allowed enthält dann nur diese eine
+        // Modellart, z. B. Mercator) immer anwendbar, und ein Bild, für das schlicht kein plausibles
+        // Modell existiert, verliert nicht seine Lösung. Für jeden Kandidaten mit Fit wird die Bewertung
+        // an [onFootprint] gemeldet (Diagnose, kein Einfluss auf das Ergebnis).
+        val sanityByKind = out.associate { cal -> cal.kind to evaluateFootprint(cal, references, imageWidth, imageHeight) }
+        sanityByKind.forEach { (kind, s) -> onFootprint(kind, s) }
+        val plausibleOut = out.filter { sanityByKind[it.kind]?.plausible != false }
+        val pool = if (plausibleOut.isNotEmpty()) plausibleOut else out
+        val winner = pool.minByOrNull { complexityPenalizedScore(it.rms, it.kind, n) } ?: return null
+        if (!enforceFullPanoramaPeriod) return winner
+        return applyFullPanoramaPeriodConstraint(winner, matches, imageWidth, imageHeight, focalEstimate, weightArr)
+    }
+
+    /**
+     * Nutzer-Vorgabe 2026-08-28 (Runde 3, Punkt 1/2 -- "Periodenfehler"): [winner]s freier Fit lässt
+     * `horizontalPeriodPx` (= `|fx*2π|`) irgendwo nahe, aber nicht exakt bei der tatsächlichen
+     * Textur-Periode landen -- bei einem ECHTEN vollständigen 2:1-Equirectangular-Panorama ist diese
+     * Periode aber KEIN Fit-Ergebnis, sondern eine geometrische Tatsache: 360° horizontal ↔ exakt
+     * [imageWidth] Pixel. Erzwingt `fx = ±imageWidth/(2π)` als harte Nebenbedingung und fittet die
+     * übrigen 6 Parameter (cx,cy,fy,Rotation) frei darum herum -- NUR wenn (a) [winner] überhaupt aus
+     * der Zylindrischen Familie kommt (Equirectangular/Cylindrical/Mercator, s.
+     * [CylindricalProjection] -- die einzige Familie mit einem `fx`/einer horizontalen Periode) UND
+     * (b) [imageWidth]/[imageHeight] tatsächlich (innerhalb [FULL_PANORAMA_ASPECT_TOLERANCE]) einem
+     * vollständigen 2:1-Bild entsprechen (sonst bliebe [winner] unverändert -- ein normales Einzelfoto
+     * oder ein partielles Panorama darf NICHT künstlich auf eine 360°-Periode gezwungen werden).
+     * Übernimmt das eingeschränkte Ergebnis nur, wenn dessen RMS nicht mehr als
+     * [FULL_PANORAMA_PERIOD_MAX_RMS_RATIO] schlechter ist als [winner]s freier RMS -- sonst bleibt
+     * [winner] unverändert (Vorrang für die Sternpositionsgenauigkeit vor perfekter Netz-Topologie,
+     * falls das Foto selbst nicht exakt periodisch ist). Fittet bewusst DIESELBE [winner].kind (keine
+     * erneute Modellwahl) und DASSELBE fx/fy-Vorzeichenpaar wie [winner] (aus dessen bereits gefittetem
+     * `CylindricalProjection` ausgelesen) -- kein zweiter, unabhängiger Vorzeichen-Suchlauf nötig.
+     */
+    private fun applyFullPanoramaPeriodConstraint(
+        winner: PanoCalibration,
+        matches: List<Pair<Vec3, Offset>>,
+        imageWidth: Int,
+        imageHeight: Int,
+        focalEstimate: Double,
+        weightArr: DoubleArray?,
+    ): PanoCalibration {
+        val proj = winner.solution.projection as? CylindricalProjection ?: return winner
+        if (imageWidth <= 0 || imageHeight <= 0) return winner
+        val aspect = imageWidth.toDouble() / imageHeight.toDouble()
+        if (abs(aspect - 2.0) > FULL_PANORAMA_ASPECT_TOLERANCE) return winner
+        val fxSign = if (proj.fx >= 0.0) 1.0 else -1.0
+        val fySign = if (proj.fy >= 0.0) 1.0 else -1.0
+        val fixedFx = fxSign * imageWidth.toDouble() / (2.0 * PI)
+        val constrained = fitCylindricalConstrainedFx(
+            matches, winner.kind, imageWidth, imageHeight, fixedFx, fySign, focalEstimate, weightArr,
+        ) ?: return winner
+        val (constrainedSolution, constrainedRms) = constrained
+        if (!constrainedRms.isFinite()) return winner
+        return if (constrainedRms <= winner.rms * FULL_PANORAMA_PERIOD_MAX_RMS_RATIO) {
+            PanoCalibration(constrainedSolution, winner.kind, constrainedRms)
+        } else {
+            winner
+        }
     }
 
     /**
@@ -487,12 +718,25 @@ object FisheyeRefiner {
      * bereits bekannten, vertrauenswürdigen Ankern (z. B. den ursprünglichen Kachel-Ankern) passt.
      * Punkte außerhalb der Projektions-Gültigkeit zählen als Strafwert (nicht als 0/"perfekt") —
      * dieselbe Logik wie [INVALID_PROJECTION_PENALTY] bei den gewichteten Fits.
+     *
+     * Untersuchungs-/Reparaturauftrag 2026-08-31 (RichCorrMesh-Seam-Verdacht): [pixel] (die tatsächlich
+     * GEMESSENE Position) wird jetzt als `reference` an [PanoramaProjection.directionToPixel] durchgereicht
+     * statt (wie zuvor) immer den `atan2`-Hauptzweig zu nehmen -- bei periodischen Cylindrical-Projektionen
+     * wird der Azimut dadurch auf den zu [pixel] NÄCHSTEN Ast entfaltet (identisches, bereits etabliertes
+     * Prinzip wie überall sonst in diesem Projekt bei periodischen Projektionen, s.
+     * [PanoramaProjection.directionToPixel]-KDoc). Ein Stern nahe der 0°/360°-Bild-Naht bekam bisher u.U.
+     * eine Vorhersage auf der GEGENÜBERLIEGENDEN Bildseite (Fehler bis zu einer vollen horizontalen Periode)
+     * -- verfälschte NICHT nur RichCorrMesh (baselineRms/trainRms/crossValRms, s. [RichCorrMesh.fit]),
+     * sondern JEDEN Aufrufer dieser Funktion (u.a. `global_refine`s Sanity-/Match-RMS-Gates in
+     * `StarMapperApp.kt`). Für NICHT-periodische Projektionen (TAN/Fisheye/Stereographic/Rectilinear) ist
+     * `directionToPixel(dir, reference)` per Interface-Default IDENTISCH zu `directionToPixel(dir)` --
+     * keine Verhaltensänderung dort, reine Korrektur für die periodische Cylindrical-Familie.
      */
     fun reprojectionRms(fit: PanoramaWcsSolution, refs: List<Pair<Offset, Vec3>>): Double {
         if (refs.isEmpty()) return Double.MAX_VALUE
         var sum = 0.0
         for ((pixel, dir) in refs) {
-            val p = fit.projection.directionToPixel(fit.rotEquToPano * dir)
+            val p = fit.projection.directionToPixel(fit.rotEquToPano * dir, pixel)
             val d = if (p == null) {
                 INVALID_PROJECTION_PENALTY
             } else {
@@ -685,6 +929,79 @@ object FisheyeRefiner {
             val candidate = rmsCyl(matches, nCx, nCy, nFx, nFy, kind, nRot, weights)
             if (candidate < bestCost) {
                 cx = nCx; cy = nCy; fx = nFx; fy = nFy; rot = nRot
+                bestCost = candidate
+                lambda = (lambda / 3).coerceAtLeast(1e-9)
+            } else {
+                lambda = (lambda * 4).coerceAtMost(1e6)
+            }
+        }
+        val finalRms = rmsCyl(matches, cx, cy, fx, fy, kind, rot)
+        if (!finalRms.isFinite()) return null
+        return PanoramaWcsSolution(CylindricalProjection(cx, cy, fx, fy, kind), rot) to finalRms
+    }
+
+    /**
+     * Wie [fitCylindrical], aber [fixedFx] wird NIE gestört/aktualisiert -- exakt derselbe LM-Algorithmus,
+     * nur um den fx-Freiheitsgrad reduziert (paramCount 7 -> 6: cx,cy,fy,Rotation). Nutzt
+     * [residualsCylPerturbed] weiter (dessen paramIndex-Zuordnung 0=cx,1=cy,2=fx,3=fy,4..6=Rotation NICHT
+     * verändert wurde), überspringt darin aber Index 2 (fx) -- [realParamIndex] bildet die LOKALEN
+     * Indizes 0..5 dieser Funktion auf die entsprechenden ECHTEN Indizes [0,1,3,4,5,6] ab. Eigenständige
+     * Funktion statt eines Flags in [fitCylindrical] selbst -- hält den bereits bewährten, unveränderten
+     * freien Fit für ALLE anderen Aufrufer komplett unangetastet (Null-Risiko dort).
+     */
+    private fun fitCylindricalConstrainedFx(
+        matches: List<Pair<Vec3, Offset>>,
+        kind: PanoProjectionKind,
+        imageWidth: Int,
+        imageHeight: Int,
+        fixedFx: Double,
+        fySign: Double,
+        focalEstimate: Double,
+        weights: DoubleArray? = null,
+    ): Pair<PanoramaWcsSolution, Double>? {
+        val paramCount = 6
+        val realParamIndex = intArrayOf(0, 1, 3, 4, 5, 6)
+        var cx = imageWidth / 2.0
+        var cy = imageHeight / 2.0
+        val fx = fixedFx
+        var fy = fySign * focalEstimate
+        var rot = initRotationCyl(matches, cx, cy, fx, fy, kind, weights) ?: return null
+        var bestCost = rmsCyl(matches, cx, cy, fx, fy, kind, rot, weights)
+        var lambda = 1e-3
+        repeat(80) {
+            val r0 = residualsCyl(matches, cx, cy, fx, fy, kind, rot)
+            val n = r0.size
+            if (n < paramCount) return@repeat
+            val steps = doubleArrayOf(
+                0.5, 0.5,
+                maxOf(1.0, kotlin.math.abs(fy) * 1e-3),
+                1e-4, 1e-4, 1e-4,
+            )
+            val jac = Array(n) { DoubleArray(paramCount) }
+            for (j in 0 until paramCount) {
+                val rp = residualsCylPerturbed(matches, cx, cy, fx, fy, kind, rot, realParamIndex[j], steps[j])
+                for (i in 0 until n) jac[i][j] = (rp[i] - r0[i]) / steps[j]
+            }
+            val jtj = Array(paramCount) { DoubleArray(paramCount) }
+            val jtr = DoubleArray(paramCount)
+            for (i in 0 until n) {
+                val w = weights?.get(i / 2) ?: 1.0
+                for (a in 0 until paramCount) {
+                    jtr[a] += w * jac[i][a] * r0[i]
+                    for (b in 0 until paramCount) jtj[a][b] += w * jac[i][a] * jac[i][b]
+                }
+            }
+            val damped = Array(paramCount) { a -> jtj[a].copyOf() }
+            for (a in 0 until paramCount) damped[a][a] += lambda * (jtj[a][a] + 1e-9)
+            val delta = solveLinear(damped, DoubleArray(paramCount) { -jtr[it] })
+                ?: run { lambda *= 4; return@repeat }
+            val nCx = cx + delta[0]
+            val nCy = cy + delta[1]
+            val nFy = fy + delta[2]
+            val nRot = rotationVector(delta[3], delta[4], delta[5]) * rot
+            val candidate = rmsCyl(matches, nCx, nCy, fx, nFy, kind, nRot, weights)
+            if (candidate < bestCost) {
+                cx = nCx; cy = nCy; fy = nFy; rot = nRot
                 bestCost = candidate
                 lambda = (lambda / 3).coerceAtLeast(1e-9)
             } else {

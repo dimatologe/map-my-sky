@@ -8,6 +8,7 @@ import com.codex.starmapper.domain.SkyPoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.PI
 
 class DeepSkyOverlayTest {
 
@@ -161,6 +162,58 @@ class DeepSkyOverlayTest {
             shapes = mapOf("M31" to DsoShape(30f, 10f, 90f)),
         ).single()
         assertEquals(0f, eastAligned.rotationDegrees, 2f)
+    }
+
+    // Equirectangular-Modell für die beiden folgenden Tests: fx=fy=100*180/PI (=100 px/Grad am
+    // Himmelsäquator, in Analogie zur TAN-Lösung solution() oben).
+    private fun equirectangularSolution() = PanoramaWcsSolution(
+        CylindricalProjection(cx = 500.0, cy = 400.0, fx = 100.0 * 180.0 / PI, fy = 100.0 * 180.0 / PI, kind = PanoProjectionKind.Equirectangular),
+        Mat3.IDENTITY,
+    )
+
+    @Test
+    fun equirectangularCircleStaysRoundAtDeclinationZero() {
+        // Am Himmelsäquator (Dec=0) ist Equirectangular lokal winkeltreu (cos(Dec)=1) -> ein echter
+        // Himmelskreis bleibt ein Bild-Kreis.
+        val overlays = AstapOverlayMapper.createDeepSkyOverlays(
+            objects = listOf(deepSky("Eq", type = "s", raDegrees = 0f, decDegrees = 0f, dimensions = "120")),
+            solution = equirectangularSolution(),
+            imageWidth = 1000,
+            imageHeight = 800,
+            categories = setOf(DeepSkyCategory.Galaxy),
+            catalogMagRange = { 0f..10f },
+        )
+        val marker = overlays.single()
+        assertEquals(marker.size.width, marker.size.height, 1f)
+    }
+
+    @Test
+    fun equirectangularCircleStaysRoundNearHighDeclination() {
+        // Seit 2026-08-27 (Nutzer-Vorgabe "wieder normal ohne Verzerrung") nutzt projectedEllipseAxes
+        // eine ISOTROPE lokale Skala (geometrisches Mittel der Jacobi-Eigenwerte) statt der früheren
+        // vollen anisotropen SVD -- ein Katalog-Kreis bleibt jetzt ÜBERALL ein Bild-Kreis, auch dort, wo
+        // Equirectangular selbst stark anisotrop ist (Dec=60°: Ost-Skala=100/cos(60)=200 px/Grad,
+        // Nord-Skala=100 px/Grad, geometrisches Mittel=sqrt(100*200)=141.42 px/Grad). Durchmesser =
+        // 2*141.42*1 Grad (Halbachse aus 120'=2° voller Durchmesser) = 282.84 px.
+        // imageHeight bewusst groß (8000, nicht die sonst üblichen 800): PanoramaWcsSolution.skyToImage
+        // ignoriert imageHeight für die Projektion selbst (nur WcsSolution/TAN braucht es, für den
+        // FITS-Y-Flip) -- hier steuert es NUR den Sichtfeld-Bounds-Check in createDeepSkyOverlays. Bei
+        // cy=400, fy=100 px/Grad landet Dec=60° bei y=400+100*60≈6400 (in Grad-Rechnung ohne Rad-Faktor,
+        // da fy bereits die Grad->px-Umrechnung enthält) -- mit imageHeight=800 würde das Objekt fälschlich
+        // als außerhalb des Bildes verworfen (0 statt 1 Overlay, overlays.single() wirft dann).
+        val overlays = AstapOverlayMapper.createDeepSkyOverlays(
+            // 120' = 2 Grad voller Durchmesser -> 1 Grad Halbachse (Kreis, maj only).
+            objects = listOf(deepSky("Polar", type = "s", raDegrees = 0f, decDegrees = 60f, dimensions = "120")),
+            solution = equirectangularSolution(),
+            imageWidth = 1000,
+            imageHeight = 8000,
+            categories = setOf(DeepSkyCategory.Galaxy),
+            catalogMagRange = { 0f..10f },
+        )
+        val marker = overlays.single()
+        assertEquals(282.8f, marker.size.width, 2f)
+        assertEquals(282.8f, marker.size.height, 2f)
+        assertEquals(1.0f, marker.size.width / marker.size.height, 0.02f) // bleibt rund, keine Verzerrung
     }
 
     @Test

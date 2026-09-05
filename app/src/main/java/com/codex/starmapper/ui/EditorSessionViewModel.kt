@@ -83,13 +83,19 @@ internal class EditorSessionViewModel(
         pendingCommitted = false
     }
 
-    /** Erste Mutation innerhalb der Geste legt genau einen Snapshot ab (Drag-Coalescing). */
-    fun recordInteractionMutation() {
-        val snapshot = pendingSnapshot ?: return
+    /** Erste Mutation innerhalb der Geste legt genau einen Snapshot ab (Drag-Coalescing).
+     *  @return true, wenn (jetzt oder durch eine frühere Mutation in derselben Geste) tatsächlich ein
+     *  Snapshot aufgezeichnet ist; false, wenn KEINE offene Geste läuft (pendingSnapshot==null) -- der
+     *  Aufrufer sollte dann selbst recordHistory() als eigenständigen Schritt nutzen, sonst bleibt die
+     *  Mutation komplett unaufgezeichnet (Bug: der runde Papierkorb-Button in der Langdruck-Aktionsleiste
+     *  ruft diese Funktion NACH Gestenende auf). */
+    fun recordInteractionMutation(): Boolean {
+        val snapshot = pendingSnapshot ?: return false
         if (!pendingCommitted) {
             pushSnapshot(snapshot)
             pendingCommitted = true
         }
+        return true
     }
 
     fun endInteraction() {
@@ -238,12 +244,18 @@ internal class EditorSessionViewModel(
         return true
     }
 
-    /** Zeichnen-Sitzung committet ("Fertig zeichnen") -> Zwischenschritte sind jetzt bedeutungslos. */
+    /** Zeichnen-Sitzung committet ("Fertig zeichnen") -> Zwischenschritte sind jetzt bedeutungslos.
+     *  Räumt die verwaisten `Draw`-Einträge auch aus dem GLOBALEN Verlauf mit auf -- sonst bleiben sie
+     *  dort als Phantom-Schritte stehen (Bug: globalUndo/globalRedo überspringen sie zwar lautlos, aber
+     *  ein Klick landet dadurch beim nächsten, unabhängigen Schritt statt beim erwarteten). */
     fun clearDrawHistory() {
         drawSegmentsState.value = emptyList()
         drawUndoStack.clear()
         drawRedoStack.clear()
         refreshDrawFlags()
+        globalUndoKinds.removeAll { it == HistoryKind.Draw }
+        globalRedoKinds.removeAll { it == HistoryKind.Draw }
+        refreshGlobalFlags()
     }
 
     // --- GLOBALER Undo/Redo-Verlauf ---------------------------------------------------------------

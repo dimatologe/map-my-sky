@@ -133,6 +133,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -140,6 +141,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -216,6 +218,8 @@ import com.codex.starmapper.domain.DsoShape
 import com.codex.starmapper.domain.DsoSizeOverride
 import com.codex.starmapper.domain.EditorTool
 import com.codex.starmapper.domain.ExportScale
+import com.codex.starmapper.domain.ExportImageFormat
+import com.codex.starmapper.domain.ExportProjectionMode
 import com.codex.starmapper.domain.Hemisphere
 import com.codex.starmapper.domain.MilkyWayLayer
 import com.codex.starmapper.domain.OverlayLineStyle
@@ -223,11 +227,20 @@ import com.codex.starmapper.domain.OverlayKind
 import com.codex.starmapper.domain.OverlayFont
 import com.codex.starmapper.domain.ReticleStyle
 import com.codex.starmapper.domain.SkyPoint
+import com.codex.starmapper.domain.TinySkyGeometry
 import com.codex.starmapper.domain.constellationImagePoints
 import com.codex.starmapper.domain.constellationNameAnchor
+import com.codex.starmapper.domain.localizedDisplayName
 import com.codex.starmapper.domain.distanceTo
 import com.codex.starmapper.domain.trimmedLineEndpoints
+import com.codex.starmapper.ui.SolutionExport.containsCorrectedProjection
+import com.codex.starmapper.ui.SolutionExport.exportBlockReason
+import com.codex.starmapper.ui.SolutionExport.hasHorizontalPeriod
+import com.codex.starmapper.ui.SolutionExport.isExportable
+import com.codex.starmapper.ui.SolutionExport.meshBaselineKindOrNull
 import com.codex.starmapper.processing.ExportRenderer
+import com.codex.starmapper.processing.ExportSourceDiagnostics
+import com.codex.starmapper.processing.GpuSmokeTest
 import com.codex.starmapper.processing.GraticuleGeometry
 import com.codex.starmapper.processing.GraticuleRenderer
 import com.codex.starmapper.processing.ImageEffects
@@ -236,6 +249,8 @@ import com.codex.starmapper.processing.MilkyWayRenderer
 import com.codex.starmapper.processing.StarDetector
 import com.codex.starmapper.processing.AstapFovEstimator
 import com.codex.starmapper.processing.AstapOverlayMapper
+import com.codex.starmapper.processing.BestKnownCatalog
+import com.codex.starmapper.processing.BestKnownEntry
 import com.codex.starmapper.processing.ConstellationCompleteness
 import com.codex.starmapper.processing.AstapCaptureSettings
 import com.codex.starmapper.processing.AstapCaptureType
@@ -276,9 +291,11 @@ import com.codex.starmapper.processing.PanoramaProjection
 import com.codex.starmapper.processing.PanoramaWcsSolution
 import com.codex.starmapper.processing.RefractedPanoramaWcsSolution
 import com.codex.starmapper.processing.ResidualCorrection
+import com.codex.starmapper.processing.RichCorrMesh
 import com.codex.starmapper.processing.TileConsistency
 import com.codex.starmapper.processing.TileDeWarp
 import com.codex.starmapper.processing.raDecToVector
+import com.codex.starmapper.processing.vectorToRaDec
 import com.codex.starmapper.processing.OverlayFontCache
 import com.codex.starmapper.processing.SolveMask
 import com.codex.starmapper.processing.toTypeface
@@ -336,6 +353,10 @@ private sealed interface AstapOperationState {
     data object Idle : AstapOperationState
     data object Solving : AstapOperationState
     data class SolvingOnline(val statusText: String) : AstapOperationState
+    // Unit 6 (2026-09-02): eigener, von Idle/Failure klar unterschiedener Zustand für einen
+    // expliziten Nutzer-Abbruch -- KEIN Fehler (keine "Solve fehlgeschlagen"-Meldung), UI kehrt
+    // sauber in den Vor-Solve-Zustand zurück (SolveActionSection zeigt dafür nichts an, wie Idle).
+    data object Cancelled : AstapOperationState
     data class Solved(
         val constellationCount: Int,
         val starCount: Int,
@@ -413,11 +434,33 @@ private class AnnotateSelections {
     var dsoOpacityAppliesToAll by mutableStateOf(false)
     val dsoCatalogOpacity = mutableStateMapOf<DeepSkyCatalogGroup, Float>()
     var dsoGlobalOpacity by mutableFloatStateOf(0.9f)
-    // Mindestgröße als Anteil (%) der kürzeren Bildseite (s. AstapOverlayMapper.createDeepSkyOverlays
-    // minRenderSizeFraction) -- Objekte, die im Foto kleiner rendern, kaum noch als Form erkennbar
-    // (Galaxie/Nebel/Haufen nicht mehr unterscheidbar von einem Punkt), werden ausgeblendet. Default
-    // knapp über dem technischen Boden aus arcminToPx (~0.4%), damit spürbar, aber nicht zu aggressiv.
-    var dsoMinSizePercent by mutableFloatStateOf(0.8f)
+    // Best Known V1 (Nutzer-Vorgabe 2026-09-01, s. processing/BestKnownCatalog.kt): reduziert den
+    // sichtbaren DSO-Bestand auf eine kuratierte Liste (Messier/Caldwell/bekannte Nicht-Katalog-Ziele)
+    // UND ersetzt NUR den Anzeigenamen (sofern in der Tabelle vorhanden) durch die international/
+    // deutsch bekannte Bezeichnung -- schaltet KEINEN anderen Filter ab (Kategorie/Katalog/Helligkeit/
+    // Größe bleiben unabhängig wirksam, s. AstapOverlayMapper.createDeepSkyOverlays bestKnownEnabled).
+    var bestKnownEnabled by mutableStateOf(false)
+
+    // Mindestgröße als Anteil (%) der kürzeren Bildseite -- jetzt WCS-basiert auf die ECHTE projizierte
+    // Katalog-Winkelgröße geprüft (s. AstapOverlayMapper.createDeepSkyOverlays minNaturalSizePercent),
+    // NICHT mehr auf die Render-/Anzeigegröße (das alte minRenderSizeFraction-Konzept bleibt im Code
+    // bestehen, wird aber seit dieser Umstellung nirgends mehr mit einem von 0 verschiedenen Wert
+    // aufgerufen, s. syncDeepSkyLayer). ECHTE Quantisierung auf exakte 0.1-%-Schritte bei JEDER Änderung
+    // (nicht nur die Anzeige gerundet, s. quantizeDsoMinSizePercent) -- 0f = linker Reglar-Anschlag =
+    // "Alle Größen" (Filter AUS, kompletter Katalog, Objekte ohne bekannte Winkelausdehnung eingeschlossen).
+    // Default für neue/Standard-Einstellungen 0.2% (Best-Known-Vorgabe Abschnitt O) -- Persistenz-
+    // Ladepfad s. StarMapperApp() `annotate`-Konstruktion, re-quantisiert dort ebenfalls beim Laden.
+    var dsoMinSizePercent by mutableFloatStateOf(0.2f)
+
+    // Performance-Fix 2026-09-02 (MethodTooLargeException-Nachtrag, s. Memory
+    // project_methodtoolarge_editorpanelsheet): lebt bewusst HIER statt als eigener
+    // StarMapperApp()-lokaler `remember{ mutableIntStateOf(0) }` -- AnnotateSelections wird an
+    // EditorPanelSheet ohnehin bereits als EIN gebündelter `annotateSelections`-Parameter durchgereicht;
+    // ein zusätzliches Feld hier kostet an dieser übervollen Aufrufstelle keinen neuen Capture-Slot,
+    // ein zusätzlicher freistehender Parameter/Capture hatte dagegen bereits zweimal zuvor eine
+    // MethodTooLargeException ausgelöst. Reiner Zähler: jeder DSO-Menü-Commit (Slider-Loslassen/
+    // Schalter-Tap) erhöht ihn, ein reaktiver LaunchedEffect in StarMapperApp() reagiert darauf.
+    var dsoResyncGeneration by mutableIntStateOf(0)
     // Per Objekt-Suche einzeln ausgewählte Objekte (Objekt-`id`): ignorieren Kategorie-/Katalog-/
     // Helligkeits-Regler komplett (s. AstapOverlayMapper.createDeepSkyOverlays pinnedIds). Bewusst
     // NICHT von resetDeepSky() geleert -- unabhängige, bewusste Einzel-Picks.
@@ -429,6 +472,17 @@ private class AnnotateSelections {
     val dsoSizeOverrides = mutableStateMapOf<String, DsoSizeOverride>()
     // Schriftgröße der DSO-Objektnamen (UI-Slider), in die regenerierten Overlays gebacken.
     var deepSkyNameSize by mutableFloatStateOf(30f)
+    // Punkt 5 (Nutzer-Vorgabe 2026-08-30): direkte Liniendicke-Steuerung für DSO-Konturen -- vorher gab
+    // es dafür GAR KEINEN Regler (createDeepSkyOverlays bekam nie einen strokeWidth-Parameter übergeben,
+    // lief immer mit dem Default 2.5). deepSkyStrokeWidthEnabled=false (Default) erhält exakt das
+    // bisherige Verhalten (Default 2.5 in createDeepSkyOverlays) -- nur bei aktiviertem Schalter greift
+    // deepSkyStrokeWidth. Bereich identisch zum abgesenkten Formen-/Sternbild-Reglerbereich (0.2f..40f).
+    var deepSkyStrokeWidthEnabled by mutableStateOf(false)
+    var deepSkyStrokeWidth by mutableFloatStateOf(2.5f)
+    // Punkt 6 (Nutzer-Vorgabe 2026-08-30): koppelt Beschriftungs- an Objekt-Deckkraft, s.
+    // AnnotationOverlay.nameOpacityLinked-KDoc. Default false = bisheriges Verhalten (Name immer voll
+    // deckend) unverändert.
+    var deepSkyNameOpacityLinked by mutableStateOf(false)
     // Schriftart der Deep-Sky-Objektnamen (0.11.0): in die regenerierten DSO-Overlays gebacken.
     var deepSkyFont by mutableStateOf(OverlayFont.SansSerif)
     // Objektnamen anzeigen? (Schalter). Überlappende Namen werden zusätzlich automatisch entstapelt.
@@ -498,7 +552,7 @@ private class AnnotateSelections {
     fun recordDsoSizeOverride(overlay: AnnotationOverlay) {
         val id = overlay.sourceId ?: return
         if (overlay.layer != AnnotationLayer.DeepSky) return
-        dsoSizeOverrides[id] = DsoSizeOverride(overlay.size, overlay.rotationDegrees)
+        dsoSizeOverrides[id] = DsoSizeOverride(overlay.size, overlay.rotationDegrees, overlay.labelAngleDeg, overlay.labelLeaderPx)
     }
 
     /** Katalog-Auswahl/Filter der Deep-Sky-Ebene auf die Standardwerte zurücksetzen. Gepinnte
@@ -525,12 +579,23 @@ private class AnnotateSelections {
         dsoOpacityAppliesToAll = false
         dsoCatalogOpacity.clear()
         dsoGlobalOpacity = 0.9f
-        dsoMinSizePercent = 0.8f
+        bestKnownEnabled = false
+        dsoMinSizePercent = 0.2f
         deepSkyShowNames = true
         deepSkyNameSize = 30f
         deepSkyFont = OverlayFont.SansSerif
     }
 }
+
+// Obergrenze des DSO-Mindestgrößen-Reglers (Best-Known-Vorgabe Abschnitt N) -- unverändert der
+// bisherige, bereits sinnvolle Regler-Deckel (0f..3f).
+internal const val DSO_MIN_SIZE_PERCENT_MAX = 3f
+
+/** Echte Quantisierung (NICHT nur Anzeige-Rundung) von [AnnotateSelections.dsoMinSizePercent] auf
+ *  exakte 0.1-%-Schritte, s. Best-Known-Vorgabe Abschnitt N/O/P: zeigt die UI "0,6 %", muss der
+ *  interne Zustand EXAKT 0.6f sein, nie 0.56f/0.59f/0.64f. 0f bleibt 0f ("Alle Größen", Filter AUS). */
+internal fun quantizeDsoMinSizePercent(raw: Float): Float =
+    (Math.round(raw * 10f) / 10f).coerceIn(0f, DSO_MIN_SIZE_PERCENT_MAX)
 
 // Halte-Dauer, ab der ein Objekt/Marker zum Verschieben "gegriffen" wird (länger als der
 // System-Long-Press, damit nichts versehentlich verschoben wird). Geteilt von Editor + Feinausrichtung.
@@ -565,10 +630,14 @@ private fun refractedDisplayFit(
     imgH: Int,
     allowed: Set<PanoProjectionKind>,
     weights: List<Double>? = null,
+    // Nutzer-Vorgabe 2026-08-28 (Runde 3, Punkt 1/2): durchgereicht an calibratePanorama, damit ein
+    // De-Warp-Solve die horizontalPeriodPx=imageWidth-Nebenbedingung nicht stillschweigend verliert,
+    // nur weil er über diesen (zweiten) Fit statt direkt über solveAllTiles()s Haupt-Fit läuft.
+    enforceFullPanoramaPeriod: Boolean = false,
 ): WcsSolutionLike {
     val zenith = (baseFit.rotEquToPano.transpose() * Vec3(0.0, 0.0, 1.0)).normalized()
     val apparent = anchors.map { (px, dir) -> px to AtmosphericRefraction.apparentDirection(dir, zenith) }
-    val corrected = FisheyeRefiner.calibratePanorama(apparent, imgW, imgH, allowed, weights) ?: return baseFit
+    val corrected = FisheyeRefiner.calibratePanorama(apparent, imgW, imgH, allowed, weights, enforceFullPanoramaPeriod = enforceFullPanoramaPeriod) ?: return baseFit
     val base = corrected.solution
     // Stufe 2: glatte Rest-Korrektur über dem refraktionskorrigierten Modell. Stützstellen =
     // (vom Modell vorhergesagter Pixel, tatsächlicher Ankerpixel) -> macht die Lösung lokal genau.
@@ -813,8 +882,20 @@ private fun convertOverlayGeometry(
     val corners = listOf(Offset(-hw, -hh), Offset(hw, -hh), Offset(hw, hh), Offset(-hw, hh)).map {
         Offset(center.x + it.x * cosR - it.y * sinR, center.y + it.x * sinR + it.y * cosR)
     }
+
+    // Mittelpunkt zuerst umrechnen -- wird ohnehin für die Verdrehung unten gebraucht, UND dient als
+    // Referenz für die nahtstellen-sichere Umrechnung der 4 Ecken (Bild-Naht bei λ=±180°, s.
+    // PanoramaProjection.directionToPixel(dir, reference)): ohne Referenz könnten Ecken knapp auf
+    // verschiedenen Seiten der Naht auf x nahe 0 UND nahe der Bildbreite abgebildet werden, die
+    // Bounding-Box würde dann fälschlich fast die volle Breite aufspannen statt die Nachbarschaft
+    // über den Wrap zu erkennen.
+    val twistEps = 4f
+    val dirCenter = fromProjection.pixelToDirection(center.x.toDouble(), center.y.toDouble()) ?: return null
+    val toCenterForTwist = toProjection.directionToPixel(dirCenter) ?: return null
+
     val converted = corners.mapNotNull { c ->
-        fromProjection.pixelToDirection(c.x.toDouble(), c.y.toDouble())?.let { toProjection.directionToPixel(it) }
+        fromProjection.pixelToDirection(c.x.toDouble(), c.y.toDouble())
+            ?.let { toProjection.directionToPixel(it, toCenterForTwist) }
     }
     if (converted.size < 4) return null
     val minX = converted.minOf { it.x }
@@ -824,11 +905,8 @@ private fun convertOverlayGeometry(
     val newCenter = Offset((minX + maxX) / 2f, (minY + maxY) / 2f)
     val newSize = Size(maxX - minX, maxY - minY)
 
-    val twistEps = 4f
-    val dirCenter = fromProjection.pixelToDirection(center.x.toDouble(), center.y.toDouble()) ?: return null
     val dirUp = fromProjection.pixelToDirection(center.x.toDouble(), (center.y - twistEps).toDouble()) ?: return null
-    val toCenterForTwist = toProjection.directionToPixel(dirCenter) ?: return null
-    val toUpForTwist = toProjection.directionToPixel(dirUp) ?: return null
+    val toUpForTwist = toProjection.directionToPixel(dirUp, toCenterForTwist) ?: return null
     val twistRad = atan2(
         (toUpForTwist.x - toCenterForTwist.x).toDouble(),
         -(toUpForTwist.y - toCenterForTwist.y).toDouble(),
@@ -837,10 +915,285 @@ private fun convertOverlayGeometry(
     return Triple(newCenter, newSize, newRotationDegrees)
 }
 
-private fun ConstellationPattern.localizedName(): String = when (val lang = AppLocale.resolvedLanguageTag) {
-    "de" -> germanName
-    else -> localizedNames[lang] ?: name
+/**
+ * Wandelt eine Overlay-Geometrie wie [convertOverlayGeometry], aber über eine am MITTELPUNKT lokal
+ * abgetastete 2x2-Jacobi-Matrix statt über 4 weit entfernte Ecken + separat geschätzte Rotation.
+ *
+ * Grund für eine zweite Funktion statt [convertOverlayGeometry] direkt zu ändern: dessen Ecken-Ansatz
+ * ist für die (bereits validierte, unveränderte) native->Tiny-Sky-ANZEIGE ausreichend genau (Tiny Sky
+ * ist konform/winkeltreu, ein einzelner Epsilon-Tastpunkt für die Rotation ist dort eine gute
+ * Näherung). Für die Rückrichtung (Tiny-Sky->nativ, s. Verlassen-Button) ist das native Equirectangular
+ * dagegen NUR am Äquator konform -- abseits davon (die meisten Bildpositionen) hat die Projektion
+ * echte lokale Anisotropie/Scherung (dieselbe, die [AstapOverlayMapper.projectedEllipseAxes] für
+ * DSO-Formen bereits korrekt berücksichtigt). Eine
+ * EINZELNE "oben"-Tastung (wie in [convertOverlayGeometry]) kann eine solche Anisotropie nicht erfassen
+ * -- das führte zu falsch orientierten/"gespiegelt" wirkenden Formen nach dem Verlassen von Tiny Sky
+ * (Nutzerbefund 2026-08-24). Diese Funktion tastet stattdessen ZWEI Richtungen (x UND y) am Mittelpunkt
+ * ab, komponiert das Ergebnis mit der Rechteck-Rotation zu einer einzigen 2x2-Abbildung A = J * R(rot),
+ * und extrahiert Größe + Rotation exakt wie bei einer Ellipse per 2x2-SVD (identisches, bereits
+ * verifiziertes Muster wie projectedEllipseAxes, nur mit einem Bild-zu-Bild- statt Himmel-zu-Bild-
+ * Jacobi). Lokal-linear um GENAU den Mittelpunkt statt einer globalen Bounding-Box weit entfernter
+ * Ecken -- für die meisten (nicht extrem großen) Objekte eine deutlich bessere Näherung.
+ *
+ * Seit Nachtrag 11 (Nutzer-Vorgabe: "einfache Umprojektion wie die Sternbilder, pixelgenau") NICHT mehr
+ * die primäre Methode für Freihand/Ellipse/Rechteck -- die haben eine echte Kontur (Konturpunkte bzw.
+ * Randlinie), für die [reprojectFreehandViaPoints]/[reprojectBoundaryViaPoints] viele Einzelpunkte statt
+ * dieser einzelnen Mittelpunkt-Schätzung reprojizieren (genauer, da nicht auf lokale Linearität um EINEN
+ * Punkt angewiesen). Bleibt für Sternbild/Reticle/Text (keine geeignete Kontur) sowie als Rückfall, falls
+ * die punktbasierte Umrechnung zu wenige gültige Punkte liefert.
+ */
+private fun convertOverlayGeometryLocal(
+    center: Offset,
+    size: Size,
+    rotationDegrees: Float,
+    fromProjection: PanoramaProjection,
+    toProjection: PanoramaProjection,
+): Triple<Offset, Size, Float>? {
+    val dirCenter = fromProjection.pixelToDirection(center.x.toDouble(), center.y.toDouble()) ?: return null
+    val newCenter = toProjection.directionToPixel(dirCenter) ?: return null
+    val epsPx = 4f
+    val dirRight = fromProjection.pixelToDirection((center.x + epsPx).toDouble(), center.y.toDouble()) ?: return null
+    val pRight = toProjection.directionToPixel(dirRight, newCenter) ?: return null
+    val dirDown = fromProjection.pixelToDirection(center.x.toDouble(), (center.y + epsPx).toDouble()) ?: return null
+    val pDown = toProjection.directionToPixel(dirDown, newCenter) ?: return null
+    // J: Bild-px in toProjection PRO Bild-px in fromProjection (Spalten = x-/y-Schritt in fromProjection).
+    val j00 = ((pRight.x - newCenter.x) / epsPx).toDouble()
+    val j10 = ((pRight.y - newCenter.y) / epsPx).toDouble()
+    val j01 = ((pDown.x - newCenter.x) / epsPx).toDouble()
+    val j11 = ((pDown.y - newCenter.y) / epsPx).toDouble()
+    if (!j00.isFinite() || !j10.isFinite() || !j01.isFinite() || !j11.isFinite()) return null
+    // R(rotationDegrees): Spalten sind die gedrehten Einheitsvektoren der lokalen Rechteck-Achsen.
+    val rad = Math.toRadians(rotationDegrees.toDouble())
+    val cosR = cos(rad); val sinR = sin(rad)
+    // A = J * R (2x2): bildet lokale (unrotierte) Halb-Extents direkt auf Bild-Versatz in toProjection ab.
+    val a00 = j00 * cosR + j01 * sinR
+    val a10 = j10 * cosR + j11 * sinR
+    val a01 = j00 * -sinR + j01 * cosR
+    val a11 = j10 * -sinR + j11 * cosR
+    // Mit (hw,hh) vorskaliert -- A' = A * diag(hw,hh) -- bildet den Einheitskreis auf die tatsächliche
+    // (Halb-)Größe des Rechtecks ab, exakt wie M in projectedEllipseAxes.
+    val hw = size.width / 2.0
+    val hh = size.height / 2.0
+    val b00 = a00 * hw; val b10 = a10 * hw
+    val b01 = a01 * hh; val b11 = a11 * hh
+    val txx = b00 * b00 + b01 * b01
+    val tyy = b10 * b10 + b11 * b11
+    val txy = b00 * b10 + b01 * b11
+    val mid = (txx + tyy) / 2.0
+    val rad2 = sqrt(((txx - tyy) / 2.0).let { it * it } + txy * txy)
+    val sigma1 = sqrt((mid + rad2).coerceAtLeast(0.0))
+    val sigma2 = sqrt((mid - rad2).coerceAtLeast(0.0))
+    if (!sigma1.isFinite() || !sigma2.isFinite()) return null
+    val thetaMajor = 0.5 * atan2(2.0 * txy, txx - tyy)
+    // Seitenverhältnis-Deckel, rein defensiv (Nutzerbefund 2026-08-24: DSO-Ellipsen mit identischem
+    // unklammten Jacobi-Muster wurden nahe Bildpolen bis zu >1000:1 -- s.
+    // AstapOverlayMapper.projectedEllipseAxes für die Diagnose-Belege). Bewusst SEHR großzügig (60:1,
+    // deutlich über den 20:1 dort): eine Nutzer-Zeichnung (Pfeil, dünne Linie) darf legitim viel
+    // dünner sein als ein Katalog-Objekt -- dieser Deckel soll nur echte numerische Entgleisungen nahe
+    // einer Singularität abfangen, nicht normale dünne Formen antasten.
+    val (majorPx, minorPx) = OverlayGeometry.clampAxisRatio((2.0 * sigma1).toFloat(), (2.0 * sigma2).toFloat(), 60f)
+    val newSize = Size(majorPx, minorPx)
+    val newRotationDegrees = Math.toDegrees(thetaMajor).toFloat()
+    return Triple(newCenter, newSize, newRotationDegrees)
 }
+
+/**
+ * Wie [convertOverlayGeometry] (native->Tiny-Sky-ANZEIGE), aber isotrop: erhält das Seitenverhältnis
+ * von [size] exakt (keine durch die kombinierte Projektion verursachte zusätzliche Streckung) -- für
+ * Overlays mit einer real bedeutsamen Kontur (DSO-Marker, Reticle/Kometenmarker, nutzerplatzierte
+ * Ellipse/Rechteck/Freihand, Sternmarker), s. Nutzer-Vorgabe 2026-08-27 ("wieder normal ohne
+ * Verzerrung, sowohl in Tiny Sky als auch im 2:1-Bild"). Am Mittelpunkt lokal abgetastete 2x2-Jacobi-
+ * Matrix (identischer Aufbau wie [convertOverlayGeometryLocal]), aber statt der vollen anisotropen SVD
+ * nur eine isotrope Skala (`sqrt(|det J|)`) + der reine Rotationsanteil (Polarzerlegung, `atan2(b-c,
+ * a+d)`) -- identisches Prinzip wie [AstapOverlayMapper]s `projectedEllipseAxes`. Konstellation (nur
+ * grobe Bounding-Box, echte Linienform kommt separat aus punktgenauer Anker-/Kantenlinien-Umrechnung)
+ * und Text (kein Flächen-Seitenverhältnis-Konzept) bleiben bewusst auf [convertOverlayGeometry].
+ */
+private fun convertOverlayGeometryIsotropic(
+    center: Offset,
+    size: Size,
+    rotationDegrees: Float,
+    fromProjection: PanoramaProjection,
+    toProjection: PanoramaProjection,
+): Triple<Offset, Size, Float>? {
+    val dirCenter = fromProjection.pixelToDirection(center.x.toDouble(), center.y.toDouble()) ?: return null
+    val newCenter = toProjection.directionToPixel(dirCenter) ?: return null
+    val epsPx = 4f
+    val dirRight = fromProjection.pixelToDirection((center.x + epsPx).toDouble(), center.y.toDouble()) ?: return null
+    val pRight = toProjection.directionToPixel(dirRight, newCenter) ?: return null
+    val dirDown = fromProjection.pixelToDirection(center.x.toDouble(), (center.y + epsPx).toDouble()) ?: return null
+    val pDown = toProjection.directionToPixel(dirDown, newCenter) ?: return null
+    val j00 = ((pRight.x - newCenter.x) / epsPx).toDouble()
+    val j10 = ((pRight.y - newCenter.y) / epsPx).toDouble()
+    val j01 = ((pDown.x - newCenter.x) / epsPx).toDouble()
+    val j11 = ((pDown.y - newCenter.y) / epsPx).toDouble()
+    if (!j00.isFinite() || !j10.isFinite() || !j01.isFinite() || !j11.isFinite()) return null
+    val isoScale = sqrt(abs(j00 * j11 - j10 * j01))
+    if (!isoScale.isFinite() || isoScale <= 0.0) return null
+    val newRotationDegrees = rotationDegrees + Math.toDegrees(atan2(j10 - j01, j00 + j11)).toFloat()
+    val newSize = Size((size.width * isoScale).toFloat(), (size.height * isoScale).toFloat())
+    return Triple(newCenter, newSize, newRotationDegrees)
+}
+
+/**
+ * Exakte Einzelpunkt-Umrechnung (kein Bounding-Box-Näherung wie [convertOverlayGeometry]) --
+ * für einzelne Anker-/Kantenlinien-Punkte verankerter Sternbilder, die in Tiny Sky NUR für die
+ * Anzeige (nie zurückgeschrieben) korrekt positioniert dargestellt werden müssen.
+ */
+private fun convertProjectedPoint(
+    point: Offset,
+    fromProjection: PanoramaProjection,
+    toProjection: PanoramaProjection,
+    reference: Offset? = null,
+): Offset? {
+    val dir = fromProjection.pixelToDirection(point.x.toDouble(), point.y.toDouble()) ?: return null
+    return toProjection.directionToPixel(dir, reference)
+}
+
+/**
+ * Ergebnis von [reprojectFreehandViaPoints]: neue Bounding-Box + neu normalisierte Segmente (relativ
+ * zu [center]/[size], `rotationDegrees=0` -- die Ausrichtung steckt bereits in den Punkten selbst).
+ */
+private data class FreehandReprojection(val center: Offset, val size: Size, val segments: List<List<Offset>>)
+
+/**
+ * Reprojiziert die TATSÄCHLICHEN Freihand-Konturpunkte EINZELN (Tiny-Sky-Pixel -> Himmelsrichtung ->
+ * nativer Pixel) statt über eine einzige am Mittelpunkt abgetastete Jacobi-Schätzung -- exakt dasselbe
+ * Prinzip wie bei Sternbild-Kanten (Nutzer-Vorgabe 2026-08-24: "einfache Umprojektion wie die
+ * Sternbilder... pixelgenau"). Keine neue Information nötig -- die Punkte sind bereits Teil der
+ * gezeichneten Linie, nur die Berechnung wechselt die Quelle (viele Einzelpunkte statt einer
+ * Ableitungs-Schätzung an einer Stelle). Punkte, die sich nicht reprojizieren lassen (z.B. jenseits der
+ * sichtbaren Himmel-Scheibe), fallen einzeln weg; Segmente, die dadurch auf <2 Punkte schrumpfen,
+ * entfallen ganz. Rückgabe null, wenn zu wenige Punkte insgesamt übrig bleiben (Aufrufer fällt dann auf
+ * [convertOverlayGeometryLocal] zurück).
+ */
+private fun reprojectFreehandViaPoints(
+    overlay: AnnotationOverlay,
+    tsg: TinySkyGeometry,
+    overviewProj: PanoramaProjection,
+    nativeProj: PanoramaProjection,
+): FreehandReprojection? {
+    val reference = convertProjectedPoint(tsg.center, overviewProj, nativeProj) ?: return null
+    val tinySkySegments = OverlayGeometry.denormalizedFreehandPoints(
+        overlay.copy(center = tsg.center, size = tsg.size, rotationDegrees = tsg.rotationDegrees),
+    )
+    val nativeSegments = tinySkySegments.map { segment ->
+        segment.mapNotNull { pt -> convertProjectedPoint(pt, overviewProj, nativeProj, reference) }
+    }.filter { it.size >= 2 }
+    val allPoints = nativeSegments.flatten()
+    if (allPoints.size < 2) return null
+    val minX = allPoints.minOf { it.x }
+    val maxX = allPoints.maxOf { it.x }
+    val minY = allPoints.minOf { it.y }
+    val maxY = allPoints.maxOf { it.y }
+    val newCenter = Offset((minX + maxX) / 2f, (minY + maxY) / 2f)
+    val newSize = Size((maxX - minX).coerceAtLeast(1f), (maxY - minY).coerceAtLeast(1f))
+    val newSegments = OverlayGeometry.normalizeFreehandPoints(nativeSegments, newCenter, newSize)
+    return FreehandReprojection(newCenter, newSize, newSegments)
+}
+
+// Ellipse: volle 360°, gleichmäßig verteilt. Rechteck: pro Kante (nicht nur die 4 Ecken) -- beides
+// "Punkte auf dem Verlauf der Formlinien" (Nutzer-Vorgabe 2026-08-24), nicht nur an den Extrempunkten.
+private const val ELLIPSE_BOUNDARY_SAMPLES = 32
+private const val RECTANGLE_SAMPLES_PER_EDGE = 8
+
+/** Punkte auf dem Rand einer Ellipse/eines Rechtecks (lokal, um (0,0), bereits um [rotationDegrees]
+ *  gedreht) -- Translation um den Mittelpunkt macht der Aufrufer. */
+private fun sampleShapeBoundaryPoints(size: Size, rotationDegrees: Float, kind: OverlayKind): List<Offset> {
+    val hw = size.width / 2f
+    val hh = size.height / 2f
+    val local = when (kind) {
+        OverlayKind.Ellipse -> (0 until ELLIPSE_BOUNDARY_SAMPLES).map { i ->
+            val t = 2.0 * Math.PI * i / ELLIPSE_BOUNDARY_SAMPLES
+            Offset((hw * cos(t)).toFloat(), (hh * sin(t)).toFloat())
+        }
+        OverlayKind.Rectangle -> {
+            val corners = listOf(Offset(-hw, -hh), Offset(hw, -hh), Offset(hw, hh), Offset(-hw, hh))
+            (0 until 4).flatMap { edge ->
+                val a = corners[edge]
+                val b = corners[(edge + 1) % 4]
+                (0 until RECTANGLE_SAMPLES_PER_EDGE).map { j ->
+                    val t = j.toFloat() / RECTANGLE_SAMPLES_PER_EDGE
+                    Offset(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
+                }
+            }
+        }
+        else -> emptyList()
+    }
+    val rad = Math.toRadians(rotationDegrees.toDouble())
+    val cosR = cos(rad).toFloat()
+    val sinR = sin(rad).toFloat()
+    return local.map { p -> Offset(p.x * cosR - p.y * sinR, p.x * sinR + p.y * cosR) }
+}
+
+/**
+ * Reprojiziert die Randkontur einer Ellipse/eines Rechtecks EINZELN (viele Punkte entlang des
+ * Formverlaufs, s. [sampleShapeBoundaryPoints]) statt über eine einzige am Mittelpunkt abgetastete
+ * Jacobi-Schätzung -- Nutzer-Vorgabe 2026-08-24: "Punkte auf dem Verlauf der Formlinien platzieren,
+ * damit es möglichst genau wird". Rekonstruiert Mittelpunkt/Größe/Rotation aus der reprojizierten
+ * Punktwolke per Hauptachsen-Analyse (Eigenzerlegung der Kovarianzmatrix -- Standardtechnik, liefert
+ * die ORIENTIERUNG auch wenn die Punktwolke nicht mehr exakt elliptisch/rechteckig liegt; dieselbe
+ * 2x2-Eigenwert-Formel wie u.a. in [convertOverlayGeometryLocal]/AstapOverlayMapper.projectedEllipseAxes).
+ * Die tatsächliche Ausdehnung wird DANACH direkt entlang der gefundenen Achsen GEMESSEN (nicht aus einer
+ * Varianz-Formel angenommen) -- robust auch bei realer Verzerrung der Punktwolke. Rückgabe null, wenn zu
+ * wenige Punkte reprojiziert werden konnten (Aufrufer fällt dann auf [convertOverlayGeometryLocal] zurück).
+ */
+private fun reprojectBoundaryViaPoints(
+    tsg: TinySkyGeometry,
+    kind: OverlayKind,
+    overviewProj: PanoramaProjection,
+    nativeProj: PanoramaProjection,
+): Triple<Offset, Size, Float>? {
+    val reference = convertProjectedPoint(tsg.center, overviewProj, nativeProj) ?: return null
+    val localBoundary = sampleShapeBoundaryPoints(tsg.size, tsg.rotationDegrees, kind)
+    val reprojected = localBoundary.mapNotNull { local ->
+        convertProjectedPoint(tsg.center + local, overviewProj, nativeProj, reference)
+    }
+    if (reprojected.size < 3) return null
+    val n = reprojected.size
+    val cx = (reprojected.sumOf { it.x.toDouble() } / n).toFloat()
+    val cy = (reprojected.sumOf { it.y.toDouble() } / n).toFloat()
+    var cxx = 0.0
+    var cyy = 0.0
+    var cxy = 0.0
+    for (p in reprojected) {
+        val dx = (p.x - cx).toDouble()
+        val dy = (p.y - cy).toDouble()
+        cxx += dx * dx
+        cyy += dy * dy
+        cxy += dx * dy
+    }
+    cxx /= n
+    cyy /= n
+    cxy /= n
+    val theta = 0.5 * atan2(2.0 * cxy, cxx - cyy)
+    val cosT = cos(theta)
+    val sinT = sin(theta)
+    var minU = Double.MAX_VALUE
+    var maxU = -Double.MAX_VALUE
+    var minV = Double.MAX_VALUE
+    var maxV = -Double.MAX_VALUE
+    for (p in reprojected) {
+        val dx = (p.x - cx).toDouble()
+        val dy = (p.y - cy).toDouble()
+        val u = dx * cosT + dy * sinT
+        val v = -dx * sinT + dy * cosT
+        if (u < minU) minU = u
+        if (u > maxU) maxU = u
+        if (v < minV) minV = v
+        if (v > maxV) maxV = v
+    }
+    val midU = (minU + maxU) / 2.0
+    val midV = (minV + maxV) / 2.0
+    val newCx = (cx + (midU * cosT - midV * sinT)).toFloat()
+    val newCy = (cy + (midU * sinT + midV * cosT)).toFloat()
+    val width = (maxU - minU).toFloat().coerceAtLeast(1f)
+    val height = (maxV - minV).toFloat().coerceAtLeast(1f)
+    if (!newCx.isFinite() || !newCy.isFinite() || !width.isFinite() || !height.isFinite()) return null
+    return Triple(Offset(newCx, newCy), Size(width, height), Math.toDegrees(theta).toFloat())
+}
+
+private fun ConstellationPattern.localizedName(): String = localizedDisplayName(AppLocale.resolvedLanguageTag)
 
 @Composable
 private fun Hemisphere.localizedLabel(): String = when (this) {
@@ -925,6 +1278,12 @@ fun StarMapperApp() {
     var astapExifFieldOfView by remember { mutableStateOf<AstapExifFieldOfView?>(null) }
     var astapOperationState by remember { mutableStateOf<AstapOperationState>(AstapOperationState.Idle) }
     var astapSolveJob by remember { mutableStateOf<Job?>(null) }
+    // Unit 6 (2026-09-02): bei JEDEM expliziten Abbruch hochgezählt (s. resetSolveStateOnCancel).
+    // Jede Solve-Coroutine (Einzelbild UND Kacheln) merkt sich beim Start ihre eigene Generation und
+    // verwirft ihr eigenes Ergebnis, sobald sich die Generation inzwischen geändert hat -- verhindert,
+    // dass ein Solve, der TROTZ Abbruch noch erfolgreich durchläuft (Race), danach trotzdem WCS/
+    // Overlays/Solved-Status setzt oder die nächste Kachel auto-startet.
+    var solveGeneration by remember { mutableIntStateOf(0) }
     val novaSolver = remember(context) { NovaAstrometrySolver(context) }
     val localSolver = remember(context) { LocalAstrometrySolver(context) }
     // Einmalig: ist der lokale Solver (native Lib + gebündelte Indizes, API28+) einsatzbereit?
@@ -1001,6 +1360,18 @@ fun StarMapperApp() {
     // Zeichnen-Werkzeug (Zweifinger-Stift): Linkshänder spiegelt den Greif-Versatz + das Stift-Bild
     // auf die andere Seite der Spitze (Einstellungen-Panel). Default Rechtshänder (Altverhalten).
     var leftHandedDrawing by remember { mutableStateOf(preferences.getBoolean("left_handed_drawing", false)) }
+    // Anzeige-Deckel für die "Alle Sterne bis Magnitude"-Funktion (s. AstapOverlayMapper.createStarOverlays
+    // maxStars): global in den Einstellungen statt im Katalog-bearbeiten-Menü (Nutzerwunsch 2026-08-22),
+    // da es kein Bild-spezifischer Anzeige-Wert ist, sondern eine Performance-Abwägung, die der Nutzer
+    // einmalig selbst treffen will -- unabhängig von der (bildspezifischen) Magnitude-Grenze/den Chips.
+    var starDisplayCap by remember { mutableStateOf(preferences.getInt("star_display_cap", 600)) }
+    // Bilddateiformat für den "mit Hintergrund"-Export (Settings-Menü, Nutzerwunsch 2026-08-24): Png
+    // (Altverhalten) oder Jpeg mit eingebetteten 360°-XMP-Metadaten, damit externe Galerie-Apps (z.B.
+    // Samsung) das exportierte Bild als Panorama erkennen -- geht nur bei JPEG, s. ExportRenderer. Der
+    // "nur Overlay"-Export bleibt UNABHÄNGIG von dieser Einstellung immer Png (Transparenz).
+    var exportImageFormat by remember {
+        mutableStateOf(enumPreference(preferences.getString("export_image_format", null), ExportImageFormat.Png))
+    }
     // Projektionswahl für den globalen Kachel-Fit: "Auto" probiert alle Modelle und nimmt das mit dem
     // kleinsten Restfehler; sonst wird genau dieses Modell erzwungen (manueller Override).
     var panoProjectionChoice by remember {
@@ -1017,15 +1388,57 @@ fun StarMapperApp() {
     var customAlignFit by remember { mutableStateOf<PanoramaWcsSolution?>(null) }
     var customAlignRms by remember { mutableStateOf<Double?>(null) }
     var customAlignKind by remember { mutableStateOf<PanoProjectionKind?>(null) }
-    // Aus den ECHTEN, dichten .corr-Sternmessungen (nicht den 9 synthetischen Kachel-Ankern) gefittete
-    // Mesh-Korrektur -> eigenständige, wählbare "Mesh"-Option in der Projektionsleiste (neben Auto/
-    // Fisheye/.../Custom), solange sie existiert. ANDERS als customAlignFit (nur per Nutzeraktion
-    // gesetzt, überlebt mehrere Solves): automatisches Solve-Nebenprodukt, wird bei JEDEM
+    // RichCorrMesh: aus den ECHTEN, dichten .corr-Sternmessungen (nicht den groben Kachel-Ankern)
+    // gefittete Mesh-Korrektur -> im Projektionsmenü der Eintrag "Detail-Mesh" (seit 0.31.6; bis dahin
+    // hieß dieser Eintrag irreführend "Mesh", obwohl "Mesh" in solvetiles_candidates schon immer den
+    // ANDEREN Mechanismus meinte, s. sparseMeshFit unten). ANDERS als customAlignFit (nur per
+    // Nutzeraktion gesetzt, überlebt mehrere Solves): automatisches Solve-Nebenprodukt, wird bei JEDEM
     // solveAllTiles()-Lauf frisch berechnet bzw. bei zu wenig Daten auf null zurückgesetzt (s. dortiger
-    // Kommentar). Betrifft NICHT die automatische Mesh-Konkurrenz bei "Auto" (dieselbe Funktion
-    // fitMesh(), aber mit den groben Kachel-Ankern gefüttert, unverändert Teil von pickCalibration).
+    // Kommentar). Wird NIE automatisch angewendet -- ausschließlich über den manuellen Chip. Betrifft
+    // NICHT die automatische Mesh-Konkurrenz bei "Auto" (das ist FisheyeRefiner.fitMesh über die groben
+    // Kachel-Anker, unverändert Teil von pickCalibration).
     var richMeshFit by remember { mutableStateOf<PanoramaWcsSolution?>(null) }
     var richMeshRms by remember { mutableStateOf<Double?>(null) }
+    // Nutzer-Auftrag 2026-09-03 ("Detail-Mesh" = RichCorrMesh): Ein technisch gültiger Fit, den die
+    // Qualitäts-Gates (A8/Kreuzvalidierung) nur für die AUTOMATIK ablehnen, bleibt jetzt als manuell
+    // wählbarer Kandidat erhalten (s. RichCorrMesh.fitCandidate). Diese beiden Felder sagen, ob der
+    // vorhandene richMeshFit auch automatisch tauglich wäre bzw. warum nicht -- rein informativ für
+    // UI/Diagnose, sie steuern KEINE automatische Auswahl (richMeshFit wird ohnehin nie automatisch
+    // angewendet, s. solveAllTiles()).
+    var richMeshAutoEligible by remember { mutableStateOf(false) }
+    var richMeshRejectReason by remember { mutableStateOf<String?>(null) }
+    // "Mesh" im UI = SparseAnchorMesh, also der 7. Kandidat aus solvetiles_candidates (FisheyeRefiner.
+    // fitMesh über die groben Kachel-Anker). Bis 0.31.5 wurde dieser Fit VERWORFEN, sobald er die
+    // BIC-Auswahl nicht gewann (reine lokale Variable in solveAllTiles) -- er war dadurch nie manuell
+    // wählbar. Jetzt wird er festgehalten, ohne dass sich an pickCalibration/Auto etwas ändert.
+    var sparseMeshFit by remember { mutableStateOf<PanoramaWcsSolution?>(null) }
+    var sparseMeshRms by remember { mutableStateOf<Double?>(null) }
+    // Ergebnis-RMS je starrem Projektionskandidat aus dem letzten Kachel-Solve (identisch zu dem, was
+    // solvetiles_candidates protokolliert): Wert = erfolgreich gefittet, null = Fit gescheitert.
+    // Leere Map = noch kein Solve gelaufen -> dann ist NICHTS ausgegraut (die Wahl wirkt dann als
+    // Vorgabe für den nächsten Solve, exakt wie bisher).
+    var projectionCandidateRms by remember { mutableStateOf<Map<PanoProjectionKind, Double?>>(emptyMap()) }
+    // Verfügbarkeits-Übersicht der Projektionsauswahl -- an die Eingangsgrößen gekoppelt, feuert also nur
+    // bei einer echten Änderung (nach einem Solve, nach Undo/Redo, nach Projektionswechsel), NICHT pro Frame.
+    LaunchedEffect(
+        projectionCandidateRms, sparseMeshFit, richMeshFit,
+        richMeshAutoEligible, richMeshRejectReason, panoProjectionChoice, alignProjectionKind,
+    ) {
+        fun state(kind: PanoProjectionKind) =
+            if (projectionCandidateRms.isEmpty() || projectionCandidateRms[kind] != null) "available" else "unavailable"
+        AppDiagnostics.record(
+            "projection_availability autoSelected=$alignProjectionKind choice=$panoProjectionChoice " +
+                "rectilinear=${state(PanoProjectionKind.Rectilinear)} fisheye=${state(PanoProjectionKind.Fisheye)} " +
+                "stereographic=${state(PanoProjectionKind.Stereographic)} " +
+                "equirectangular=${state(PanoProjectionKind.Equirectangular)} " +
+                "cylindrical=${state(PanoProjectionKind.Cylindrical)} mercator=${state(PanoProjectionKind.Mercator)} " +
+                "mesh=${if (sparseMeshFit != null) "available" else "unavailable"} " +
+                "detailMesh=${if (richMeshFit != null) "available" else "unavailable"} " +
+                "detailMeshAutoEligible=$richMeshAutoEligible " +
+                "detailMeshManualEligible=${richMeshFit != null} " +
+                "detailMeshRejectReason=${richMeshRejectReason ?: "none"}",
+        )
+    }
     // Kompletter Kalibrierungs-Zustand direkt NACH dem letzten Solve (Kachel- oder Einzelbild) ->
     // präzise Rückfallbasis für "Original-Astrometrie wiederherstellen" (ersetzt die alleinige
     // originalSolvedWcs-Prüfung, da auch Projektionswahl/RMS/Kind mit zurückspringen müssen).
@@ -1052,6 +1465,12 @@ fun StarMapperApp() {
     var selectedSolveTileId by remember(bitmap) { mutableStateOf<Long?>(null) }
     // Manueller Kachel-Hinweis: Dialog offen für die Kachel mit dieser ID (Sternname eintippen).
     var manualHintDialogTileId by remember(bitmap) { mutableStateOf<Long?>(null) }
+    // Manueller Positions-Hinweis für den EINZELBILD-Solve (Unit 6, 2026-09-02): wiederverwendet
+    // denselben ManualHintDialog/findStarByName-Mechanismus wie der Kachel-Hinweis oben, statt einer
+    // zweiten, unabhängigen Sternsuche -- absichtlich GETRENNT von targetSkyPoint/targetObjectQuery
+    // (die bleiben die bestehende, unabhängige Text-Feld-Zielobjekt-Funktion in SolverConfigSection).
+    var singleSolveHintPoint by remember(bitmap) { mutableStateOf<SkyPoint?>(null) }
+    var showSingleSolveHintDialog by remember(bitmap) { mutableStateOf(false) }
     // Info-Popup (Status/De-Warp/Qualität) offen für die Kachel mit dieser ID.
     var tileInfoDialogId by remember(bitmap) { mutableStateOf<Long?>(null) }
     // Region-Info-Popup (Wissenswertes zu den aktuell beschrifteten Objekten) offen?
@@ -1093,14 +1512,59 @@ fun StarMapperApp() {
     // gerenderten stereografischen Ganzansicht (Zenit-zentriert, "kleiner Planet"). Kein Live-Rendering
     // mehr (das lief in vier vorigen Anläufen alles auf Performance-/UX-Probleme hinaus) — nach dem
     // Umschalten ist die Tiny-Sky-Bitmap ein stinknormales Foto aus Sicht von EditorCanvas, mit den
-    // immer schon vorhandenen Pan-/Zoom-/Bearbeitungs-Gesten. Kacheln UND Overlays (Sternbilder/Text/
-    // Formen) bleiben kanonisch im Original-Bild-Koordinatenraum gespeichert, werden für die
-    // Anzeige/Bearbeitung in Tiny Sky nur abgeleitet umgerechnet (siehe displaySolveTiles/
-    // displayOverlays unten) — bewusst NICHT an calibrationActive gekoppelt, damit auch andere
-    // Werkzeuge (Sternbild/Text/Form hinzufügen, außerhalb der Kalibrierung) in Tiny Sky nutzbar sind.
+    // immer schon vorhandenen Pan-/Zoom-/Bearbeitungs-Gesten. Kacheln sind rein ansichts-lokal (eigener
+    // Koordinatenraum je Ansicht, keine Umrechnung, s. TileSourceSpace/Plan Nachtrag 3). Overlays
+    // (Sternbilder/Text/Formen) bleiben kanonisch im Original-Bild-Koordinatenraum gespeichert, werden
+    // für die Anzeige in Tiny Sky nur abgeleitet umgerechnet (siehe displayOverlays unten) — bewusst
+    // NICHT an calibrationActive gekoppelt, damit auch andere Werkzeuge (Sternbild/Text/Form hinzufügen,
+    // außerhalb der Kalibrierung) in Tiny Sky nutzbar sind.
     var tinySkyActive by remember(bitmap) { mutableStateOf(false) }
     var tinySkyBitmap by remember(bitmap) { mutableStateOf<Bitmap?>(null) }
+    // EXPLIZITES 360°-Workflow-Flag (Nutzer-Vorgabe 2026-09-04). Wird NUR gesetzt, wenn der Nutzer den
+    // 360°-Viewer-Knopf gedrückt hat UND daraus eine gültige Tiny-Sky-Arbeitsansicht entstanden ist.
+    //
+    // Warum überhaupt: `seamAware` (Naht-Aufteilung der Sternbildkanten) hing bis 0.31.9 allein an
+    // `projection.horizontalPeriodPx() != null`. Das ist zu breit -- ein ganz normal importiertes,
+    // Mercator-GESTITCHTES Foto (untere Bildhälfte Vordergrund, Kacheln nur im Himmel) erfüllt diese
+    // Bedingung ebenfalls, ist aber KEIN 360°-Panorama-Workflow. Ergebnis war der in der Golden-Forensik
+    // beschriebene Fehler: Kantenstücke außerhalb [0, imageWidth] wurden um ±imageWidth zurück INS Bild
+    // verschoben (Gerätebefund Diagnose 45: 69/69 Overlays seamAware=true auf einem 6392x4101-Foto).
+    // Die Golden-APK (Diagnose 47) zeigt für exakt dasselbe Bild mit Mercator korrekte Sternbilder --
+    // sie kannte splitPolylineAtSeam gar nicht.
+    //
+    // Bewusst per-Bild (`remember(bitmap)`) und monoton: einmal echter 360°-Workflow, bleibt es für
+    // dieses Bild dabei -- auch nach Rückkehr in die 2:1-/native Ansicht, genau der vom Nutzer
+    // beschriebene Fall. Bewusst NICHT Teil von CalibrationSnapshot: das ist kein Kalibrierungszustand,
+    // sondern eine Aussage über die Bildherkunft; ein Undo einer Projektionswahl darf sie nicht ändern.
+    var tinySkyWorkflowUsed by remember(bitmap) { mutableStateOf(false) }
     var tinySkyLoading by remember(bitmap) { mutableStateOf(false) }
+    // Objekte/Formen/Zeichnungen/Text, die IN Tiny Sky entstehen oder dort bearbeitet werden, sollen sich
+    // dort exakt wie in einem normalen (nativen) Bild verhalten -- keine laufende Projektionsrechnung
+    // während des Zeichnens/Bearbeitens (Nutzer-Vorgabe 2026-08-24, Auslöser: Formen "landeten ganz
+    // woanders, teils viel größer" nach dem Fertigstellen -- dieselbe Instabilitätsklasse, die für Kacheln
+    // bereits durch "ansichts-lokal, keine Live-Umrechnung" behoben wurde, s. Plan Nachtrag 3). Dafür
+    // bekommt ein Overlay bei jeder Erstellung/Bearbeitung IN Tiny Sky zusätzlich zu seiner normalen
+    // (nativen) Geometrie eine mitlaufende TinySkyGeometry-Momentaufnahme -- diese ist die alleinige
+    // Grundlage für Anzeige/Bearbeitung SOLANGE Tiny Sky aktiv ist (kein WCS-Bezug nötig). Beim Verlassen
+    // von Tiny Sky (Umschalt-Button) wird daraus EINMALIG (nicht laufend) die native, projektionsverzerrte
+    // Geometrie berechnet -- s. dortige Stelle. Die TinySkyGeometry bleibt danach erhalten (nicht
+    // gelöscht), damit ein erneutes Betreten von Tiny Sky dieselbe Form unverändert wiederfindet und
+    // weiter bearbeitbar bleibt. Native Bearbeitung eines Overlays mit vorhandener TinySkyGeometry
+    // aktualisiert diese bewusst NICHT (siehe onUpdateOverlay) -- vermeidet dieselbe Instabilität in der
+    // Gegenrichtung; betrifft nur den seltenen Fall, ein Objekt abwechselnd in beiden Ansichten zu
+    // bearbeiten. Bereits vorhandene, aus dem Solve stammende Inhalte (Sternbilder/DSOs/Katalogsterne)
+    // durchlaufen NIE diesen Pfad (sie werden nie über onCreateOverlay/onUpdateOverlay erzeugt) -- deren
+    // bestehende, umgerechnete Tiny-Sky-Anzeige (s. displayOverlays) bleibt komplett unverändert.
+    fun AnnotationOverlay.snapshotTinySkyGeometryIfActive(): AnnotationOverlay =
+        if (tinySkyActive) {
+            copy(
+                tinySkyGeometry = TinySkyGeometry(
+                    center, size, rotationDegrees, labelAngleDeg, labelLeaderPx, freehandSegments,
+                ),
+            )
+        } else {
+            this
+        }
     var nextSolveTileId by remember(bitmap) { mutableLongStateOf(1L) }
     var solveTilesRunning by remember(bitmap) { mutableStateOf(false) }
     var solveTilesStatus by remember(bitmap) { mutableStateOf("") }
@@ -1253,9 +1717,20 @@ fun StarMapperApp() {
     // platzierte Fadenkreuz-/Kometenmarker-Reticles, unabhängig von normalen Formen. Default identisch
     // zum bisherigen shapeColorArgb-Wert, damit sich am Erscheinungsbild zunächst nichts ändert.
     var reticleColorArgb by remember { mutableStateOf(preferences.getLong("color_reticle", 0xFFFFD28A)) }
-    var shapeStrokeWidth by remember { mutableFloatStateOf(4f) }
+    // Standard so dünn wie im ShapesPanel-Regler (0.2f..40f, s. dort) überhaupt möglich (Nutzerwunsch
+    // 2026-08-22; Reglerbereich 2026-08-30 deutlich erweitert, dieser Default bewusst unverändert
+    // gelassen -- ein bestehendes Foto soll durch die reine Bereichserweiterung nicht plötzlich dünnere
+    // Standardlinien zeigen).
+    var shapeStrokeWidth by remember { mutableFloatStateOf(1.5f) }
     var shapeLineStyle by remember { mutableStateOf(OverlayLineStyle.Solid) }
     var shapeFilled by remember { mutableStateOf(false) }
+    // Nutzer-Vorgabe 2026-08-30 (Punkt 2, "Kollisionsvermeidung automatisch neu berechnen"): jedes
+    // Verschieben/Skalieren/Drehen/Löschen eines Overlays erhöht diesen Zähler; ein einzelner,
+    // entprellter LaunchedEffect (s. unten bei den DSO-Farb-Debounces) löst daraufhin einmalig
+    // syncDeepSkyLayer mit voller Kollisionssuche aus -- exakt dasselbe, bereits etablierte Entprell-
+    // Prinzip wie beim Farbwähler, nur an ein Zähler- statt ein Werte-Signal gekoppelt (die auslösenden
+    // Ereignisse sind diskrete Gesten-Enden, kein kontinuierlicher Wert).
+    var dsoNeighborRecheckTick by remember { mutableIntStateOf(0) }
     var shapeFont by remember { mutableStateOf(OverlayFont.SansSerif) }
     var shapeOpacity by remember { mutableFloatStateOf(0.92f) }
     // Ziehbares Namens-Schwänzchen (Ellipse/Rechteck): eigene Regler-Zustände, seeden beim Auswählen
@@ -1311,6 +1786,10 @@ fun StarMapperApp() {
     // Vorberechnete Katalogzugehörigkeit je Objekt (einmalig beim Laden bestimmt) -- vermeidet
     // tausendfaches Regex-Matching (DeepSkyCatalogGroup.of()) bei jedem Regler-Tick in syncDeepSkyLayer.
     var deepSkyCatalogGroups by remember { mutableStateOf<Map<DeepSkyObject, DeepSkyCatalogGroup>>(emptyMap()) }
+    // Vorberechnete Best-Known-Zuordnung je Objekt (einmalig beim Laden bestimmt, Performance-Fix
+    // 2026-09-02) -- vermeidet, dass jeder Slider-Commit im Objekte-Menü erneut BestKnownCatalog.match()
+    // über den kompletten Katalog laufen lässt, s. AstapOverlayMapper.createDeepSkyOverlays.
+    var deepSkyBestKnownMatches by remember { mutableStateOf<Map<DeepSkyObject, BestKnownEntry?>>(emptyMap()) }
     // App-eigene Form-Fakten (normalisierte Bezeichnung -> DsoShape: maj + optional min/pa). Leer -> Kreis aus Katalog-dim.
     var dsoShapes by remember { mutableStateOf<Map<String, DsoShape>>(emptyMap()) }
     var d3CatalogSettings by remember {
@@ -1342,6 +1821,12 @@ fun StarMapperApp() {
         AnnotateSelections().apply {
             starNameColorArgb = preferences.getLong("color_star_names", starNameColorArgb)
             gridColorArgb = preferences.getLong("color_grid", gridColorArgb)
+            bestKnownEnabled = preferences.getBoolean("dso_best_known_enabled", bestKnownEnabled)
+            // Re-quantisieren beim Laden (Best-Known-Vorgabe Abschnitt V): verhindert, dass ein alter,
+            // vor dieser Umstellung gespeicherter Float-Zwischenwert nach einem Neustart zurückkehrt.
+            dsoMinSizePercent = quantizeDsoMinSizePercent(
+                preferences.getFloat("dso_min_size_percent", dsoMinSizePercent),
+            )
         }
     }
 
@@ -1352,10 +1837,116 @@ fun StarMapperApp() {
 
     // Verwaltete Beschriftungs-Ebenen: jede Ebene wird beim Anwenden komplett ersetzt,
     // sodass abgewählte Kategorien/Kataloge wieder verschwinden.
-    fun syncConstellationLayer(recordUndo: Boolean = true) {
+    /**
+     * Setzt die AKTIVE Lösung wieder auf die manuell gewählte Projektion, falls [panoProjectionChoice]
+     * einen der drei gespeicherten Kandidaten benennt ("Mesh"/"DetailMesh"/"Custom").
+     *
+     * Hintergrund (Gerätebefund 2026-09-03, A1): `allowedProjectionKinds()` kennt für diese drei Werte
+     * keinen eigenen Zweig und fällt auf ALLE sechs starren Modelle zurück. Jeder erneute Fit
+     * (`solveAllTiles()`, `reprojectPanorama()`) hat dadurch den automatischen Sieger berechnet UND
+     * angewendet, während die UI weiter "Mesh" anzeigte -- exakt die beobachtete Log-Folge
+     * `choice=Mesh` -> `reproject model=Mercator` -> `autoSelected=Mercator choice=Mesh`.
+     *
+     * Der automatische Sieger wird weiterhin vollständig BERECHNET und protokolliert (nichts an der
+     * Auto-Auswahl selbst geändert) -- er wird nur nicht mehr angezeigt, wenn der Nutzer bewusst etwas
+     * anderes gewählt hat und dieser Kandidat gültig vorliegt. Ist der gewählte Kandidat NICHT (mehr)
+     * vorhanden, bleibt der Auto-Sieger aktiv (ehrlicher als gar keine Lösung).
+     *
+     * Ruft bewusst KEINE sync*Layer()-Funktion auf -- die Aufrufer tun das ohnehin direkt danach; so
+     * entsteht kein zweiter, paralleler Annotationspfad.
+     */
+    fun applyManualProjectionOverride(): Boolean {
+        val fit = when (panoProjectionChoice) {
+            "Mesh" -> sparseMeshFit
+            "DetailMesh" -> richMeshFit
+            "Custom" -> customAlignFit
+            else -> null
+        } ?: return false
+        lastSolvedWcs = fit
+        fisheyeBaseFit = fit
+        fisheyeAlignSeed = fit
+        alignProjectionKind = if (panoProjectionChoice == "Custom") {
+            customAlignKind ?: alignProjectionKind
+        } else {
+            PanoProjectionKind.Mesh
+        }
+        alignProjectionRms = when (panoProjectionChoice) {
+            "Mesh" -> sparseMeshRms
+            "DetailMesh" -> richMeshRms
+            else -> customAlignRms
+        }
+        return true
+    }
+
+    /**
+     * REIN DIAGNOSTISCH (Nutzer-Auftrag 2026-09-03, Abschnitt 6): misst, wie weit das Bildrechteck unter
+     * [solution] von der tatsächlich durch gelöste Kacheln gestützten Himmelsregion abweicht.
+     *
+     * Für ein Raster über das Bild: Pixel -> Richtung (im Pano-Rahmen), zurück in den äquatorialen Rahmen
+     * gedreht, dann der minimale Winkelabstand zu [anchors] (= `panoSolveAnchors`, Bild-px <-> äquatoriale
+     * Richtung, projektionsunabhängig aus den Kachel-WCS gewonnen).
+     *
+     * Greift NICHT in die Modellauswahl ein -- kein Kandidat wird abgelehnt, kein RMS/BIC verändert, kein
+     * Culling. Die Zahlen dienen ausschließlich dem späteren Vergleich "gesundes Bild" vs. "entarteter
+     * Mercator-Fall", bevor überhaupt über eine Schwelle entschieden wird.
+     */
+    fun logSupportDistance(
+        model: String,
+        solution: PanoramaWcsSolution?,
+        anchors: List<Pair<Offset, Vec3>>,
+        imgW: Int,
+        imgH: Int,
+    ) {
+        if (solution == null || anchors.isEmpty() || imgW <= 0 || imgH <= 0) return
+        val inv = solution.rotEquToPano.transpose()
+        val anchorDirs = anchors.map { it.second.normalized() }
+        val distances = ArrayList<Double>(81)
+        for (iy in 0..8) {
+            for (ix in 0..8) {
+                val dirPano = solution.projection.pixelToDirection(
+                    imgW.toDouble() * ix / 8.0,
+                    imgH.toDouble() * iy / 8.0,
+                ) ?: continue
+                val dirEq = (inv * dirPano).normalized()
+                var best = 180.0
+                for (a in anchorDirs) {
+                    val dot = (dirEq.x * a.x + dirEq.y * a.y + dirEq.z * a.z).coerceIn(-1.0, 1.0)
+                    val ang = Math.toDegrees(acos(dot))
+                    if (ang < best) best = ang
+                }
+                distances += best
+            }
+        }
+        if (distances.isEmpty()) return
+        val sorted = distances.sorted()
+        fun q(p: Double) = sorted[((sorted.size - 1) * p).toInt().coerceIn(0, sorted.size - 1)]
+        AppDiagnostics.record(
+            "support_distance model=$model sampleCount=${sorted.size} " +
+                "medianDeg=${"%.1f".format(q(0.50))} p90Deg=${"%.1f".format(q(0.90))} " +
+                "p95Deg=${"%.1f".format(q(0.95))} maxDeg=${"%.1f".format(sorted.last())}",
+        )
+    }
+
+    fun syncConstellationLayer(
+        recordUndo: Boolean = true,
+        // Default bewusst GeometryChanged (die "sichere" Seite): eine künftig neu hinzukommende
+        // Aufrufstelle verliert damit höchstens eine manuelle Ankerkorrektur, statt still wieder
+        // veraltete Pixel aus der vorherigen Projektion einzuschleppen. Die vier reinen
+        // Darstellungs-Aufrufstellen setzen VisualOnly ausdrücklich.
+        reason: ConstellationSyncReason = ConstellationSyncReason.GeometryChanged,
+    ) {
         val wcs = lastSolvedWcs
         val source = bitmap
         if (recordUndo) editorSession.recordHistory()
+        // Kernpunkt des Fixes (Nutzer-Auftrag 2026-09-03, nachgewiesener Stale-Anchor-Fehler):
+        // anchorOverrides enthält NICHT nur manuelle Korrekturen, sondern (seit
+        // createConstellationOverlays) für JEDEN überlebenden Stern die FINAL PROJIZIERTE Position.
+        // Beim Projektionswechsel (Mercator -> Mesh) wurden diese alten Pixel bisher unbedingt in das
+        // frisch projizierte Overlay zurückkopiert, während `edgePolylines` bewusst frisch blieb ->
+        // Linien neu, Anker/Name/Trefferfläche alt. Bei einer echten Geometrie-/Projektionsänderung
+        // gewinnen deshalb ab jetzt die frischen Anker vollständig; manuelle Ankerkorrekturen gehen
+        // dabei BEWUSST verloren (ausdrückliche Produktentscheidung für diesen sicheren Fix).
+        val preservePriorAnchors = reason == ConstellationSyncReason.VisualOnly
         // Individuelle Sternbild-Anpassungen (Farbe/Linie/Deckkraft/etc.) vor dem Neuaufbau sichern,
         // nach constellation-ID gruppiert -> nach dem (Neu-)Solve nur die POSITION/Geometrie aus dem
         // frischen Fit übernehmen, individuelle Stil-Abweichungen aber je Sternbild erhalten. Ohne
@@ -1383,6 +1974,7 @@ fun StarMapperApp() {
                 nameTextSize = constellationNameTextSize,
                 font = constellationFont,
                 completenessOut = completenessList,
+                panoramaWorkflowActive = tinySkyWorkflowUsed,
             ).forEach { fresh ->
                 val prior = fresh.constellation?.id?.let { previousStyleById[it] }
                 val merged = if (prior != null) {
@@ -1395,6 +1987,17 @@ fun StarMapperApp() {
                         font = prior.font,
                         nameTextSize = prior.nameTextSize,
                         showAnchors = prior.showAnchors,
+                        // anchorOverrides NUR bei einem reinen Darstellungs-Resync aus `prior` übernehmen
+                        // (Sprachwechsel, Sichtbarkeits-/Namens-Schalter) -- dort ist die Geometrie
+                        // unverändert, und eine manuelle Ankerkorrektur soll erhalten bleiben. Bei einer
+                        // echten Projektions-/Geometrieänderung bleibt es bei `fresh`s neu projizierten
+                        // Ankern (s. preservePriorAnchors oben).
+                        anchorOverrides = if (preservePriorAnchors) prior.anchorOverrides else fresh.anchorOverrides,
+                        // constellationNameOffset bleibt in BEIDEN Fällen erhalten: das ist ein relativer
+                        // Pixel-Versatz auf den automatisch berechneten Namensanker, keine absolute
+                        // Position -- er veraltet beim Projektionswechsel also nicht auf dieselbe Weise.
+                        // Bewusst nicht mit angefasst (Scope).
+                        constellationNameOffset = prior.constellationNameOffset,
                     )
                 } else {
                     fresh
@@ -1404,23 +2007,99 @@ fun StarMapperApp() {
             constellationCompletenessById = completenessList.associateBy { it.id }
         }
         AppDiagnostics.record("annotate_constellations enabled=${annotate.constellationsEnabled}")
+        // Nutzer-Vorgabe 2026-09-04: nachvollziehbar machen, WARUM die Naht-Aufteilung aktiv/inaktiv ist.
+        val seamPeriodPresent = ((wcs as? PanoramaWcsSolution)
+            ?: ((wcs as? MosaicWcsSolution)?.fallback as? PanoramaWcsSolution))
+            ?.projection?.horizontalPeriodPx() != null
+        AppDiagnostics.record(
+            "constellation_seam projectionKind=$alignProjectionKind " +
+                "horizontalPeriodPx=${if (seamPeriodPresent) "present" else "absent"} " +
+                "panoramaWorkflowActive=$tinySkyWorkflowUsed " +
+                "seamAwareForConstellations=${tinySkyWorkflowUsed && seamPeriodPresent} " +
+                "source=$reason reason=${
+                    when {
+                        !seamPeriodPresent -> "projection_not_periodic"
+                        !tinySkyWorkflowUsed -> "no_360_workflow_for_this_image"
+                        else -> "periodic_projection_from_360_workflow"
+                    }
+                }",
+        )
+        AppDiagnostics.record(
+            "constellation_sync reason=$reason preservePriorAnchors=$preservePriorAnchors " +
+                "projectionKind=$alignProjectionKind " +
+                "overlayCount=${overlays.count { it.layer == AnnotationLayer.Constellation }}",
+        )
+        // Genau EIN Beispiel-Overlay je Sync (kein Pro-Frame-Log, keine Flut): zeigt, ob für dieses
+        // Sternbild die alten oder die frisch projizierten Anker verwendet wurden.
+        overlays.firstOrNull { it.layer == AnnotationLayer.Constellation }?.let { sample ->
+            val priorCount = sample.constellation?.id?.let { previousStyleById[it]?.anchorOverrides?.size } ?: 0
+            AppDiagnostics.record(
+                "constellation_sync_sample id=${sample.constellation?.id} " +
+                    "priorAnchorCount=$priorCount freshAnchorCount=${sample.anchorOverrides.size} " +
+                    "usedPriorAnchors=${preservePriorAnchors && priorCount > 0} " +
+                    "usedFreshAnchors=${!preservePriorAnchors || priorCount == 0}",
+            )
+        }
+    }
+
+    /**
+     * Kompakter Vollstaendigkeits-Audit aus dem ZULETZT gelaufenen syncConstellationLayer()-Durchlauf
+     * (Geraetebefund 2026-09-04): der ausfuehrliche Audit am Ende von solveAllTiles() beschreibt immer
+     * den Zustand DIREKT NACH DEM SOLVE -- nach einem manuellen Projektionswechsel stand in der Diagnose
+     * also weiterhin die Mercator-Bilanz, obwohl inzwischen Mesh aktiv war. Diese Kurzfassung wird nach
+     * jedem manuellen Wechsel nachgezogen.
+     *
+     * Bewusst OHNE den `caudit[]`-Genauigkeitsteil: der braucht `allRealMatches` (Blob- + .corr-Treffer),
+     * das nur innerhalb von solveAllTiles() existiert. Hier werden ausschliesslich die bereits
+     * vorhandenen Vollstaendigkeitszahlen aus `constellationCompletenessById` gelesen -- kein neuer
+     * Rechenweg, keine Aenderung an der Erzeugung.
+     */
+    fun logConstellationAudit(source: String) {
+        val rows = catalog.mapNotNull { p -> constellationCompletenessById[p.id]?.let { p to it } }
+        if (rows.isEmpty()) return
+        AppDiagnostics.record(
+            "constellation_audit total=${catalog.size} " +
+                "drawn=${rows.count { it.second.survivingEdges > 0 }} " +
+                "in_fov_empty=${rows.count { it.second.anyStarInFov && it.second.survivingEdges == 0 }} " +
+                "not_in_fov=${rows.count { !it.second.anyStarInFov }} " +
+                "accuracy_checked=0 projectionKind=$alignProjectionKind source=$source",
+        )
     }
 
     // Vor solveAllTiles() deklariert (lokale Funktionen dürfen nur zuvor deklarierte referenzieren),
     // da solveAllTiles() nach jedem Kachel-Solve alle drei Layer (Konstellation/DSO/Stern) synct.
-    fun syncDeepSkyLayer(recordUndo: Boolean = true) {
-        val wcs = lastSolvedWcs
-        val source = bitmap
-        if (wcs == null || source == null) return
-        // Bei Live-Updates (Slider zieht) KEIN Undo-Schritt pro Tick -> Stack nicht fluten.
-        if (recordUndo) editorSession.recordHistory()
-        overlays.removeAll { it.layer == AnnotationLayer.DeepSky }
+    // fullLabelPlacement 2026-08-30 von recordUndo ENTKOPPELT (Nutzerbefund "Beschriftungen liegen im
+    // eigenen Objekt/schneiden die Kontur"): vorher lief bei JEDEM recordUndo=false-Aufruf (Solve-
+    // Abschluss, Reprojektion, Solution-Import, entprellter Farbwechsel, Fisheye-Align) automatisch der
+    // GÜNSTIGE Live-Drag-Pfad OHNE jede Kollisionsprüfung (labelAngle fest auf 0°) -- obwohl an all
+    // diesen Stellen gar nicht gezogen wird und die teure Suche sich problemlos leisten ließe. Default
+    // bleibt `true` (volle Suche), NUR der echte Live-Slider-Pfad (s. onApplyDeepSky) übergibt weiterhin
+    // explizit `false` während des Ziehens.
+    // Reiner Compute-Teil von syncDeepSkyLayer (Performance-Fix 2026-09-02, Objekte-Menü-Slider froren
+    // ein): liest nur (deepSkyObjects/WCS/annotate/...), mutiert KEINEN Compose-State (overlays/
+    // editorSession/AppDiagnostics/nextOverlayId) -- dadurch sicher auch von einem Hintergrund-
+    // Dispatcher (Dispatchers.Default) aufrufbar, s. requestDeepSkySync() weiter unten. syncDeepSkyLayer()
+    // selbst bleibt für seine bestehenden ~13 Aufrufstellen (Solve-Abschluss/Reprojektion/Sprachwechsel/
+    // Solution-Import/Fisheye-Align/entprellter Farbwechsel usw.) unverändert synchron, delegiert nur
+    // noch hierher statt die Logik zu duplizieren -- keine Verhaltensänderung an diesen Stellen.
+    data class DeepSkyComputeResult(
+        val markers: List<AnnotationOverlay>,
+        val constellationNameObstacles: Int,
+        val userOverlayObstacles: Int,
+    )
+    fun computeDeepSkyOverlays(fullLabelPlacement: Boolean): DeepSkyComputeResult {
+        val wcs = lastSolvedWcs ?: return DeepSkyComputeResult(emptyList(), 0, 0)
+        val source = bitmap ?: return DeepSkyComputeResult(emptyList(), 0, 0)
         // Sternbild-Namen als Hindernis für die DSO-Namensplatzierung (s. externalObstacleBoxes-
-        // Kommentar dort) -- aus der zuletzt synchronisierten Sternbild-Ebene, da diese bei allen
-        // gemeinsamen Aufrufstellen unmittelbar VOR syncDeepSkyLayer() neu aufgebaut wird.
+        // Kommentar dort) -- aus der zuletzt synchronisierten Sternbild-Ebene. Layer-gefiltert (Constellation
+        // bzw. layer==null) -- unabhängig davon, ob eine ältere DSO-Generation noch in overlays steht.
         val constellationNameBoxes = overlays.mapNotNull {
-            if (it.layer == AnnotationLayer.Constellation) OverlayGeometry.nonCalloutNameLabelBoundingBoxOrNull(it) else null
+            if (it.layer == AnnotationLayer.Constellation) constellationNameObstacleBox(it, source.width.toFloat(), source.height.toFloat()) else null
         }
+        // Manuell platzierte Formen/Zeichnungen/Text/Fadenkreuze ebenfalls als Hindernis (Nutzer-Vorgabe
+        // 2026-08-30) -- vorher wichen DSO-Auto-Labels NUR Sternbildnamen aus, nicht bereits vorhandenen
+        // Nutzer-Overlays.
+        val userOverlayBoxes = overlays.mapNotNull { OverlayGeometry.userOverlayObstacleBox(it) }
         val markers = AstapOverlayMapper.createDeepSkyOverlays(
             objects = deepSkyObjects,
             solution = wcs,
@@ -1430,6 +2109,10 @@ fun StarMapperApp() {
             categories = annotate.deepSkyCategories(),
             catalogMagRange = { annotate.dsoMagRangeOf(it) },
             catalogs = annotate.catalogs.toSet(),
+            // Punkt 5 (Nutzer-Vorgabe 2026-08-30): nur bei aktiviertem Schalter greift der neue Regler --
+            // deaktiviert (Default) bleibt exakt der bisherige, feste Default (2.5) in createDeepSkyOverlays.
+            strokeWidth = if (annotate.deepSkyStrokeWidthEnabled) annotate.deepSkyStrokeWidth else 2.5f,
+            nameOpacityLinked = annotate.deepSkyNameOpacityLinked,
             nameTextSize = annotate.deepSkyNameSize,
             font = annotate.deepSkyFont,
             showNames = annotate.deepSkyShowNames,
@@ -1445,15 +2128,72 @@ fun StarMapperApp() {
             ),
             shapes = dsoShapes,
             opacityFor = { annotate.dsoOpacityOf(it) },
-            minRenderSizeFraction = annotate.dsoMinSizePercent / 100f,
-            externalObstacleBoxes = constellationNameBoxes,
+            bestKnownEnabled = annotate.bestKnownEnabled,
+            bestKnownMatches = deepSkyBestKnownMatches,
+            minNaturalSizePercent = annotate.dsoMinSizePercent.takeIf { it > 0f },
+            externalObstacleBoxes = constellationNameBoxes + userOverlayBoxes,
             // Volle (teure) Namensplatzierung nur beim Loslassen; beim Live-Ziehen günstig -> kein Ruckeln.
-            fullLabelPlacement = recordUndo,
+            fullLabelPlacement = fullLabelPlacement,
             lang = AppLocale.resolvedLanguageTag,
         )
-        markers.forEach { overlays += it.copy(id = nextOverlayId++) }
+        return DeepSkyComputeResult(markers, constellationNameBoxes.size, userOverlayBoxes.size)
+    }
+
+    fun syncDeepSkyLayer(recordUndo: Boolean = true, fullLabelPlacement: Boolean = true) {
+        if (lastSolvedWcs == null || bitmap == null) return
+        // Bei Live-Updates (Slider zieht) KEIN Undo-Schritt pro Tick -> Stack nicht fluten.
+        if (recordUndo) editorSession.recordHistory()
+        val result = computeDeepSkyOverlays(fullLabelPlacement)
+        overlays.removeAll { it.layer == AnnotationLayer.DeepSky }
+        result.markers.forEach { overlays += it.copy(id = nextOverlayId++) }
         // Datei-I/O nur beim committeten Aufruf, nicht bei jedem Live-Drag-Tick (Regler-Performance).
-        if (recordUndo) AppDiagnostics.record("annotate_deepsky count=${markers.size}")
+        // Punkt 12: Stroke-/Opazitäts-Kopplungs-Status + Hindernis-Boxen-Zahl mitgeloggt, damit sich am
+        // Diagnose-Dump ablesen lässt, ob Punkt 2/5/6 tatsächlich wie eingestellt wirken.
+        if (recordUndo) {
+            AppDiagnostics.record(
+                "annotate_deepsky count=${result.markers.size} strokeWidthEnabled=${annotate.deepSkyStrokeWidthEnabled} " +
+                    "strokeWidth=${if (annotate.deepSkyStrokeWidthEnabled) annotate.deepSkyStrokeWidth else 2.5f} " +
+                    "nameOpacityLinked=${annotate.deepSkyNameOpacityLinked} " +
+                    "constellationNameObstacles=${result.constellationNameObstacles} userOverlayObstacles=${result.userOverlayObstacles} " +
+                    "fullLabelPlacement=$fullLabelPlacement",
+            )
+        }
+    }
+
+    // Performance-Fix 2026-09-02 (Objekte-Menü-Slider froren ein): entprellte, hintergrund-berechnete
+    // DSO-Neusynchronisierung für den EINEN tatsächlich per Slider-Drag betroffenen Auslöser
+    // (onApplyDeepSky, s. requestDeepSkySync-Aufrufstelle unten) -- ersetzt den bisherigen SYNCHRONEN
+    // syncDeepSkyLayer()-Aufruf direkt im UI-Event. annotate.dsoResyncGeneration (Feld auf
+    // AnnotateSelections, s. dortiger KDoc -- MethodTooLargeException-Vorsicht) ist ein reiner Zähler:
+    // jeder Commit erhöht ihn, LaunchedEffect(...) bricht eine noch laufende VORHERIGE Coroutine
+    // automatisch ab (Compose-Standardverhalten bei Key-Wechsel) und startet neu. Die zusätzliche
+    // `if (... != myGeneration) return`-Prüfung NACH der Hintergrundrechnung deckt zusätzlich den Fall
+    // ab, dass eine bereits laufende (nicht kooperativ abbrechbare, da createDeepSkyOverlays keine
+    // Suspend-Punkte hat) Altberechnung fertig wird, NACHDEM schon ein neuerer Commit ausgelöst wurde --
+    // "letzter Wert gewinnt" ist damit in jedem Interleaving garantiert, nicht nur im Normalfall. Die
+    // eigentliche schwere Arbeit (createDeepSkyOverlays, CPU-gebunden) läuft auf Dispatchers.Default;
+    // overlays/nextOverlayId werden erst NACH Abschluss, zurück auf Main, in einem einzigen billigen
+    // Schritt aktualisiert.
+    fun requestDeepSkySync() {
+        editorSession.recordHistory()
+        annotate.dsoResyncGeneration++
+    }
+    LaunchedEffect(annotate.dsoResyncGeneration) {
+        if (annotate.dsoResyncGeneration <= 0) return@LaunchedEffect
+        val myGeneration = annotate.dsoResyncGeneration
+        val startNanos = System.nanoTime()
+        // Immer volle (teure) Kollisions-Namensplatzierung -- dieser Pfad ist per Konstruktion nur der
+        // COMMITTETE Zustand (Slider-Release oder Schalter-Tap), nie ein Live-Drag-Zwischenwert mehr
+        // (der läuft für die betroffenen Regler jetzt komplett am Pipeline vorbei, s. DeepSkyAnnotationSection).
+        val result = withContext(Dispatchers.Default) { computeDeepSkyOverlays(fullLabelPlacement = true) }
+        if (annotate.dsoResyncGeneration != myGeneration) return@LaunchedEffect
+        overlays.removeAll { it.layer == AnnotationLayer.DeepSky }
+        result.markers.forEach { overlays += it.copy(id = nextOverlayId++) }
+        val durationMs = (System.nanoTime() - startNanos) / 1_000_000
+        AppDiagnostics.record(
+            "dso_ui_slider_commit visibleCount=${result.markers.size} durationMs=$durationMs " +
+                "bestKnownEnabled=${annotate.bestKnownEnabled} minObjectSizePercent=${annotate.dsoMinSizePercent}",
+        )
     }
 
     fun syncStarLayer(recordUndo: Boolean = true) {
@@ -1487,6 +2227,7 @@ fun StarMapperApp() {
             includeNamed = annotate.starNamed,
             includeConstellation = annotate.starConstellation,
             allToMagnitude = if (annotate.starAll) annotate.starMagnitude else null,
+            maxStars = starDisplayCap,
             nameOpacity = annotate.starNameOpacity,
             nameColorArgb = annotate.starNameColorArgb,
             font = annotate.starFont,
@@ -1522,6 +2263,11 @@ fun StarMapperApp() {
         customAlignKind = customAlignKind,
         richMeshFit = richMeshFit,
         richMeshRms = richMeshRms,
+        richMeshAutoEligible = richMeshAutoEligible,
+        richMeshRejectReason = richMeshRejectReason,
+        sparseMeshFit = sparseMeshFit,
+        sparseMeshRms = sparseMeshRms,
+        projectionCandidateRms = projectionCandidateRms,
     )
 
 
@@ -1548,6 +2294,11 @@ fun StarMapperApp() {
         customAlignKind = s.customAlignKind
         richMeshFit = s.richMeshFit
         richMeshRms = s.richMeshRms
+        richMeshAutoEligible = s.richMeshAutoEligible
+        richMeshRejectReason = s.richMeshRejectReason
+        sparseMeshFit = s.sparseMeshFit
+        sparseMeshRms = s.sparseMeshRms
+        projectionCandidateRms = s.projectionCandidateRms
         // recordUndo=false: das Wiederherstellen selbst darf keinen neuen History-Eintrag erzeugen.
         syncConstellationLayer(recordUndo = false)
         syncDeepSkyLayer(recordUndo = false)
@@ -1818,6 +2569,43 @@ fun StarMapperApp() {
         solveTilesStatus = msg
         SolveController.update(msg)
     }
+    // Unit 6 (2026-09-02): EINZIGER Ort, der einen laufenden Solve (Einzelbild ODER Kacheln) sauber
+    // abbricht -- genutzt von cancelAstapSolve() (App-Abbrechen-Button, s. unten) UND vom Notification-
+    // Abbrechen-Zweig in solveAllTiles(). Vorher lief der Notification-Zweig über eine eigene, inline
+    // kopierte Teilmenge dieser Logik (kein Kachel-Statusreset) -- zwei divergente Abbruch-Pfade mit
+    // unterschiedlichem Ergebnis für denselben Nutzer-Klick, je nachdem ob er den App-Button oder die
+    // Notification-Aktion antippte. Absichtlich VOR solveAllTiles() deklariert (nicht erst bei
+    // cancelAstapSolve() weiter unten), damit solveAllTiles()s Notification-Callback sie unabhängig von
+    // Kotlins Vorwärtsreferenz-Regeln für lokale Funktionen sicher aufrufen kann.
+    fun resetSolveStateOnCancel() {
+        val wasSolving = astapOperationState is AstapOperationState.Solving ||
+            astapOperationState is AstapOperationState.SolvingOnline
+        astapSolveJob?.cancel()
+        astapSolveJob = null
+        SolveController.finish()
+        if (wasSolving) {
+            // Generation ZUERST hochzählen -- jede noch laufende Solve-Coroutine (Einzelbild oder
+            // Kacheln) erkennt sich damit ab jetzt als veraltet, bevor irgendein UI-Zustand unten
+            // geschrieben wird (s. solveGeneration-Kommentar an der Deklaration).
+            solveGeneration++
+            AppDiagnostics.record("astap_solve_cancelled_explicitly")
+            astapOperationState = AstapOperationState.Cancelled
+            // Sofort zurücksetzen, nicht erst auf den (kooperativen -- bei Nova ggf. erst nach dem
+            // laufenden HTTP-Aufruf greifenden) Coroutine-Abbruch warten: sonst blieb eine Kachel
+            // sichtbar "blau" (Solving) und gesperrt, obwohl der Abbrechen-Button oben schon
+            // verschwunden war (astapOperationState bereits Idle) -- wirkte wie "Abbrechen tut
+            // nichts" (Nutzerbefund 2026-08-17). Der finally-Block in solveAllTiles() macht denselben
+            // Reset ohnehin nochmal (generation-geschützt, s. dort), sobald die Coroutine tatsächlich
+            // abgewickelt ist (harmlos).
+            for (i in solveTiles.indices) {
+                if (solveTiles[i].status == SolveTileStatus.Solving) {
+                    solveTiles[i] = solveTiles[i].copy(status = SolveTileStatus.Pending)
+                }
+            }
+            solveTilesRunning = false
+            solveTilesStatus = ""
+        }
+    }
     fun solveAllTiles() {
         val source = bitmap
         val loaded = loadedImage
@@ -1851,17 +2639,18 @@ fun StarMapperApp() {
         SolveController.begin(
             title = context.getString(R.string.tiles_solving),
             text = context.getString(R.string.status_preparing),
-            // Abbrechen aus der Notification: laufenden Job stoppen (finally räumt auf). cancelAstapSolve()
-            // ist hier lexikalisch noch nicht sichtbar (erst später deklariert) -> inline.
-            onCancel = {
-                astapSolveJob?.cancel()
-                SolveController.finish()
-                astapOperationState = AstapOperationState.Idle
-            },
+            // Abbrechen aus der Notification: identischer Reset wie der App-Abbrechen-Button (Unit 6,
+            // 2026-09-02) -- vorher eine eigene, unvollständige Inline-Kopie ohne Kachel-Statusreset.
+            onCancel = { resetSolveStateOnCancel() },
         )
         SolveForegroundService.start(context)
         // In astapSolveJob laufen lassen -> der vorhandene Abbrechen-Weg (cancelAstapSolve) greift.
         astapSolveJob = scope.launch {
+            // Eigene Generation dieser Solve-Coroutine (Unit 6) -- s. solveGeneration-Deklaration.
+            // Jeder spätere Abbruch (egal über welchen der beiden Wege oben) zählt solveGeneration
+            // hoch; diese Coroutine erkennt das an den Prüfstellen unten und verwirft dann ihr Ergebnis.
+            val myGeneration = solveGeneration
+            fun isStaleSolve() = solveGeneration != myGeneration
             fun setTile(id: Long, transform: (SolveTile) -> SolveTile) {
                 val i = solveTiles.indexOfFirst { it.id == id }
                 if (i >= 0) solveTiles[i] = transform(solveTiles[i])
@@ -1873,6 +2662,18 @@ fun StarMapperApp() {
                 }
                 val imgW = source.width
                 val imgH = source.height
+                // Tiny-Sky-Kacheln (s. TileSourceSpace, Plan Nachtrag 1): rein geometrische Umrechnungs-
+                // Kette Tiny-Sky-Pixel <-> native Pixel (kein Solve involviert, s. TileDeWarp.kt) --
+                // einmal pro Lauf berechnet, unabhängig davon, ob überhaupt eine Tiny-Sky-Kachel dabei
+                // ist (billig, reine Geometrie).
+                val tinySkyBitmapForSolve = tinySkyBitmap
+                val tinySkyNativeProjectionForSolve = TileDeWarp.equirectangularNativeModel(imgW, imgH).projection
+                // Volles Modell (nicht nur .projection) aufgehoben -- wird unten auch als De-Warp-
+                // Korrekturgrundlage für Tiny-Sky-Kacheln gebraucht (s. dewarpModel weiter unten).
+                val tinySkyOverviewModelForSolve = tinySkyBitmapForSolve?.let {
+                    TileDeWarp.stereographicOverviewModel(it.width)
+                }
+                val tinySkyOverviewProjectionForSolve = tinySkyOverviewModelForSolve?.projection
                 // Projektionswahl: Auto = alle Modelle, sonst genau das gewählte (manueller Override).
                 val allowedKinds = allowedProjectionKinds(panoProjectionChoice)
                 // Nur OFFENE Kacheln lösen (Pending/Failed/Suspect); gelöste werden übersprungen.
@@ -1887,16 +2688,47 @@ fun StarMapperApp() {
                     },
                 )
                 openIds.forEachIndexed { _, id ->
+                    // Unit 6: Abbruch bereits erkannt -> keine weitere Kachel mehr STARTEN (die zuletzt
+                    // begonnene Kachel unwindet unabhängig davon über ihre eigene CancellationException).
+                    if (isStaleSolve()) return@forEachIndexed
                     val tile = solveTiles.firstOrNull { it.id == id } ?: return@forEachIndexed
                     if (tile.status == SolveTileStatus.Solved) return@forEachIndexed
                     // Kachel-Nummer = gezeichnete Nummer im Bild (Platzier-Reihenfolge), damit Ticker
                     // und Bild ÜBEREINSTIMMEN (nicht die Position unter den offenen Kacheln).
                     val tileNo = solveTiles.indexOfFirst { it.id == id } + 1
+                    // Kacheln bleiben im Raum, in dem sie erstellt wurden (s. TileSourceSpace, Plan
+                    // Nachtrag 1) -- Zuschnitt-Quelle + deren Maße daher PRO KACHEL wählen, nicht wie
+                    // bisher einmal fürs Ganze. Tiny-Sky-Kacheln schneiden unmaskiert direkt aus dem
+                    // gecachten Tiny-Sky-Bitmap (die Masken-Funktion ist in Tiny Sky ohnehin schon
+                    // unerreichbar); praktisch immer vorhanden, sobald überhaupt eine Tiny-Sky-Kachel
+                    // existiert (das setzt voraus, dass das Bitmap beim Erstellen gebaut wurde und es
+                    // für die Foto-Sitzung nie geleert wird) -- trotzdem defensiv statt mit !! abgesichert.
+                    val tileIsTinySky = tile.sourceSpace == TileSourceSpace.TinySky
+                    val cropSource = if (tileIsTinySky) tinySkyBitmapForSolve else solveBitmap
+                    if (cropSource == null) {
+                        setTile(id) { it.copy(status = SolveTileStatus.Failed) }
+                        return@forEachIndexed
+                    }
+                    val cropW = cropSource.width
+                    val cropH = cropSource.height
                     val bb = solveTileBoundingBox(tile)
-                    val rx = bb.left.roundToInt().coerceIn(0, imgW - 1)
-                    val ry = bb.top.roundToInt().coerceIn(0, imgH - 1)
-                    val rw = bb.width.roundToInt().coerceIn(64, imgW - rx)
-                    val rh = bb.height.roundToInt().coerceIn(64, imgH - ry)
+                    val rx = bb.left.roundToInt().coerceIn(0, cropW - 1)
+                    val ry = bb.top.roundToInt().coerceIn(0, cropH - 1)
+                    val rw = bb.width.roundToInt().coerceIn(64, cropW - rx)
+                    val rh = bb.height.roundToInt().coerceIn(64, cropH - ry)
+                    // Für alles, was NATIVE Bildkoordinaten erwartet (Nächste-Kachel-Hinweis-Suche u.a.):
+                    // bei einer Tiny-Sky-Kachel den Mittelpunkt EXAKT (Einzelpunkt-Umrechnung, nicht
+                    // convertOverlayGeometry) nach nativen Koordinaten umrechnen. Fällt die Umrechnung
+                    // aus (z.B. ganz am Scheibenrand), Bildmitte als harmloser Fallback -- betrifft dann
+                    // nur die Positions-HINWEIS-Suche (Komfort), nicht den eigentlichen Solve/Fit.
+                    val tileNativeCenter: Offset = if (tileIsTinySky) {
+                        tinySkyOverviewProjectionForSolve!!
+                            .pixelToDirection(tile.center.x.toDouble(), tile.center.y.toDouble())
+                            ?.let { tinySkyNativeProjectionForSolve.directionToPixel(it) }
+                            ?: Offset(imgW / 2f, imgH / 2f)
+                    } else {
+                        tile.center
+                    }
                     setTile(id) { it.copy(status = SolveTileStatus.Solving) }
                     val status = context.getString(R.string.solving_tile_number, tileNo)
                     tick(status) // setzt solveTilesStatus + Notification + Ticker-Zeile.
@@ -1936,11 +2768,17 @@ fun StarMapperApp() {
                     // zeigt den Patch auf die falsche Himmelsregion -> der Solve-Versuch dort schlaegt
                     // fehl -> Fallback auf den Roh-Crop-Pfad -> ZWEI sequenzielle Solve-Versuche statt
                     // einem (Nutzerbefund 2026-07-31: viele eng beieinander platzierte Kacheln loesen
-                    // spuerbar langsamer als weit auseinander platzierte).
-                    val dewarpModel: PanoramaWcsSolution? = if (useDewarp) {
-                        priorFit?.takeIf { it.rms < 0.06 * maxOf(imgW, imgH) }?.solution
-                    } else {
+                    // spuerbar langsamer als weit auseinander platzierte). Für Tiny-Sky-Kacheln entfällt
+                    // dieses Gate: die Korrekturgrundlage ist dort nicht aus Ankern GEFITTET (die gibt es
+                    // bei der allerersten Kachel noch gar nicht -- kein Henne-Ei-Problem wie beim nativen
+                    // Fall), sondern von Anfang an EXAKT bekannt (reine Geometrie -- dieselbe stereo-
+                    // grafische Formel, mit der die Tiny-Sky-Bitmap selbst gebaut wurde).
+                    val dewarpModel: PanoramaWcsSolution? = if (!useDewarp) {
                         null
+                    } else if (tileIsTinySky) {
+                        tinySkyOverviewModelForSolve
+                    } else {
+                        priorFit?.takeIf { it.rms < 0.06 * maxOf(imgW, imgH) }?.solution
                     }
                     // Manueller Hinweis (Nutzer hat einen Sternnamen für DIESE Kachel eingetippt) hat
                     // Vorrang vor dem automatisch aus priorFit abgeleiteten Hinweis — gerade bei der
@@ -1950,7 +2788,23 @@ fun StarMapperApp() {
                     // 12..45°) — die tatsächliche Kachel-FOV ist ohne Modell unbekannt, daher Schätzung.
                     val manualHint: TileDeWarp.Hint? = tile.manualHintStarName?.let { starName ->
                         findStarByName(starName, referenceCatalogStars, skyCatalogStars)?.let { star ->
-                            val tileFovDeg = (astapFieldOfView * rh / imgH).coerceAtLeast(0.1f)
+                            // Bei Tiny-Sky-Kacheln ist "rh/imgH" bedeutungslos (verschiedene Bild-/
+                            // Projektionsräume) -- Winkelhöhe stattdessen direkt aus der (konformen)
+                            // Tiny-Sky-Projektion messen: Winkel zwischen Kachel-Mittelpunkt- und
+                            // Kachel-Oberkanten-Richtung, verdoppelt (Kante-zu-Mitte ist die halbe Höhe).
+                            val tileFovDeg = if (tileIsTinySky) {
+                                val overviewProj = tinySkyOverviewProjectionForSolve!!
+                                val centerDir = overviewProj.pixelToDirection(rx + rw / 2.0, ry + rh / 2.0)
+                                val edgeDir = overviewProj.pixelToDirection(rx + rw / 2.0, ry.toDouble())
+                                if (centerDir != null && edgeDir != null) {
+                                    val cosHalf = centerDir.dot(edgeDir).coerceIn(-1.0, 1.0)
+                                    (2.0 * Math.toDegrees(acos(cosHalf))).toFloat().coerceAtLeast(0.1f)
+                                } else {
+                                    12f
+                                }
+                            } else {
+                                (astapFieldOfView * rh / imgH).coerceAtLeast(0.1f)
+                            }
                             val radiusDeg = (tileFovDeg * 1.5).coerceIn(12.0, 45.0)
                             // Katalog liefert RA teils im Bereich [-180,180) statt [0,360) (2026-07-21
                             // an Deneb bewiesen: -49.64° statt 310.36°) -> normieren, sonst verwirft
@@ -1968,11 +2822,46 @@ fun StarMapperApp() {
                     // Projektion bleibt die WAHL des Nutzers (allowedKinds); kein Auto-Zwang.
                     // anchorDirs nur aus dem Kachel-Fit-Zweig (priorAnchors) mitgeben: der Einzellösungs-
                     // Zweig deckt bereits das GANZE Bild ab -> dort ist Extrapolation kein Risiko.
+                    // predictHint(model, rx, ry, rw, rh) interpretiert rx/ry/rw/rh als Pixel im selben
+                    // Raum wie `model` -- priorFit.solution ist aus NATIVEN Ankern gefittet (s. o.), bei
+                    // einer Tiny-Sky-Kachel sind rx/ry/rw/rh aber der Tiny-Sky-Zuschnitt. Ohne Umrechnung
+                    // würde predictHint Tiny-Sky-Pixelkoordinaten fälschlich als native interpretieren
+                    // und einen auf eine falsche Himmelsregion zeigenden Hinweis liefern -- das war bisher
+                    // der einzige automatische Hinweis-Pfad für Tiny-Sky-Kacheln (nearestTileHint ist für
+                    // sie oben bewusst deaktiviert), erklärt also direkt schlechte Solve-Erfolgsquoten bei
+                    // Tiny-Sky-Kacheln OHNE manuellen Hinweis (Nutzerbefund 2026-08-24). 4-Eck-Umrechnung
+                    // + Bounding-Box -- dieselbe Näherung wie andernorts bei convertOverlayGeometry, für
+                    // einen ohnehin großzügig radius-tolerant genutzten Hinweis ausreichend genau.
+                    val fitHintRect: Rect = if (tileIsTinySky) {
+                        val overviewProj = tinySkyOverviewProjectionForSolve!!
+                        val nativeCorners = listOf(
+                            rx.toDouble() to ry.toDouble(),
+                            (rx + rw).toDouble() to ry.toDouble(),
+                            (rx + rw).toDouble() to (ry + rh).toDouble(),
+                            rx.toDouble() to (ry + rh).toDouble(),
+                        ).mapNotNull { (sx, sy) ->
+                            overviewProj.pixelToDirection(sx, sy)
+                                ?.let { tinySkyNativeProjectionForSolve.directionToPixel(it) }
+                        }
+                        if (nativeCorners.size >= 3) {
+                            Rect(
+                                left = nativeCorners.minOf { it.x }, top = nativeCorners.minOf { it.y },
+                                right = nativeCorners.maxOf { it.x }, bottom = nativeCorners.maxOf { it.y },
+                            )
+                        } else {
+                            Rect(tileNativeCenter.x, tileNativeCenter.y, tileNativeCenter.x + 1f, tileNativeCenter.y + 1f)
+                        }
+                    } else {
+                        Rect(rx.toFloat(), ry.toFloat(), (rx + rw).toFloat(), (ry + rh).toFloat())
+                    }
                     val fitHint: TileDeWarp.Hint? = priorFit
                         ?.takeIf { it.rms < 0.06 * maxOf(imgW, imgH) }
                         ?.let {
                             TileDeWarp.predictHint(
-                                it.solution, rx, ry, rw, rh,
+                                it.solution,
+                                fitHintRect.left.roundToInt(), fitHintRect.top.roundToInt(),
+                                fitHintRect.width.roundToInt().coerceAtLeast(1),
+                                fitHintRect.height.roundToInt().coerceAtLeast(1),
                                 anchorDirs = if (priorAnchors.size >= 3) priorAnchors.map { a -> a.second } else emptyList(),
                             )
                         }
@@ -1992,27 +2881,91 @@ fun StarMapperApp() {
                     // bisherigen Kacheln, der bei eng/kollinear platzierten Kacheln schlecht konditioniert
                     // sein kann (Nutzerbefund 2026-07-31: viele eng beieinander platzierte Kacheln lösen
                     // spürbar schlechter/langsamer als weit auseinander platzierte).
-                    val nearestTileResult: Pair<TileDeWarp.Hint?, Boolean> by lazy {
-                        val targetCx = rx + rw / 2f
-                        val targetCy = ry + rh / 2f
-                        val nearest = solveTiles.filter { it.status == SolveTileStatus.Solved && it.wcs != null }
-                            .minByOrNull { t ->
+                    // Hint-Audit 2026-09-01: rein additive Erweiterung des Rückgabetyps (Pair -> kleine
+                    // lokale Datenklasse) um Spender-Kachel-ID + die tatsächlich zur Auswahl genutzte
+                    // Distanz -- KEINE Änderung an der Auswahl-/Vergleichslogik selbst (dieselben
+                    // minByOrNull-Aufrufe, dieselben Distanz-Formeln, dieselbe isVeryClose-Schwelle wie
+                    // zuvor), nur zusätzliche Felder für die neue solvetile_hint_detail-Diagnosezeile
+                    // unten (s. dort für den Zweck).
+                    data class NearestTileHintResult(
+                        val hint: TileDeWarp.Hint?,
+                        val isVeryClose: Boolean,
+                        val donorTileId: Long? = null,
+                        val distancePx: Float? = null,
+                    )
+                    val nearestTileResult: NearestTileHintResult by lazy {
+                        if (tileIsTinySky) {
+                            // Plan Nachtrag 12 reparierte nur das ZIEL-Rechteck (fitHintRect) für diesen
+                            // Rückfall, aber die SPENDER-Suche blieb `it.wcs != null` -- und Tiny-Sky-
+                            // Kacheln haben `wcs` PER DESIGN IMMER null (s. SolveTile.wcs-Kommentar,
+                            // Plan Nachtrag 1). Selbst mit korrekt umgerechnetem Zielrechteck fand die
+                            // Suche für eine Tiny-Sky-Kachel dadurch strukturell NIE einen Spender, egal
+                            // wie viele Tiny-Sky-Nachbarn schon gelöst waren -- erklärt Nutzerbefund
+                            // 2026-08-25 ("bekommen falsche Hinweise, suchen viel zu lange") trotz
+                            // Nachtrag 12. Fix: eigene Spender-Suche NUR unter bereits gelösten TINY-
+                            // SKY-Kacheln (`tinySkyLocalWcs`), komplett im TINY-SKY-PIXEL-Raum -- Spender
+                            // UND Ziel sind Ausschnitte DESSELBEN Tiny-Sky-Bitmaps, daher KEINE Cross-
+                            // Projektions-Umrechnung nötig (einfacher als der native Zweig unten).
+                            val targetCx = rx + rw / 2f
+                            val targetCy = ry + rh / 2f
+                            val nearest = solveTiles.filter {
+                                it.sourceSpace == TileSourceSpace.TinySky &&
+                                    it.status == SolveTileStatus.Solved && it.tinySkyLocalWcs != null
+                            }.minByOrNull { t ->
                                 val dx = t.center.x - targetCx
                                 val dy = t.center.y - targetCy
                                 dx * dx + dy * dy
-                            } ?: return@lazy (null to false)
-                        val nb = solveTileBoundingBox(nearest)
-                        val hint = TileDeWarp.predictHintFromTile(
-                            nearest.wcs!!,
-                            nb.left.roundToInt(), nb.top.roundToInt(), nb.height.roundToInt(),
-                            rx, ry, rw, rh,
-                        )
-                        val centerDistance = hypot(nearest.center.x - targetCx, nearest.center.y - targetCy)
-                        val isVeryClose = centerDistance < hypot(rw / 2f, rh / 2f) + hypot(nb.width / 2f, nb.height / 2f)
-                        hint to isVeryClose
+                            } ?: return@lazy NearestTileHintResult(null, false)
+                            val nb = solveTileBoundingBox(nearest)
+                            val hint = TileDeWarp.predictHintFromTile(
+                                nearest.tinySkyLocalWcs!!,
+                                nb.left.roundToInt(), nb.top.roundToInt(), nb.height.roundToInt(),
+                                rx, ry, rw, rh,
+                            )
+                            val centerDistance = hypot(nearest.center.x - targetCx, nearest.center.y - targetCy)
+                            val isVeryClose = centerDistance < hypot(rw / 2f, rh / 2f) + hypot(nb.width / 2f, nb.height / 2f)
+                            NearestTileHintResult(hint, isVeryClose, nearest.id, centerDistance)
+                        } else {
+                            // Spender-Kacheln sind hier IMMER nativ (wcs != null -> per Design nie eine
+                            // Tiny-Sky-Kachel, s. Plan Nachtrag 1). Dieser Zweig laeuft ausschliesslich
+                            // fuer NATIVE Ziel-Kacheln (der Tiny-Sky-Fall wird oben separat behandelt),
+                            // rx/ry/rw/rh sind hier also bereits native Bildkoordinaten.
+                            // GOLDEN-RUECKBAU 2026-09-03: der NATIVE Zweig nutzt wieder buchstaeblich
+                            // Golden's Zuschnitt-Mittelpunkt (rx+rw/2, ry+rh/2) statt tile.center.
+                            // Beide fallen nur zusammen, solange die Kachel nirgends am Bildrand
+                            // geklemmt wurde (rx/ry/rw/rh laufen durch coerceIn) -- bei einer
+                            // randnahen Kachel waehlte die neuere Fassung dadurch potenziell einen
+                            // anderen Spender bzw. bewertete isVeryClose anders als am 12.08.
+                            // Der TinySky-Zweig oben bleibt unveraendert (dort ist tileNativeCenter
+                            // die einzige sinnvolle Groesse, kein Golden-Aequivalent vorhanden).
+                            val targetCx = rx + rw / 2f
+                            val targetCy = ry + rh / 2f
+                            val nearest = solveTiles.filter { it.status == SolveTileStatus.Solved && it.wcs != null }
+                                .minByOrNull { t ->
+                                    val dx = t.center.x - targetCx
+                                    val dy = t.center.y - targetCy
+                                    dx * dx + dy * dy
+                                } ?: return@lazy NearestTileHintResult(null, false)
+                            val targetRx = fitHintRect.left.roundToInt()
+                            val targetRy = fitHintRect.top.roundToInt()
+                            val targetRw = fitHintRect.width.roundToInt().coerceAtLeast(1)
+                            val targetRh = fitHintRect.height.roundToInt().coerceAtLeast(1)
+                            val nb = solveTileBoundingBox(nearest)
+                            val hint = TileDeWarp.predictHintFromTile(
+                                nearest.wcs!!,
+                                nb.left.roundToInt(), nb.top.roundToInt(), nb.height.roundToInt(),
+                                targetRx, targetRy, targetRw, targetRh,
+                            )
+                            val centerDistance = hypot(nearest.center.x - targetCx, nearest.center.y - targetCy)
+                            // targetRw/targetRh (nicht das rohe rw/rh) -- für eine Tiny-Sky-Kachel sind
+                            // rw/rh Tiny-Sky-Pixel, centerDistance ist aber bereits nativ (s.o.); ein
+                            // Vergleich gegen die rohen Tiny-Sky-Maße wäre bedeutungslos vermischt.
+                            val isVeryClose = centerDistance < hypot(targetRw / 2f, targetRh / 2f) + hypot(nb.width / 2f, nb.height / 2f)
+                            NearestTileHintResult(hint, isVeryClose, nearest.id, centerDistance)
+                        }
                     }
-                    val nearestTileHint: TileDeWarp.Hint? by lazy { nearestTileResult.first }
-                    val nearestTileIsVeryClose: Boolean by lazy { nearestTileResult.second }
+                    val nearestTileHint: TileDeWarp.Hint? by lazy { nearestTileResult.hint }
+                    val nearestTileIsVeryClose: Boolean by lazy { nearestTileResult.isVeryClose }
                     val rawHint: TileDeWarp.Hint? = manualHint
                         ?: nearestTileHint.takeIf { nearestTileIsVeryClose }
                         ?: fitHint
@@ -2024,7 +2977,7 @@ fun StarMapperApp() {
                     // (das zufällig zeitlich mit dem De-Warp-Umschalten zusammenfiel) oder an etwas,
                     // das dieser Code hier noch nicht abbildet.
                     AppDiagnostics.record(
-                        "solvetile_hint_gate tile=$tileNo dewarpRequested=$useDewarp " +
+                        "solvetile_hint_gate tile=$tileNo tinySky=$tileIsTinySky dewarpRequested=$useDewarp " +
                             "priorAnchors=${priorAnchors.size} priorFitRms=${priorFit?.rms?.let { "%.1f".format(it) } ?: "null"} " +
                             "gateThreshold=${"%.1f".format(0.06 * maxOf(imgW, imgH))} " +
                             "manualHint=${manualHint != null} fitHint=${fitHint != null} " +
@@ -2033,12 +2986,56 @@ fun StarMapperApp() {
                             "nearestTileFallbackUsed=${manualHint == null && !nearestTileIsVeryClose && fitHint == null && nearestTileHint != null} " +
                             "rawHint=${rawHint != null}",
                     )
+                    // Hint-Audit 2026-09-01 (Nutzerauftrag: geometrische Herkunft jedes Hints prüfbar
+                    // machen): EINE kompakte Zeile, die exakt zeigt, WELCHE Quelle rawHint tatsächlich
+                    // lieferte (dieselbe Fallkette wie oben, nur als String statt einzelner Booleans) und
+                    // -- für TinySky-Kacheln besonders wichtig -- sowohl den crop-lokalen als auch den
+                    // daraus tatsächlich berechneten NATIVEN Kachel-Mittelpunkt nebeneinander. Rein
+                    // additiv, liest nur bereits vorhandene Werte, verändert nichts an rawHint selbst.
+                    val hintSource = when {
+                        manualHint != null -> "manual"
+                        nearestTileIsVeryClose && nearestTileHint != null -> "nearest_very_close"
+                        fitHint != null -> "fit"
+                        nearestTileHint != null -> "nearest_fallback"
+                        else -> "blind"
+                    }
+                    val localCenterPxText = "(${"%.1f".format(rx + rw / 2f)},${"%.1f".format(ry + rh / 2f)})"
+                    val nativeCenterPxText = "(${"%.1f".format(tileNativeCenter.x)},${"%.1f".format(tileNativeCenter.y)})"
+                    val sourceTileText = nearestTileResult.donorTileId?.toString() ?: "n/a"
+                    val sourceTileDistanceText = nearestTileResult.distancePx?.let { "%.1f".format(it) } ?: "n/a"
+                    val priorFitKindText = priorFit?.kind?.toString() ?: "n/a"
+                    val predictedRaDecText = if (rawHint != null) {
+                        "%.4f".format(rawHint.centerRaDegrees) + "/" + "%.4f".format(rawHint.centerDecDegrees)
+                    } else {
+                        "n/a"
+                    }
+                    val radiusDegText = rawHint?.radiusDegrees?.let { "%.4f".format(it) } ?: "n/a"
+                    AppDiagnostics.record(
+                        "solvetile_hint_detail tile=$tileNo tinySky=$tileIsTinySky source=$hintSource " +
+                            "localCenterPx=$localCenterPxText nativeCenterPx=$nativeCenterPxText " +
+                            "sourceTile=$sourceTileText sourceTileDistancePx=$sourceTileDistanceText " +
+                            "priorFitKind=$priorFitKindText predictedRaDec=$predictedRaDecText radiusDeg=$radiusDegText",
+                    )
 
                     var solvedWcs: WcsSolution? = null
                     var dewarpAnchors: List<Pair<Offset, Vec3>>? = null
+                    // Separates Feld für Tiny-Sky-Punktumrechnung (NICHT dewarpAnchors wiederverwenden --
+                    // sonst zeigt die Kachel-Info fälschlich "De-Warp verwendet" für eine ganz normale
+                    // Tiny-Sky-Kachel, s. Plan Nachtrag 1). Wird nach einem erfolgreichen Tiny-Sky-Roh-
+                    // Crop-Solve unten befüllt (Kachel-eigene Sternpositionen exakt nach nativen
+                    // Koordinaten umgerechnet).
+                    var tinySkyPointAnchors: List<Pair<Offset, Vec3>>? = null
                     // Echte, von astrometry.net selbst verifizierte Solve-Treffer dieser Kachel aus
                     // .corr (nur im Roh-Crop-Zweig via LocalAstrometry befüllt, sonst leer).
                     var tileCorrRefs: List<Pair<Offset, Vec3>> = emptyList()
+                    // Nur für die corr_pipeline-Diagnose (C4, Nutzer-Vorgabe 2026-08-30) -- bleiben 0 für
+                    // De-Warp/Nova-Kacheln (dort wird .corr gar nicht erst geparst), s. corr_pipeline-Log
+                    // unten. NICHT identisch zu tileCorrRefs.size: parsedCorr/transformedToNative zeigen
+                    // Zwischenschritte, bevor die Ausreißer-Validierung greift.
+                    var corrParsedCount = 0
+                    var corrTransformedCount = 0
+                    var corrRejectedTransformCount = 0
+                    var corrRejectedOutlierCount = 0
                     // Ist der De-Warp-Patch in einen Server-TIMEOUT gelaufen? Dann den teuren Roh-Crop-
                     // Fallback überspringen (derselbe langsame Server, schwierigeres Bild -> erneuter Timeout).
                     var dewarpPatchTimedOut = false
@@ -2118,7 +3115,7 @@ fun StarMapperApp() {
                             tick("${context.getString(R.string.tile_label)} $tileNo: ${context.getString(R.string.label_position_known)}")
                         }
                         val crop = withContext(Dispatchers.Default) {
-                            Bitmap.createBitmap(solveBitmap, rx, ry, rw, rh)
+                            Bitmap.createBitmap(cropSource, rx, ry, rw, rh)
                         }
                         solvedWcs = try {
                             val resultWcs: WcsSolutionLike = when (effectiveSolverChoice) {
@@ -2135,7 +3132,80 @@ fun StarMapperApp() {
                                             tick("${context.getString(R.string.tile_label)} $tileNo: $s")
                                         }
                                     }
-                                    tileCorrRefs = localResult.corrRefs
+                                    // A2 (Nutzer-Vorgabe 2026-08-30, löst den Verwurf aus Plan Nachtrag 1
+                                    // AUF statt ihn zu entfernen): .corr-Rohtreffer sind CROP-LOKALE
+                                    // Pixel. Für native Kacheln macht das die spätere naive "lokal +
+                                    // tileOffsetX/Y"-Addition (globalizeTileCorrRefs/overlapDisagreement)
+                                    // korrekt. Für eine Tiny-Sky-Kachel wäre dieselbe Addition weiterhin
+                                    // falsch (mischt Tiny-Sky- und native Pixel) -- deshalb jetzt exakt
+                                    // dieselbe geometrische Kette wie TileDeWarp.tinySkyAnchorsFor, nur
+                                    // pro echtem .corr-Treffer statt pro künstlichem 3x3-Raster. Ein
+                                    // einzelner nicht transformierbarer Punkt wird EINZELN verworfen
+                                    // (mapNotNull in transformTinySkyRefsToNative), nie die ganze Kachel.
+                                    corrParsedCount = localResult.corrRefs.size
+                                    // Untersuchungsauftrag 2026-08-31 (dritte Runde): rein additive Detail-
+                                    // Diagnose für die ersten paar .corr-Referenzen DIESER Kachel, unabhängig
+                                    // vom Fix unten -- reicht aus, um im nächsten Solve empirisch zu belegen,
+                                    // in welchem Koordinatenraum localResult.wcs tatsächlich vorhersagt.
+                                    if (tileIsTinySky) {
+                                        logTinySkyCorrValidationDetail(
+                                            label = "tile$tileNo", rawRefs = localResult.corrRefs,
+                                            rx = rx, ry = ry, rh = rh,
+                                            overviewProjection = tinySkyOverviewProjectionForSolve!!,
+                                            nativeProjection = tinySkyNativeProjectionForSolve,
+                                            wcs = localResult.wcs, budget = 4,
+                                        )
+                                    }
+                                    // FIX (Untersuchungsauftrag 2026-08-31, dritte Runde): A4 MUSS im
+                                    // selben Koordinatenraum laufen, in dem localResult.wcs tatsächlich
+                                    // gültig ist -- das ist IMMER der Raum des gelösten Bitmaps selbst
+                                    // (crop-lokal, s. LocalAstrometrySolver-KDoc: "@return die WCS-Lösung
+                                    // ... auf den Pixelkoordinaten von [bitmap]"; ebenso liefert die .corr-
+                                    // Datei crop-lokale field_x/field_y, s. LocalAstrometrySolver.corrRefs).
+                                    // Für native Kacheln war das schon immer der Fall (transformed==corrRefs
+                                    // dort, s.u. -- keine Verhaltensänderung). Für Tiny-Sky-Kacheln verglich
+                                    // der bisherige Code fälschlich bereits NACH-nativ-transformierte
+                                    // Positionen gegen die weiterhin crop-lokale wcs -- ein Koordinatenraum-
+                                    // Mismatch in der Größenordnung des vollen Crop-Offsets (rx,ry), der
+                                    // praktisch JEDEN Punkt als "Ausreißer" erscheinen ließ (s. neue
+                                    // corr_pipeline_detail-Diagnose oben für den empirischen Beleg). Reihen-
+                                    // folge jetzt: erst validieren (crop-lokal gegen crop-lokal, korrekt),
+                                    // DANACH nur die überlebenden Punkte nach nativ transformieren (spart
+                                    // zusätzlich unnötige Transform-Arbeit für ohnehin verworfene Punkte).
+                                    // GOLDEN-RÜCKBAU (Nutzer-Vorgabe 2026-09-03): der AUTOMATISCHE native
+                                    // Kachel-Solve übernimmt die .corr-Treffer wieder UNGEFILTERT --
+                                    // buchstäblich `tileCorrRefs = localResult.corrRefs`, exakt wie im
+                                    // bestätigten Golden-Build vom 12.08. RichCorrMesh.rejectResidualOutliers
+                                    // war dort NICHT Teil dieses Datenpfads; da diese .corr-Liste ohnehin von
+                                    // astrometry.net selbst verifiziert ist, gilt für den Golden-Pfad wieder
+                                    // "keine zusätzliche Vorfilterung". Der Filter bleibt AUSSCHLIESSLICH für
+                                    // Tiny-Sky-Kacheln aktiv: dort wurde er zusammen mit der nativen
+                                    // Transformation als eigener, klar getrennter Pfad eingeführt (s. Kommentar
+                                    // oben zum Koordinatenraum-Mismatch), für den es kein Golden-Verhalten gibt.
+                                    val transformed = if (tileIsTinySky) {
+                                        val validatedLocal = RichCorrMesh.rejectResidualOutliers(
+                                            localResult.corrRefs, localResult.wcs, rh,
+                                            diagLabel = "tile$tileNo",
+                                            diagBudget = intArrayOf(4),
+                                        )
+                                        corrRejectedOutlierCount = validatedLocal.rejectedOutliers
+                                        val nativeRefs = TileDeWarp.transformTinySkyRefsToNative(
+                                            validatedLocal.accepted, rx, ry,
+                                            // Non-null bewiesen: tileIsTinySky setzt cropSource != null
+                                            // voraus (s. oben), also war tinySkyBitmapForSolve nie null --
+                                            // identische Begründung wie beim tinySkyAnchorsFor-Aufruf unten.
+                                            tinySkyOverviewProjectionForSolve!!, tinySkyNativeProjectionForSolve,
+                                        )
+                                        corrRejectedTransformCount = validatedLocal.accepted.size - nativeRefs.size
+                                        nativeRefs
+                                    } else {
+                                        // Golden 12.08.: weder Ausreißer-Vorfilter noch Transformation.
+                                        corrRejectedOutlierCount = 0
+                                        corrRejectedTransformCount = 0
+                                        localResult.corrRefs
+                                    }
+                                    corrTransformedCount = transformed.size
+                                    tileCorrRefs = transformed
                                     localResult.wcs
                                 }
                                 AstapSolverChoice.NovaOnline -> novaSolver.solve(
@@ -2167,18 +3237,46 @@ fun StarMapperApp() {
                             null
                         }
                         crop.recycle()
+                        // Tiny-Sky-Kachel erfolgreich roh gelöst -> Kachel-eigene Sternpositionen exakt
+                        // (Einzelpunkt-Umrechnung, s. TileDeWarp.tinySkyAnchorsFor) nach nativen
+                        // Koordinaten umrechnen, damit sie wie jede andere Kachel am globalen Fit
+                        // teilnehmen können. wcs bleibt bewusst null (s. setTile unten) -- sie ist nur
+                        // in Tiny-Sky-Pixeln gültig, nicht in nativen.
+                        if (tileIsTinySky && solvedWcs != null) {
+                            tinySkyPointAnchors = TileDeWarp.tinySkyAnchorsFor(
+                                solvedWcs!!, rx, ry, rw, rh,
+                                // Non-null bewiesen: tileIsTinySky setzt cropSource != null voraus
+                                // (s. oben), also war tinySkyBitmapForSolve nie null.
+                                tinySkyOverviewProjectionForSolve!!, tinySkyNativeProjectionForSolve,
+                            ).takeIf { it.size >= 3 }
+                        }
                     }
 
-                    val ok = dewarpAnchors != null || solvedWcs != null
+                    // Unit 6: diese Kachel wurde TROTZ eines inzwischen erfolgten Abbruchs fertig gelöst
+                    // (Race, z. B. Abbruch genau beim letzten ensureActive()-Fenster) -> Ergebnis NICHT
+                    // mehr übernehmen (kein Status-/WCS-/Anker-Schreiben, kein Auto-Start der nächsten
+                    // Kachel darunter). Der Solve-Bitmap-Zuschnitt (crop) ist an dieser Stelle bereits
+                    // rekonstruiert (s. oben) -> nichts mehr freizugeben.
+                    if (isStaleSolve()) {
+                        AppDiagnostics.record("solvetile_discarded_stale_generation tileId=$id")
+                        return@forEachIndexed
+                    }
+                    val ok = dewarpAnchors != null || tinySkyPointAnchors != null || solvedWcs != null
                     // De-Warp-Patch-Solve bekommt IMMER einen Hinweis (Patch-Mittelpunkt aus dem
                     // Modell, s. oben); im Roh-Crop-Zweig entscheidet rawHint (manuell oder priorFit).
                     val usedHint = if (dewarpAnchors != null) true else rawHint != null
                     setTile(id) {
                         it.copy(
                             status = if (ok) SolveTileStatus.Solved else SolveTileStatus.Failed,
-                            wcs = solvedWcs,
+                            // Tiny-Sky-Kacheln: wcs bleibt null (nur in Tiny-Sky-Pixeln gültig, s. o.) --
+                            // exakt wie De-Warp-Kacheln heute schon (anchors statt wcs). Native Kacheln
+                            // unverändert.
+                            wcs = if (tileIsTinySky) null else solvedWcs,
                             dewarp = dewarpAnchors != null,
-                            anchors = dewarpAnchors,
+                            anchors = dewarpAnchors ?: tinySkyPointAnchors,
+                            // Nur für Tiny-Sky-Kacheln befüllt (s. Feld-KDoc) -- Nachbar-Hinweis-Quelle
+                            // für andere, noch ungelöste Tiny-Sky-Kacheln, s. nearestTileResult unten.
+                            tinySkyLocalWcs = if (tileIsTinySky) solvedWcs else null,
                             solvedWithHint = usedHint,
                             solveDurationMs = System.currentTimeMillis() - tileSolveStartMs,
                         )
@@ -2192,6 +3290,16 @@ fun StarMapperApp() {
                     } else {
                         tileCorrRefsById - id
                     }
+                    // C4 (Nutzer-Vorgabe 2026-08-30): pro Kachel sichtbar machen, an welcher Stufe die
+                    // .corr-Zahlen sinken -- getrennt nach Native/TinySky/DeWarp/Nova (die letzten beiden
+                    // über eigene Tags statt eines einzelnen "source"-Werts, da DeWarp inzwischen auch
+                    // für TinySky-Kacheln möglich ist, s. [[project_tiny_sky_viewer]] Nachtrag 4).
+                    AppDiagnostics.record(
+                        "corr_pipeline tile=$id tinySky=$tileIsTinySky dewarp=${dewarpAnchors != null} " +
+                            "solver=${effectiveSolverChoice.name} parsedCorr=$corrParsedCount " +
+                            "transformedToNative=$corrTransformedCount rejectedTransform=$corrRejectedTransformCount " +
+                            "rejectedOutlier=$corrRejectedOutlierCount acceptedControlPoints=${tileCorrRefs.size}",
+                    )
                     if (ok) {
                         AppDiagnostics.record(
                             "solvetile_solved off=$rx,$ry size=${rw}x$rh dewarp=${dewarpAnchors != null}",
@@ -2205,6 +3313,12 @@ fun StarMapperApp() {
                         refreshPanoramaSeed()
                     }
                 }
+
+                // Unit 6 (2026-09-02): Abbruch während der Kachel-Schleife erkannt -> globalen Fit/
+                // Mosaik NICHT mehr aufbauen (kein WCS-Übernehmen, keine Overlay-Synchronisierung, kein
+                // Solved-Endzustand). Der (ebenfalls generation-geschützte) finally-Block unten räumt
+                // Kachel-/Job-/Foreground-Service-Status trotzdem auf.
+                if (isStaleSolve()) return@launch
 
                 // Anker + Mosaik-WCS. WICHTIG: das Mosaik zeichnet JEDE Region aus der EIGENEN, exakt
                 // gelösten Kachel-WCS (per-Kachel-genau) — lokal genauer als ein einzelnes globales Modell.
@@ -2239,7 +3353,27 @@ fun StarMapperApp() {
                     val idw = ArrayList<Pair<Long, TileWcs>>()
                     for ((tile, tileAnchors) in good) {
                         a += tileAnchors
-                        val bb = solveTileBoundingBox(tile)
+                        // Für diese Buchhaltung (Mosaik-Rückfall + Überlappungs-/Zuverlässigkeits-
+                        // Diagnostik, s. Plan Nachtrag 1) wird eine NÄHERUNGSWEISE native Fläche
+                        // gebraucht -- bei einer Tiny-Sky-Kachel sind tile.center/size selbst Tiny-
+                        // Sky-Pixel. Anders als die kanonische Kachel-Geometrie (bewusst NICHT mehr
+                        // umgerechnet) ist das hier unkritisch: reine interne Buchhaltung für einen
+                        // seit "Kachelfrei" ohnehin seltenen Rückfallpfad, keine sichtbare/bearbeitbare
+                        // Kachel-Darstellung. Schlägt die Umrechnung fehl (z.B. Kachel ganz am
+                        // Scheibenrand), wird NUR diese eine Kachel hier übersprungen -- ihre anchors
+                        // (oben, `a += tileAnchors`) sind bereits eingetragen und fließen UNABHÄNGIG
+                        // davon vollständig in den eigentlichen globalen Fit ein.
+                        val bb: ImageBounds = if (tile.sourceSpace == TileSourceSpace.TinySky) {
+                            val overviewProj = tinySkyOverviewProjectionForSolve ?: continue
+                            val converted = convertOverlayGeometry(
+                                tile.center, tile.size, tile.rotationDegrees,
+                                overviewProj, tinySkyNativeProjectionForSolve,
+                            ) ?: continue
+                            val (c, s, _) = converted
+                            ImageBounds(c.x - s.width / 2f, c.y - s.height / 2f, c.x + s.width / 2f, c.y + s.height / 2f)
+                        } else {
+                            solveTileBoundingBox(tile)
+                        }
                         val rx = bb.left.roundToInt().coerceIn(0, imgW - 1)
                         val ry = bb.top.roundToInt().coerceIn(0, imgH - 1)
                         val rw = bb.width.roundToInt().coerceIn(64, imgW - rx)
@@ -2253,7 +3387,13 @@ fun StarMapperApp() {
                             }
                         }
                         if (tileW != null) {
-                            val tw = TileWcs(tileW, rx, ry, rw, rh)
+                            // FIX (Untersuchungsauftrag 2026-08-31, Stage-2-Koordinatenfehler): markiert
+                            // fürs nachgelagerte FisheyeRefiner.globalizeTileCorrRefs, dass diese Kachels
+                            // .corr-Positionen (tileCorrRefsById) bereits nativ sind, s. TileWcs-KDoc.
+                            val tw = TileWcs(
+                                tileW, rx, ry, rw, rh,
+                                corrRefsAlreadyNative = tile.sourceSpace == TileSourceSpace.TinySky,
+                            )
                             t += tw
                             idw += tile.id to tw
                         }
@@ -2312,6 +3452,14 @@ fun StarMapperApp() {
                 // Stand als "Mesh"-Chip anwählbar bleiben.
                 richMeshFit = null
                 richMeshRms = null
+                richMeshAutoEligible = false
+                richMeshRejectReason = null
+                // Gleiches Prinzip für den SparseAnchorMesh-Kandidaten und die Kandidaten-RMS-Tabelle:
+                // beide gehören zum GERADE laufenden Solve, ein Rest vom vorigen Kachel-Stand dürfte
+                // weder wählbar bleiben noch die Verfügbarkeits-Anzeige verfälschen.
+                sparseMeshFit = null
+                sparseMeshRms = null
+                projectionCandidateRms = emptyMap()
                 if (solvedTileWcs.isNotEmpty()) {
                     // Vorläufiger Zwischenstand, BEVOR das globale Modell weiter unten gefittet ist --
                     // bleibt der Endzustand, falls es dazu gar nicht erst kommt (anchors.size < 3).
@@ -2329,16 +3477,38 @@ fun StarMapperApp() {
                 // (2026-07-20): Automodus wähle bei mehreren, weiter gestreuten Kacheln ein Modell mit
                 // offensichtlich zu großer (Panorama-artiger) Himmelsabdeckung für ein normales Foto.
                 val candidateResults = mutableListOf<Pair<PanoProjectionKind, Double?>>()
+                // A4-Fußabdruck-Bewertung je Kandidat -- erst NACH dem withContext-Block protokolliert
+                // (AppDiagnostics-Aufrufe gesammelt statt aus dem Rechen-Dispatcher heraus).
+                val footprintResults = mutableListOf<String>()
                 // Nach außen gehoben (sonst nur innerhalb der withContext-Lambda sichtbar) -- der reine
                 // starre BIC-Gewinner VOR jeder Nachschärfung wird weiter unten als Baseline für die
                 // reiche Mesh-Korrektur (richMeshFit) gebraucht, s. Kommentar dort. Ändert sonst nichts
                 // an diesem Block; der automatische Mesh-Pfad direkt darunter bleibt unverändert.
                 var rigidCalibration: FisheyeRefiner.PanoCalibration? = null
+                // s. Zuweisung unten -- nach außen gehoben, damit der SparseAnchorMesh-Kandidat die
+                // withContext-Lambda überlebt und in den UI-State geschrieben werden kann.
+                var sparseMeshCandidate: FisheyeRefiner.PanoCalibration? = null
                 val calibration = if (anchors.size >= 3) {
                     withContext(Dispatchers.Default) {
-                        val rigid = FisheyeRefiner.calibratePanorama(anchors, imgW, imgH, allowedKinds, anchorWeights) { kind, rms ->
-                            candidateResults += kind to rms
-                        }
+                        // enforceFullPanoramaPeriod=true: dieser Fit kann direkt zu lastSolvedWcs werden
+                        // (s. [[project_gradnetz_randbeschriftung]] Runde-3-Aufrufstellen-Analyse) --
+                        // erzwingt bei einem erkannten vollständigen 2:1-Panorama horizontalPeriodPx=
+                        // imageWidth, wenn dessen RMS-Kosten dafür klein genug sind.
+                        val rigid = FisheyeRefiner.calibratePanorama(
+                            anchors, imgW, imgH, allowedKinds, anchorWeights,
+                            onCandidate = { kind, rms -> candidateResults += kind to rms },
+                            // A4: eine Zeile pro Kandidat, nur beim Kachel-Solve (nicht bei jedem
+                            // Reproject) -- zeigt, welcher Fit wegen unplausiblem Bild-Fußabdruck von
+                            // der AUTOMATIK ausgeschlossen wurde. Manuell bleibt er wählbar.
+                            onFootprint = { kind, s ->
+                                footprintResults += "projection_fov_sanity kind=$kind valid=${s.plausible} " +
+                                    "angularSpanDeg=${"%.1f".format(s.angularSpanDeg)} " +
+                                    "supportSpanDeg=${"%.1f".format(s.supportSpanDeg)} " +
+                                    "supportAzimuthSpanDeg=${"%.1f".format(s.supportAzimuthSpanDeg)} " +
+                                    "wrapDetected=${s.wrapDetected} reason=${s.reason}"
+                            },
+                            enforceFullPanoramaPeriod = true,
+                        )
                         rigidCalibration = rigid
                         // Mesh (7. Kandidat) nimmt NICHT an calibratePanorama's eigener BIC-Auswahl
                         // teil (s. Kommentar an FisheyeRefiner.fitMesh) -- braucht deren Gewinner
@@ -2352,7 +3522,12 @@ fun StarMapperApp() {
                         if (rigid != null) {
                             candidateResults += PanoProjectionKind.Mesh to mesh?.rms
                         }
-                        pickCalibration(rigid, mesh)
+                        // Nutzer-Auftrag 2026-09-03: denselben SparseAnchorMesh-Fit zusätzlich festhalten,
+                        // damit er im Projektionsmenü als "Mesh" manuell wählbar bleibt, auch wenn
+                        // pickCalibration ihn gleich darunter NICHT zum Sieger kürt. pickCalibration
+                        // selbst und sein Ergebnis bleiben unverändert.
+                        sparseMeshCandidate = mesh
+                        pickCalibration(rigid, mesh, imgW, imgH)
                     }
                 } else {
                     null
@@ -2362,6 +3537,11 @@ fun StarMapperApp() {
                     alignProjectionKind = calibration.kind
                     alignProjectionRms = calibration.rms
                 }
+                // Kandidaten für die manuelle Projektionswahl festhalten (Nutzer-Auftrag 2026-09-03).
+                // Rein additiv: weder calibration/globalFit noch irgendein Auto-Pfad liest diese Felder.
+                sparseMeshFit = sparseMeshCandidate?.solution
+                sparseMeshRms = sparseMeshCandidate?.rms
+                projectionCandidateRms = candidateResults.toMap()
                 val solvedCount = solveTiles.count { it.status == SolveTileStatus.Solved }
                 val failedCount = solveTiles.count { it.status == SolveTileStatus.Failed }
                 // De-Warp im Spiel? Dann greift die Refraktionskorrektur (Rand-RMS) für die Anzeige.
@@ -2378,6 +3558,7 @@ fun StarMapperApp() {
                         },
                     )
                 }
+                footprintResults.forEach { AppDiagnostics.record(it) }
                 tick(
                     context.getString(R.string.tiles_done_summary, solvedCount, failedCount, suspects.size) +
                         (calibration?.let { " · ${it.kind} rms ${"%.0f".format(it.rms)}" } ?: ""),
@@ -2421,9 +3602,21 @@ fun StarMapperApp() {
                         for ((tileId, tw) in idToTileWcs) {
                             val corrRefs = tileCorrRefsById[tileId]
                             if (corrRefs != null && corrRefs.isNotEmpty()) {
+                                // Stabilisierungs-Pass (Untersuchungsauftrag 2026-08-31): identischer Fix
+                                // wie TileConsistency.corrBasedOwnAccuracy -- tw.wcs sagt lokal (relativ
+                                // zu tw.tileOffsetX/Y) vorher, corrRefs ist für eine Tiny-Sky-Kachel
+                                // (tw.corrRefsAlreadyNative) bereits nativ. Ohne diese Rückumrechnung
+                                // liefert tile_own_rms für TinySky-Kacheln Werte in Höhe des Kachel-
+                                // Offsets selbst (hunderte bis tausende Pixel) statt der echten
+                                // Solve-Genauigkeit.
+                                val effectiveRefs = if (tw.corrRefsAlreadyNative) {
+                                    corrRefs.map { (px, dir) -> Offset(px.x - tw.tileOffsetX, px.y - tw.tileOffsetY) to dir }
+                                } else {
+                                    corrRefs
+                                }
                                 result[tileId] = TileOwnAccuracy(
                                     rmsPx = if (corrRefs.size >= TileConsistency.MIN_TILE_OWN_RMS_MATCHES) {
-                                        FisheyeRefiner.reprojectionRmsWcs(tw.wcs, corrRefs, tw.tileHeight)
+                                        FisheyeRefiner.reprojectionRmsWcs(tw.wcs, effectiveRefs, tw.tileHeight)
                                     } else {
                                         null
                                     },
@@ -2494,7 +3687,7 @@ fun StarMapperApp() {
                         val refinedWeights = anchorWeights + List(allRealMatches.size) { 1.0 }
                         val refitStartMs = System.currentTimeMillis()
                         val refinedCalibration = withContext(Dispatchers.Default) {
-                            FisheyeRefiner.calibratePanorama(refinedAnchors, imgW, imgH, allowedKinds, refinedWeights)
+                            FisheyeRefiner.calibratePanorama(refinedAnchors, imgW, imgH, allowedKinds, refinedWeights, enforceFullPanoramaPeriod = true)
                         }
                         val refitMs = System.currentTimeMillis() - refitStartMs
                         if (refinedCalibration != null) {
@@ -2551,7 +3744,7 @@ fun StarMapperApp() {
                                 val retryKinds = allowedKinds - refinedCalibration.kind
                                 val retryCalibration = if (retryKinds.isNotEmpty()) {
                                     withContext(Dispatchers.Default) {
-                                        FisheyeRefiner.calibratePanorama(refinedAnchors, imgW, imgH, retryKinds, refinedWeights)
+                                        FisheyeRefiner.calibratePanorama(refinedAnchors, imgW, imgH, retryKinds, refinedWeights, enforceFullPanoramaPeriod = true)
                                     }
                                 } else {
                                     null
@@ -2591,28 +3784,66 @@ fun StarMapperApp() {
                                 "totalMatches=${allRealMatches.size} accepted=false reason=too_few_matches",
                         )
                     }
-                    // NEU: "reiche" Mesh-Korrektur aus den ECHTEN, dichten .corr-Sternmessungen
-                    // (corrGlobalRefs) statt der 9 synthetischen Kachel-Anker (anchors/meshGroupSizes),
-                    // die der AUTOMATISCHE Mesh-Kandidat oben (Teil der pickCalibration-Konkurrenz bei
-                    // "Auto") verwendet -- der bleibt komplett unverändert. Ergebnis nur in richMeshFit/
-                    // richMeshRms gecacht, für den eigenständigen "Mesh"-Projektions-Chip. Baseline
-                    // bewusst rigidCalibration (reiner starrer Gewinner, VOR der Nachschärfung oben)
-                    // statt effectiveGlobalFit (das hier bereits selbst Mesh sein kann) -- sonst würde
-                    // eine CorrectedProjection um eine andere verschachtelt, s. Kommentar an fitMesh().
+                    // A1/A9 (Nutzer-Vorgabe 2026-08-30): RichCorrMesh ersetzt hier FisheyeRefiner.fitMesh
+                    // -- interpoliert jeden EINZELNEN validierten .corr-Kontrollstern exakt (statt
+                    // Kachel-weiser IDW-Mittelung, s. RichCorrMesh-Klassenkommentar), aus den ECHTEN,
+                    // dichten .corr-Sternmessungen (corrGlobalRefs), NICHT den 9 synthetischen Kachel-
+                    // Ankern (anchors/meshGroupSizes), die der AUTOMATISCHE SparseAnchorMesh-Kandidat
+                    // oben (Teil der pickCalibration-Konkurrenz bei "Auto") verwendet -- der bleibt
+                    // vollständig unverändert (A1: "bestehende Sparse-Anchor-Mesh-Kandidat bleibt
+                    // vorerst bestehen"). Ergebnis nur in richMeshFit/richMeshRms gecacht, für den
+                    // eigenständigen "Mesh"-Projektions-Chip -- dieselben Kotlin-Feldnamen wie zuvor
+                    // (UI/CalibrationSnapshot unverändert), NUR die dahinterliegende Fit-Logik ist neu.
+                    // Baseline bewusst rigidCalibration (reiner starrer Gewinner, VOR der Nachschärfung
+                    // oben) statt effectiveGlobalFit (das hier bereits selbst SparseAnchorMesh sein
+                    // kann) -- sonst würde ein Korrektur-Layer um einen anderen verschachtelt.
                     val rigidBaseline = rigidCalibration
                     if (rigidBaseline != null) {
-                        val (richGroupSizes, richGroupWeights) = FisheyeRefiner.corrRefGroupSizesAndWeights(
+                        // Untersuchungsauftrag 2026-08-31 (vierte Runde): rein additive Beweis-Diagnose
+                        // für den jetzt behobenen Stage-2-Koordinatenfehler (s. logStage2CorrGlobalizationDetail-
+                        // KDoc) -- läuft VOR RichCorrMesh.validateAndGroup, liest denselben corrGlobalRefs-
+                        // Quellzustand (tileCorrRefsById/idToTileWcs), verändert nichts.
+                        logStage2CorrGlobalizationDetail(
+                            idToTileWcs, tileCorrRefsById, tilesSnapshot, rigidBaseline.solution, imgH,
+                            budgetPerTile = 3,
+                        )
+                        val (richGroupSizes, _) = FisheyeRefiner.corrRefGroupSizesAndWeights(
                             idToTileWcs, tileCorrRefsById, reliabilityTileIds, meshGroupReliability,
                         )
                         val richStartMs = System.currentTimeMillis()
-                        val rich = withContext(Dispatchers.Default) {
-                            FisheyeRefiner.fitMesh(corrGlobalRefs, richGroupSizes, rigidBaseline.solution, groupWeights = richGroupWeights)
+                        val richCandidate = withContext(Dispatchers.Default) {
+                            // A4, Stufe 2 (global): Ausreißer/Duplikate gegen die Panorama-Baseline
+                            // gruppenweise verwerfen, BEVOR sie als Kontrollpunkte gelten (Stufe 1 lief
+                            // bereits pro Kachel direkt beim Solve, s. corr_pipeline-Diagnose oben).
+                            val (validatedRefs, validatedGroupSizes) = RichCorrMesh.validateAndGroup(
+                                corrGlobalRefs, richGroupSizes, rigidBaseline.solution, imgH,
+                            )
+                            // fitCandidate statt fit (Nutzer-Auftrag 2026-09-03): identische Gates und
+                            // identische Gate-Diagnose, aber ein Fit, den nur die QUALITÄTS-Gates
+                            // (A8/Kreuzvalidierung) ablehnen, bleibt als manuell wählbarer "Detail-Mesh"-
+                            // Kandidat erhalten statt verworfen zu werden. Dass richMeshFit jetzt auch in
+                            // diesem Fall gesetzt ist, ändert am AUTOMATISCHEN Pfad nichts -- richMeshFit
+                            // wird nirgends automatisch angewendet, ausschließlich über den manuellen
+                            // Projektions-Chip (s. dortiger Zweig).
+                            RichCorrMesh.fitCandidate(validatedRefs, validatedGroupSizes, rigidBaseline.solution, imgW, imgH)
                         }
+                        val rich = richCandidate?.fit
                         richMeshFit = rich?.solution
-                        richMeshRms = rich?.rms
+                        richMeshRms = rich?.crossValidationRmsPx?.takeIf { it.isFinite() }
+                        richMeshAutoEligible = richCandidate?.autoEligible == true
+                        richMeshRejectReason = richCandidate?.rejectReason
+                        // A9: SparseAnchorMesh (oben, aus candidateResults) und RichCorrMesh (hier)
+                        // diagnostisch klar getrennt benannt -- ein guter sparseAnchorMeshRms-Wert ist
+                        // KEIN Beweis, dass die echte .corr-Sternkorrektur funktioniert.
+                        val sparseAnchorMeshRms = candidateResults.firstOrNull { it.first == PanoProjectionKind.Mesh }?.second
                         AppDiagnostics.record(
-                            "rich_mesh refs=${corrGlobalRefs.size} groups=${richGroupSizes.count { it > 0 }} " +
-                                "rms=${rich?.rms?.let { "%.1f".format(it) } ?: "fail"} " +
+                            "rich_corr_mesh sparseAnchorMeshRms=${sparseAnchorMeshRms?.let { "%.1f".format(it) } ?: "fail"} " +
+                                "richCorrMeshRefs=${corrGlobalRefs.size} " +
+                                "richCorrMeshAcceptedControlPoints=${rich?.acceptedControlPoints ?: 0} " +
+                                "richCorrMeshCoverage=${rich?.coverageFraction?.let { "%.2f".format(it) } ?: "n/a"} " +
+                                "baselineRms=${rich?.baselineRmsPx?.let { "%.1f".format(it) } ?: "n/a"} " +
+                                "richCorrMeshTrainRms=${rich?.trainRmsPx?.let { "%.1f".format(it) } ?: "n/a"} " +
+                                "richCorrMeshCrossValidationRms=${rich?.crossValidationRmsPx?.let { "%.1f".format(it) } ?: "fail"} " +
                                 "tookMs=${System.currentTimeMillis() - richStartMs}",
                         )
                     }
@@ -2633,7 +3864,7 @@ fun StarMapperApp() {
                         // globale (ggf. refraktionskorrigierte, ggf. nachgeschärfte) Fit.
                         val display: WcsSolutionLike = singleSolveWcs ?: if (dewarpUsedInLastSolve) {
                             withContext(Dispatchers.Default) {
-                                refractedDisplayFit(effectiveGlobalFit, effectiveAnchors, imgW, imgH, allowedKinds, effectiveWeights)
+                                refractedDisplayFit(effectiveGlobalFit, effectiveAnchors, imgW, imgH, allowedKinds, effectiveWeights, enforceFullPanoramaPeriod = true)
                             }
                         } else {
                             effectiveGlobalFit
@@ -2642,6 +3873,36 @@ fun StarMapperApp() {
                         originalSolvedWcs = display
                         diagnosticsWcs = display
                     }
+                    // A1 (Nutzer-Auftrag 2026-09-03): hat der Nutzer bewusst Mesh/Detail-Mesh/Eigene
+                    // gewählt, muss NACH dem Solve auch tatsächlich dieser Kandidat aktiv sein -- der
+                    // Auto-Sieger wurde oben vollständig berechnet und protokolliert, überschreibt die
+                    // manuelle Wahl aber nicht mehr still. originalSolvedWcs bleibt bewusst der
+                    // Auto-Stand: "Original-Astrometrie wiederherstellen" soll zum ungefilterten
+                    // Solve-Ergebnis zurückführen, nicht zur manuellen Auswahl.
+                    val manualOverride = applyManualProjectionOverride()
+                    if (manualOverride) diagnosticsWcs = lastSolvedWcs
+                    AppDiagnostics.record(
+                        "projection_selection choice=$panoProjectionChoice activeModel=$alignProjectionKind " +
+                            "rawWinner=${calibration?.kind} " +
+                            "rawWinnerRms=${calibration?.rms?.let { "%.1f".format(it) } ?: "n/a"} " +
+                            "meshRms=${sparseMeshRms?.let { "%.1f".format(it) } ?: "n/a"} " +
+                            "detailMeshRms=${richMeshRms?.let { "%.1f".format(it) } ?: "n/a"} " +
+                            "finalWinner=$alignProjectionKind " +
+                            "meshMargin=${
+                                rigidCalibration?.let {
+                                    "%.2f".format(meshSubstitutionMargin(it.kind, imgW, imgH))
+                                } ?: "n/a"
+                            } " +
+                            "manualOverrideApplied=$manualOverride source=solve",
+                    )
+                    // Rein diagnostisch (s. logSupportDistance-KDoc): der tatsächlich aktive Auto-Sieger
+                    // und die beiden manuell wählbaren Mesh-Kandidaten. Die von calibratePanorama
+                    // VERWORFENEN Kandidaten sind hier bewusst nicht dabei -- deren Lösungsobjekte gibt
+                    // die Funktion nicht heraus, und FisheyeRefiner sollte in dieser Runde ausdrücklich
+                    // nicht angefasst werden (s. Abschlussbericht).
+                    calibration?.let { logSupportDistance(it.kind.toString(), it.solution, anchors, imgW, imgH) }
+                    logSupportDistance("Mesh", sparseMeshFit, anchors, imgW, imgH)
+                    logSupportDistance("DetailMesh", richMeshFit, anchors, imgW, imgH)
                     // recordUndo=false an allen 3: das Solve ist bereits EIN Tile-Undo-Schritt (s.
                     // snapshotTilesForUndo() am Funktionsanfang) -> keine zusätzlichen Overlay-Schritte,
                     // sonst kostet EIN Solve vier globale Undo-Klicks statt einem.
@@ -2744,23 +4005,37 @@ fun StarMapperApp() {
                 throw cancelled
             } catch (error: Throwable) {
                 AppDiagnostics.record("solvetiles_error type=${error.javaClass.name} msg=${error.message}")
-                astapOperationState = AstapOperationState.Failure(
-                    error.message ?: context.getString(R.string.label_tile_solve_failed),
-                )
-            } finally {
-                // Auch bei Abbruch sauberer Zustand: laufende (blaue) Kachel zurück auf offen (gelb).
-                for (i in solveTiles.indices) {
-                    if (solveTiles[i].status == SolveTileStatus.Solving) {
-                        solveTiles[i] = solveTiles[i].copy(status = SolveTileStatus.Pending)
-                    }
+                // Unit 6: ein Fehler aus einer bereits abgebrochenen Kachel (z. B. ein Netzfehler, der
+                // beim Cancel-Zeitpunkt schon "in Flight" war) darf den bereits gesetzten Cancelled-
+                // Zustand NICHT nachträglich als "Solve fehlgeschlagen" überschreiben.
+                if (!isStaleSolve()) {
+                    astapOperationState = AstapOperationState.Failure(
+                        error.message ?: context.getString(R.string.label_tile_solve_failed),
+                    )
                 }
-                solveTilesRunning = false
-                solveTilesStatus = ""
-                astapSolveJob = null
-                // Solve beendet -> Foreground-Service darf sich stoppen. success nur bei echtem
-                // Solved-Endzustand (nicht bei Abbruch/Failure) -> Service postet dann zusaetzlich
-                // eine "fertig"-Notification statt nur sein Icon verschwinden zu lassen.
-                SolveController.finish(success = astapOperationState is AstapOperationState.Solved)
+            } finally {
+                // Unit 6: nur die AKTUELLE (nicht durch einen zwischenzeitlichen Abbruch veraltete)
+                // Solve-Coroutine darf hier aufräumen -- sonst könnte eine spät unwindende Alt-Coroutine
+                // den Job/Foreground-Service-Status eines INZWISCHEN bereits neu gestarteten Solves
+                // überschreiben (astapSolveJob=null/SolveController.finish() für den FALSCHEN Lauf).
+                // resetSolveStateOnCancel() hat den Kachel-/Job-/Service-Reset für den Abbruch-Fall
+                // bereits synchron erledigt (s. dort) -- für eine veraltete Coroutine ist hier daher
+                // nichts mehr zu tun.
+                if (!isStaleSolve()) {
+                    // Auch bei Abbruch sauberer Zustand: laufende (blaue) Kachel zurück auf offen (gelb).
+                    for (i in solveTiles.indices) {
+                        if (solveTiles[i].status == SolveTileStatus.Solving) {
+                            solveTiles[i] = solveTiles[i].copy(status = SolveTileStatus.Pending)
+                        }
+                    }
+                    solveTilesRunning = false
+                    solveTilesStatus = ""
+                    astapSolveJob = null
+                    // Solve beendet -> Foreground-Service darf sich stoppen. success nur bei echtem
+                    // Solved-Endzustand (nicht bei Abbruch/Failure) -> Service postet dann zusaetzlich
+                    // eine "fertig"-Notification statt nur sein Icon verschwinden zu lassen.
+                    SolveController.finish(success = astapOperationState is AstapOperationState.Solved)
+                }
             }
         }
     }
@@ -2785,7 +4060,7 @@ fun StarMapperApp() {
         calibrationAsyncJob = scope.launch {
             val calib = withContext(Dispatchers.Default) {
                 if (anchors.size >= 3) {
-                    FisheyeRefiner.calibratePanorama(anchors, src.width, src.height, allowed, panoSolveWeights)
+                    FisheyeRefiner.calibratePanorama(anchors, src.width, src.height, allowed, panoSolveWeights, enforceFullPanoramaPeriod = true)
                 } else {
                     singleSolveWcs?.let { panoramaCalibrationFromWcs(it, src.width, src.height, allowed) }
                 }
@@ -2807,14 +4082,23 @@ fun StarMapperApp() {
             // selbst eine vollständige astrometrische Lösung.
             lastSolvedWcs = singleSolveWcs ?: if (dewarpUsedInLastSolve && anchors.size >= 3) {
                 withContext(Dispatchers.Default) {
-                    refractedDisplayFit(fit, anchors, src.width, src.height, allowed, panoSolveWeights)
+                    refractedDisplayFit(fit, anchors, src.width, src.height, allowed, panoSolveWeights, enforceFullPanoramaPeriod = true)
                 }
             } else {
                 fit
             }
+            // A1: eine aktive manuelle Wahl (Mesh/Detail-Mesh/Eigene) gewinnt gegen den gerade neu
+            // berechneten Auto-Sieger -- sonst liefe die UI-Auswahl still vom tatsächlich aktiven WCS weg.
+            val manualOverride = applyManualProjectionOverride()
+            AppDiagnostics.record(
+                "projection_selection choice=$panoProjectionChoice activeModel=$alignProjectionKind " +
+                    "rawWinner=${calib.kind} rawWinnerRms=${"%.1f".format(calib.rms)} " +
+                    "finalWinner=$alignProjectionKind manualOverrideApplied=$manualOverride source=reproject",
+            )
             // recordUndo=false: der Aufrufer hat bereits VOR dem Reproject-Start snapshotCalibrationForUndo()
             // aufgerufen -> ein Modellwechsel ist EIN globaler Undo-Schritt, keine zusätzlichen Overlay-Schritte.
             syncConstellationLayer(recordUndo = false)
+            logConstellationAudit("reproject")
             syncDeepSkyLayer(recordUndo = false)
             syncStarLayer(recordUndo = false)
             AppDiagnostics.record("reproject model=${calib.kind} refraction=$dewarpUsedInLastSolve")
@@ -2867,6 +4151,11 @@ fun StarMapperApp() {
                 customAlignKind = null
                 richMeshFit = null
                 richMeshRms = null
+                richMeshAutoEligible = false
+                richMeshRejectReason = null
+                sparseMeshFit = null
+                sparseMeshRms = null
+                projectionCandidateRms = emptyMap()
                 postSolveCalibration = null
                 calibrationAsyncJob?.cancel()
                 calibrationAsyncJob = null
@@ -2874,6 +4163,91 @@ fun StarMapperApp() {
             AppDiagnostics.record("image_selected mime=${context.contentResolver.getType(uri) ?: "unknown"}")
         } else {
             AppDiagnostics.record("image_picker_cancelled")
+        }
+    }
+    val exportSolutionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                val json = SolutionExport.encode(
+                    imageWidth = bitmap?.width ?: 0,
+                    imageHeight = bitmap?.height ?: 0,
+                    lastSolvedWcs = lastSolvedWcs,
+                    originalSolvedWcs = originalSolvedWcs,
+                    singleSolveWcs = singleSolveWcs,
+                    tiles = solveTiles.toList(),
+                )
+                context.contentResolver.openOutputStream(uri)?.use { stream ->
+                    stream.write(json.toByteArray(Charsets.UTF_8))
+                } ?: error("openOutputStream lieferte null")
+            }.onSuccess {
+                Toast.makeText(context, context.getString(R.string.toast_solution_exported), Toast.LENGTH_SHORT).show()
+                // overlaysStored=0 ist bewusst FEST, kein Zähler -- s. SolutionExport-Klassenkommentar
+                // "Architektur-Trennung": eine Solution enthält nie automatisch erzeugte Overlays.
+                AppDiagnostics.record(
+                    "solution_exported tiles=${solveTiles.size} overlaysStored=0 " +
+                        "lastSolvedWcsExported=${lastSolvedWcs?.isExportable() == true} " +
+                        "projectionKind=$alignProjectionKind " +
+                        "meshExported=${lastSolvedWcs.containsCorrectedProjection()}",
+                )
+            }.onFailure { e ->
+                Toast.makeText(context, context.getString(R.string.toast_solution_export_failed), Toast.LENGTH_LONG).show()
+                AppDiagnostics.record("solution_export_failed error=${e.message}")
+            }
+        } else {
+            AppDiagnostics.record("solution_export_file_picker_cancelled")
+        }
+        activePanel = null
+    }
+    // Import wirkt DIREKT auf das bereits geöffnete Foto -- kein zweiter Foto-Auswahl-Dialog (Nutzer-
+    // Korrektur 2026-08-27: das Foto ist beim Aufruf von "Lösung laden" bereits ausgewählt/geladen,
+    // typischerweise weil die App das beim Start ohnehin verlangt; ein zusätzlicher Auswahl-Schritt war
+    // unnötig und verwirrend). Die JSON-Datei trägt ohnehin keine Bildpixel, nur Metadaten+Lösung --
+    // bewusst kein Bild-Hash/keine automatische Foto-Erkennung, der Nutzer ist selbst dafür
+    // verantwortlich, das richtige Foto geöffnet zu haben.
+    val importSolutionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                val text = context.contentResolver.openInputStream(uri)?.use { stream ->
+                    stream.readBytes().toString(Charsets.UTF_8)
+                } ?: error("openInputStream lieferte null")
+                SolutionExport.decode(text)
+            }.onSuccess { parsed ->
+                lastSolvedWcs = parsed.lastSolvedWcs
+                originalSolvedWcs = parsed.originalSolvedWcs
+                singleSolveWcs = parsed.singleSolveWcs
+                solveTiles.clear()
+                solveTiles.addAll(parsed.tiles)
+                // Architektur-Trennung (Nutzer-Vorgabe 2026-08-30): die Solution trägt KEINE Overlays
+                // mehr -- alle aktivierten automatischen Annotationen werden hier mit der AKTUELLEN
+                // Build-Logik/den aktuellen Katalogen frisch erzeugt, statt einen alten Overlay-Snapshot
+                // wiederherzustellen (derselbe Aufruf-Dreiklang wie nach einem frischen Solve/einer
+                // Kalibrierungs-Wiederherstellung, s. applyCalibrationSnapshot). recordUndo=false: das
+                // Laden selbst erzeugt keinen Undo-Schritt. Bereits vorhandene MANUELLE Overlays
+                // (layer==null) bleiben unangetastet -- jede Sync-Funktion räumt nur ihre eigene Kategorie.
+                syncConstellationLayer(recordUndo = false)
+                syncDeepSkyLayer(recordUndo = false)
+                syncStarLayer(recordUndo = false)
+                activePanel = null
+                Toast.makeText(context, context.getString(R.string.toast_solution_loaded), Toast.LENGTH_SHORT).show()
+                AppDiagnostics.record(
+                    "solution_imported tiles=${parsed.tiles.size} " +
+                        "legacyOverlayPayloadIgnored=${parsed.legacyOverlayPayloadIgnored} autoAnnotationsRecomputed=true " +
+                        "meshRestored=${parsed.lastSolvedWcs.containsCorrectedProjection()} " +
+                        "baselineKind=${parsed.lastSolvedWcs.meshBaselineKindOrNull() ?: "n/a"} " +
+                        "horizontalPeriodPx=${
+                            if (parsed.lastSolvedWcs.hasHorizontalPeriod()) "present" else "absent"
+                        }",
+                )
+            }.onFailure { e ->
+                Toast.makeText(context, context.getString(R.string.toast_solution_import_failed), Toast.LENGTH_LONG).show()
+                AppDiagnostics.record("solution_import_failed error=${e.message}")
+            }
+        } else {
+            AppDiagnostics.record("solution_import_file_picker_cancelled")
         }
     }
 
@@ -2927,6 +4301,72 @@ fun StarMapperApp() {
         }
     }
 
+    // Performance-Fix 2026-09-02 (Objekte-Menü-Slider froren ein): Gegenstück zu applyConstellation-/
+    // Shape-/Reticle-/TextStyleToAll speziell für die Deep-Sky-Ebene -- reine Restyle-Anwendung auf
+    // bereits vorhandene DSO-Overlays, OHNE die teure createDeepSkyOverlays-Pipeline (Katalogfilter/
+    // Best-Known-Matching/WCS-Größenprojektion/Kollisions-Platzierung über bis zu ~91k Objekte) erneut
+    // auszulösen. Nur für Parameter zulässig, die 1:1 (ohne abgeleitete Logik) als Feld auf
+    // AnnotationOverlay landen -- s. AstapOverlayMapper.createDeepSkyOverlays: strokeWidth/nameTextSize/
+    // font/nameOpacityLinked sind das (direkte Parameter-Durchreichung), opacity NICHT (kommt aus
+    // opacityFor(group), s. applyDeepSkyOpacityLive unten) und showName ERST RECHT NICHT (echtes
+    // Kollisionsergebnis, showThisName) -- deshalb bleiben Deckkraft-Gruppierung und der "Namen zeigen"-
+    // Schalter bewusst auf dem vollen, jetzt aber hintergrund-berechneten Pfad (s. requestDeepSkySync).
+    fun applyDeepSkyStyleToAll(transform: (AnnotationOverlay) -> AnnotationOverlay) {
+        for (i in overlays.indices) {
+            if (overlays[i].layer == AnnotationLayer.DeepSky) overlays[i] = transform(overlays[i])
+        }
+    }
+
+    // Katalogzugehörigkeit je Objekt-Id (aus dem ohnehin schon vorberechneten deepSkyCatalogGroups
+    // abgeleitet, s. dort) -- braucht applyDeepSkyOpacityLive, um beim NICHT-"gilt für alle Kataloge"-Fall
+    // nur die Overlays DES GERADE GEWÄHLTEN Katalogs live umzufärben, ohne dafür deepSkyCatalogGroups
+    // (Schlüssel: DeepSkyObject) gegen AnnotationOverlay.sourceId (ein reiner String) durchsuchen zu
+    // müssen. Nur neu berechnet, wenn sich deepSkyCatalogGroups selbst ändert (Katalog-Laden) -- NICHT
+    // bei jedem Slider-Tick.
+    val deepSkyGroupById = remember(deepSkyCatalogGroups) {
+        deepSkyCatalogGroups.entries.associate { (obj, group) -> obj.id to group }
+    }
+    // group=null -> "gilt für alle Kataloge" (uniform); sonst nur Overlays DIESES Katalogs (Overlays ohne
+    // bekannte Gruppenzuordnung -- sollte praktisch nicht vorkommen -- bleiben unangetastet, kein Absturz).
+    fun applyDeepSkyOpacityLive(value: Float, group: DeepSkyCatalogGroup?) {
+        applyDeepSkyStyleToAll { ov ->
+            val ovGroup = ov.sourceId?.let { deepSkyGroupById[it] }
+            if (group != null && ovGroup != group) ov else ov.copy(opacity = value)
+        }
+    }
+
+    // Performance-Fix 2026-09-02 (MethodTooLargeException-Nachtrag): reagiert REAKTIV auf die reinen
+    // Zustandsschreibungen der Style-only-DSO-Regler (s. DeepSkyAnnotationSection) statt dass diese
+    // Regler eigene Callback-Parameter durch EditorPanelSheet -> AnnotatePanel -> DeepSkyAnnotationSection
+    // durchreichen -- genau dieses Muster (neue () -> Unit-Parameter an der bereits übervollen
+    // EditorPanelSheet-Aufrufstelle) hatte hier schon zweimal zuvor einen MethodTooLargeException-Build-
+    // fehler ausgelöst (s. Memory project_methodtoolarge_editorpanelsheet), ein dritter Versuch mit
+    // genau demselben Muster brach den Build erneut. Jeder Effekt ist klein/eigenständig (kein
+    // gemeinsamer Riesen-Lambda mehr) und feuert nur bei ECHTER Wertänderung -- inkl. einmalig beim
+    // ersten Komponieren (dann auf einem noch leeren overlays, folgenlos billig).
+    LaunchedEffect(annotate.dsoGlobalOpacity) {
+        if (annotate.dsoOpacityAppliesToAll) applyDeepSkyOpacityLive(annotate.dsoGlobalOpacity, null)
+    }
+    LaunchedEffect(annotate.dsoSelectedCatalog, annotate.dsoOpacityOf(annotate.dsoSelectedCatalog)) {
+        if (!annotate.dsoOpacityAppliesToAll) {
+            applyDeepSkyOpacityLive(annotate.dsoOpacityOf(annotate.dsoSelectedCatalog), annotate.dsoSelectedCatalog)
+        }
+    }
+    LaunchedEffect(annotate.deepSkyStrokeWidth, annotate.deepSkyStrokeWidthEnabled) {
+        applyDeepSkyStyleToAll { ov ->
+            ov.copy(strokeWidth = if (annotate.deepSkyStrokeWidthEnabled) annotate.deepSkyStrokeWidth else 2.5f)
+        }
+    }
+    LaunchedEffect(annotate.deepSkyNameSize) {
+        applyDeepSkyStyleToAll { ov -> ov.copy(nameTextSize = annotate.deepSkyNameSize) }
+    }
+    LaunchedEffect(annotate.deepSkyFont) {
+        applyDeepSkyStyleToAll { ov -> ov.copy(font = annotate.deepSkyFont) }
+    }
+    LaunchedEffect(annotate.deepSkyNameOpacityLinked) {
+        applyDeepSkyStyleToAll { ov -> ov.copy(nameOpacityLinked = annotate.deepSkyNameOpacityLinked) }
+    }
+
     // Bewusstes Platzieren scharf schalten (Einmal-Modus): Sheet schließen, damit man ins
     // Bild tippen kann; der nächste Tipp setzt genau ein Objekt und schaltet wieder ab.
     fun armPlacement(tool: EditorTool) {
@@ -2969,31 +4409,22 @@ fun StarMapperApp() {
         }
     }
 
+    // Unit 6 (2026-09-02): reiner Wrapper -- die eigentliche Logik ist gemeinsam mit dem Notification-
+    // Abbrechen-Zweig in resetSolveStateOnCancel() (s. oben, vor solveAllTiles) zusammengefasst, damit
+    // beide Wege exakt denselben, vollständigen Reset durchlaufen. Name/Aufrufstellen unverändert.
     fun cancelAstapSolve() {
-        val wasSolving = astapOperationState is AstapOperationState.Solving ||
-            astapOperationState is AstapOperationState.SolvingOnline
-        astapSolveJob?.cancel()
-        astapSolveJob = null
-        // Service beenden (Notification verschwindet) - auch wenn der Abbruch aus
-        // der Notification kam, ist finish() idempotent.
-        SolveController.finish()
-        if (wasSolving) {
-            AppDiagnostics.record("astap_solve_cancelled_explicitly")
-            astapOperationState = AstapOperationState.Idle
-            // Sofort zurücksetzen, nicht erst auf den (kooperativen -- bei Nova ggf. erst nach dem
-            // laufenden HTTP-Aufruf greifenden) Coroutine-Abbruch warten: sonst blieb eine Kachel
-            // sichtbar "blau" (Solving) und gesperrt, obwohl der Abbrechen-Button oben schon
-            // verschwunden war (astapOperationState bereits Idle) -- wirkte wie "Abbrechen tut
-            // nichts" (Nutzerbefund 2026-08-17). Der finally-Block in solveAllTiles() macht denselben
-            // Reset ohnehin nochmal, sobald die Coroutine tatsächlich abgewickelt ist (harmlos).
-            for (i in solveTiles.indices) {
-                if (solveTiles[i].status == SolveTileStatus.Solving) {
-                    solveTiles[i] = solveTiles[i].copy(status = SolveTileStatus.Pending)
-                }
-            }
-            solveTilesRunning = false
-            solveTilesStatus = ""
-        }
+        resetSolveStateOnCancel()
+    }
+
+    // Unit 6 (2026-09-02): NEUER Einstiegspunkt für beide "Einzelbild lösen"-Buttons -- zeigt ZUERST
+    // den Positions-Hinweis-Dialog (wiederverwendet ManualHintDialog/findStarByName, dieselbe Mechanik
+    // wie der Kachel-Hinweis, s. singleSolveHintPoint-Deklaration). Der Dialog selbst entscheidet beim
+    // Schließen (egal ob per Stern-Auswahl, "Entfernen" oder "Abbrechen"), ob startSingleImageSolve()
+    // MIT oder OHNE Hinweis (blind) aufgerufen wird -- ein Schließen des Dialogs bricht NIEMALS den
+    // Solve selbst ab, das ist eine komplett eigene, spätere Aktion (Abbrechen-Button/-Notification).
+    fun requestSingleImageSolve() {
+        AppDiagnostics.record("single_solve_hint_dialog_opened")
+        showSingleSolveHintDialog = true
     }
 
     // Einzelbild-Solve, aus dem Compose-Argument herausgehoben (0.14.1): so kann ihn auch die
@@ -3014,6 +4445,10 @@ fun StarMapperApp() {
                         // Fisheye löst einen ~25deg-Mittenpatch -> Weitfeld-DB, nicht das
                         // (für Fisheye bedeutungslose) Einzelbild-FOV.
                         run {
+                            // Defensiver Abbruch eines etwaigen (unter normaler UI-Sperrung eigentlich
+                            // unerreichbaren) noch laufenden Alt-Jobs -- Generation mit hochzählen (Unit
+                            // 6), damit dieser Alt-Job sich beim Aufwachen als veraltet erkennt.
+                            solveGeneration++
                             astapSolveJob?.cancel()
                             // Foreground-Service hält den Prozess auf Vordergrund-Priorität,
                             // damit Android dem (minutenlangen) Solve im Hintergrund nicht
@@ -3037,6 +4472,9 @@ fun StarMapperApp() {
                             // Undo/Redo-Schritt (vorher komplett ungeschützt).
                             snapshotCalibrationForUndo()
                             astapSolveJob = scope.launch {
+                                // Eigene Generation dieser Solve-Coroutine (Unit 6) -- s. solveGeneration.
+                                val myGeneration = solveGeneration
+                                fun isStaleSolve() = solveGeneration != myGeneration
                                 // Liveticker/Log auch für das Einzelbild (wie bei den Kacheln).
                                 solveTicker.clear()
                                 tick(
@@ -3150,17 +4588,24 @@ fun StarMapperApp() {
                                         // (aus altem Manual-FOV oder Geräteprofil) ist bei Crops/Fisheye-
                                         // Ausschnitten meist falsch und blockiert das Lösen. Positions-Hinweis
                                         // (Zielobjekt) wird durchgereicht; ASTAP offline nutzt das FOV weiterhin.
+                                        // Unit 6 (2026-09-02): zwei unabhängige Hinweis-Quellen kombiniert --
+                                        // singleSolveHintPoint (neuer Hinweis-Dialog, wiederverwendet die
+                                        // Kachel-Mechanik) hat Vorrang, targetSkyPoint (bestehendes
+                                        // Zielobjekt-Textfeld in SolverConfigSection) bleibt als Rückfall
+                                        // voll funktionsfähig, falls dort weiterhin genutzt.
+                                        val effectiveHintPoint = singleSolveHintPoint ?: targetSkyPoint
                                         AppDiagnostics.record(
                                             "single_solve_started solver=${effectiveSolverChoice.name} " +
-                                                "posHint=${targetSkyPoint != null} masked=${mask != null}",
+                                                "posHint=${effectiveHintPoint != null} masked=${mask != null}",
                                         )
                                         val singleWcs: WcsSolution = if (local) {
                                             localSolver.solve(
                                                 bitmap = solveBitmap,
-                                                // Manueller Positions-Hinweis: eingetipptes Zielobjekt (Name -> RA/Dec).
-                                                centerRaDeg = targetSkyPoint?.raDegrees?.toDouble(),
-                                                centerDecDeg = targetSkyPoint?.decDegrees?.toDouble(),
-                                                radiusDeg = targetSkyPoint?.let { astapFieldOfView.toDouble().coerceIn(5.0, 90.0) },
+                                                // Manueller Positions-Hinweis: Hinweis-Dialog ODER eingetipptes
+                                                // Zielobjekt (Name -> RA/Dec).
+                                                centerRaDeg = effectiveHintPoint?.raDegrees?.toDouble(),
+                                                centerDecDeg = effectiveHintPoint?.decDegrees?.toDouble(),
+                                                radiusDeg = effectiveHintPoint?.let { astapFieldOfView.toDouble().coerceIn(5.0, 90.0) },
                                             ) { status ->
                                                 withContext(Dispatchers.Main.immediate) {
                                                     astapOperationState =
@@ -3174,11 +4619,12 @@ fun StarMapperApp() {
                                                 apiKey = novaApiKey,
                                                 fovWidthLowerDeg = null,
                                                 fovWidthUpperDeg = null,
-                                                // Manueller Positions-Hinweis: eingetipptes Zielobjekt (Name -> RA/Dec).
-                                                // Skala bleibt blind; nur die Suche wird auf die Umgebung eingegrenzt.
-                                                centerRaDeg = targetSkyPoint?.raDegrees?.toDouble(),
-                                                centerDecDeg = targetSkyPoint?.decDegrees?.toDouble(),
-                                                radiusDeg = targetSkyPoint?.let { astapFieldOfView.toDouble().coerceIn(5.0, 90.0) },
+                                                // Manueller Positions-Hinweis: Hinweis-Dialog ODER eingetipptes
+                                                // Zielobjekt (Name -> RA/Dec). Skala bleibt blind; nur die
+                                                // Suche wird auf die Umgebung eingegrenzt.
+                                                centerRaDeg = effectiveHintPoint?.raDegrees?.toDouble(),
+                                                centerDecDeg = effectiveHintPoint?.decDegrees?.toDouble(),
+                                                radiusDeg = effectiveHintPoint?.let { astapFieldOfView.toDouble().coerceIn(5.0, 90.0) },
                                             ) { status ->
                                                 withContext(Dispatchers.Main.immediate) {
                                                     astapOperationState =
@@ -3192,6 +4638,14 @@ fun StarMapperApp() {
                                         )
                                         wcs = singleWcs
                                         solvedStars = emptyList()
+                                    }
+                                    // Unit 6 (2026-09-02): dieser Solve lief TROTZ eines inzwischen erfolgten
+                                    // Abbruchs erfolgreich durch (Race, z. B. Abbruch genau beim letzten
+                                    // ensureActive()-Fenster) -> Ergebnis NICHT mehr übernehmen (kein WCS-
+                                    // Setzen, keine Sternbild-Synchronisierung, kein Solved-Endzustand).
+                                    if (isStaleSolve()) {
+                                        AppDiagnostics.record("single_solve_discarded_stale_generation")
+                                        return@launch
                                     }
                                     // Konsistent mit solveAllTiles()/reprojectPanorama() (Nutzer-Entscheidung
                                     // 2026-07-30): die Einzellösung wird direkt angezeigt, keine Kachel-
@@ -3267,20 +4721,31 @@ fun StarMapperApp() {
                                         "astap_solve_failed solver=${astapSolverChoice.name} " +
                                             "type=${error.javaClass.name} message=${error.message}",
                                     )
-                                    tick(
-                                        context.getString(
-                                            R.string.single_image_failed,
-                                            error.message ?: context.getString(R.string.error_unknown_short),
-                                        ),
-                                    )
-                                    astapOperationState = AstapOperationState.Failure(
-                                        error.message ?: context.getString(R.string.error_no_solution),
-                                    )
+                                    // Unit 6: ein Fehler aus einem bereits abgebrochenen Solve (z. B. ein
+                                    // Netzfehler, der beim Cancel-Zeitpunkt schon "in Flight" war) darf den
+                                    // bereits gesetzten Cancelled-Zustand NICHT nachträglich als "Solve
+                                    // fehlgeschlagen" überschreiben.
+                                    if (!isStaleSolve()) {
+                                        tick(
+                                            context.getString(
+                                                R.string.single_image_failed,
+                                                error.message ?: context.getString(R.string.error_unknown_short),
+                                            ),
+                                        )
+                                        astapOperationState = AstapOperationState.Failure(
+                                            error.message ?: context.getString(R.string.error_no_solution),
+                                        )
+                                    }
                                 } finally {
-                                    astapSolveJob = null
-                                    // Solve beendet -> Foreground-Service darf sich stoppen. success
-                                    // nur bei echtem Solved-Endzustand, s. Kommentar in solveAllTiles().
-                                    SolveController.finish(success = astapOperationState is AstapOperationState.Solved)
+                                    // Unit 6: nur die AKTUELLE (nicht veraltete) Solve-Coroutine räumt
+                                    // Job/Foreground-Service auf -- sonst könnte eine spät unwindende Alt-
+                                    // Coroutine einen inzwischen neu gestarteten Solve fälschlich beenden.
+                                    if (!isStaleSolve()) {
+                                        astapSolveJob = null
+                                        // Solve beendet -> Foreground-Service darf sich stoppen. success
+                                        // nur bei echtem Solved-Endzustand, s. Kommentar in solveAllTiles().
+                                        SolveController.finish(success = astapOperationState is AstapOperationState.Solved)
+                                    }
                                 }
                             }
                         }
@@ -3289,6 +4754,23 @@ fun StarMapperApp() {
 
     fun shareFullAppDiagnostic() {
         val sourceBitmap = bitmap
+        // Dieselbe Berechnung + dieselben Bedingungen wie die Live-Anzeige (graticuleGeometry/
+        // milkyWayGeometry weiter unten in EditorCanvas) -- hier bewusst NEU berechnet statt die dortige
+        // remember()-Instanz zu teilen (die liegt in einem anderen, verschachtelten Scope) -- beide
+        // Renderer sind reine, seiteneffektfreie Funktionen (wie ExportRenderer sie auch nutzt), ein
+        // zweiter Aufruf für die Diagnose ist unkritisch. Ermöglicht, Gradnetz UND Milchstraße pixelgenau
+        // aus der Diagnose-Textdatei nachzurechnen, nicht nur Overlays (Nutzerwunsch 2026-08-27).
+        val diagnosticWcs = lastSolvedWcs
+        val graticuleForDiagnostic = if (!tinySkyActive && annotate.gridEnabled && diagnosticWcs != null && sourceBitmap != null) {
+            GraticuleRenderer.compute(diagnosticWcs, sourceBitmap.width, sourceBitmap.height, annotate.gridDensity)
+        } else {
+            null
+        }
+        val milkyWayForDiagnostic = if (!tinySkyActive && annotate.milkyWayEnabled && diagnosticWcs != null && sourceBitmap != null) {
+            MilkyWayRenderer.compute(milkyWayLayers, diagnosticWcs, sourceBitmap.width, sourceBitmap.height)
+        } else {
+            null
+        }
         runCatching {
             AppDiagnosticExporter.createShareUri(
                 context = context,
@@ -3311,6 +4793,8 @@ fun StarMapperApp() {
                     referenceCatalogStarCount = referenceCatalogStars.size,
                     deepSkyObjectCount = deepSkyObjects.size,
                     milkyWayLayerCount = milkyWayLayers.size,
+                    graticule = graticuleForDiagnostic,
+                    milkyWay = milkyWayForDiagnostic,
                     d3Settings = mapOf(
                         "showStars" to d3CatalogSettings.showStars,
                         "starMagnitudeLimit" to d3CatalogSettings.starMagnitudeLimit,
@@ -3400,6 +4884,38 @@ fun StarMapperApp() {
     LaunchedEffect(dsoNebulaColorArgb) { delay(150); syncDeepSkyLayer(recordUndo = true) }
     LaunchedEffect(dsoOtherColorArgb) { delay(150); syncDeepSkyLayer(recordUndo = true) }
 
+    // Sprachwechsel (Nutzer-Vorgabe 2026-08-30, "Export verwendet weiterhin die alte Sprache"):
+    // Sternbild-/DSO-/Stern-Namen werden beim Sync einmalig aus createConstellationOverlays/
+    // createDeepSkyOverlays/createStarOverlays' `lang`-Parameter gebaut und in overlay.text/
+    // overlay.constellation GEBACKEN. Der Editor zeigt Sternbildnamen zusätzlich LIVE über
+    // ConstellationPattern.localizedName() (reagiert daher schon ohne diesen Hook sofort), aber
+    // Export/SphericalExport zeichnen ausschließlich das gebackene overlay.text -- ohne erneuten Sync
+    // bliebe das nach einem Sprachwechsel in der zuvor aktiven Sprache stehen, obwohl die Vorschau
+    // (Sternbilder) bereits die neue zeigt. Bewusst OHNE Solve/Astrometrie -- reiner Resync aus der
+    // bereits vorhandenen WCS, identisches Prinzip wie nach einem Solution-Import; Größen-/Positions-
+    // Overrides überstehen das wie gewohnt. Alle drei Sync-Funktionen sind bei fehlender WCS bereits
+    // No-Ops (kein Extra-Guard nötig).
+    LaunchedEffect(AppLocale.current) {
+        AppDiagnostics.record("language_resync lang=${AppLocale.resolvedLanguageTag} appLang=${AppLocale.current}")
+        // VisualOnly: nur der gebackene Anzeigename ändert sich, die WCS ist dieselbe.
+        syncConstellationLayer(recordUndo = false, reason = ConstellationSyncReason.VisualOnly)
+        syncDeepSkyLayer(recordUndo = false)
+        syncStarLayer(recordUndo = false)
+    }
+
+    // Punkt 2 (Nutzer-Vorgabe 2026-08-30): Verschieben/Skalieren/Drehen/Löschen eines Overlays kann die
+    // Umgebung anderer, bereits automatisch platzierter DSO-Namen verändern (ein neu daneben liegendes
+    // Objekt/eine neu daneben liegende Form kann ein zuvor freies Label jetzt verdecken) -- bumpen daher
+    // dsoNeighborRecheckTick (s. onUpdateOverlay/onRemoveOverlay), entprellt wie der Farbwähler oben
+    // (150ms), damit eine schnelle Zieh-Geste nicht Dutzende Neuaufbauten auslöst. tick==0 = Ausgangs-
+    // zustand, noch nie ausgelöst -> nichts zu tun.
+    LaunchedEffect(dsoNeighborRecheckTick) {
+        if (dsoNeighborRecheckTick > 0) {
+            delay(150)
+            syncDeepSkyLayer(recordUndo = true, fullLabelPlacement = true)
+        }
+    }
+
     // Übrige globale Standardfarben (Katalog bearbeiten -> Farben): Persistenz bleibt live/sofort
     // (billige SharedPreferences-Writes). Sternnamen/Gradnetz sind reine Anzeige-Parameter (kein
     // Overlay wird mutiert) -> bleiben voll live. Sternbilder/Formen/Formen-Namen/Kometenmarker/Text
@@ -3415,6 +4931,18 @@ fun StarMapperApp() {
     LaunchedEffect(constellationColorArgb) { preferences.edit().putLong("color_constellation", constellationColorArgb).apply() }
     LaunchedEffect(annotate.starNameColorArgb) { preferences.edit().putLong("color_star_names", annotate.starNameColorArgb).apply() }
     LaunchedEffect(annotate.gridColorArgb) { preferences.edit().putLong("color_grid", annotate.gridColorArgb).apply() }
+    LaunchedEffect(annotate.bestKnownEnabled) {
+        preferences.edit().putBoolean("dso_best_known_enabled", annotate.bestKnownEnabled).apply()
+    }
+    // Performance-Fix 2026-09-02 (Punkt 8): entprellt statt bei jedem Drag-Tick zu schreiben -- der
+    // Regler aktualisiert selections.dsoMinSizePercent live bei jedem onValueChange (s.
+    // DeepSkyAnnotationSection), ein LaunchedEffect(delay(...)) bricht sich bei jedem neuen Tick selbst
+    // ab (Compose-Standardverhalten) und schreibt erst ~300ms nach dem letzten Tick -- identisches
+    // Prinzip wie die bereits bestehende entprellte DSO-Farb-Persistenz (s. dsoGalaxyColorArgb u.a. oben).
+    LaunchedEffect(annotate.dsoMinSizePercent) {
+        delay(300)
+        preferences.edit().putFloat("dso_min_size_percent", annotate.dsoMinSizePercent).apply()
+    }
     LaunchedEffect(shapeColorArgb) { preferences.edit().putLong("color_shapes", shapeColorArgb).apply() }
     LaunchedEffect(shapeNameColorArgb) { preferences.edit().putLong("color_shape_names", shapeNameColorArgb).apply() }
     LaunchedEffect(reticleColorArgb) { preferences.edit().putLong("color_reticle", reticleColorArgb).apply() }
@@ -3440,14 +4968,6 @@ fun StarMapperApp() {
         applyTextStyleToAll { it.copy(colorArgb = textColorArgb) }
     }
 
-    // AnnotationOverlay.text wird bei syncStarLayer() einmalig aus CatalogStar.displayName(lang)
-    // gebacken (kein reaktiver Compose-Wert) -- ohne diesen Effekt bleiben schon platzierte
-    // Sternnamen nach einem Sprachwechsel auf der alten Sprache stehen, bis irgendeine andere
-    // Änderung (z.B. Sternnamen aus-/wieder einschalten) zufällig einen Resync auslöst.
-    LaunchedEffect(AppLocale.current) {
-        syncStarLayer(recordUndo = false)
-    }
-
     LaunchedEffect(Unit) {
         val loaded = withContext(Dispatchers.IO) {
             runCatching { ConstellationAssetLoader.load(context) }.getOrElse { ConstellationCatalog.featured }
@@ -3469,6 +4989,13 @@ fun StarMapperApp() {
         val loadedDeepSkyCatalogGroups = withContext(Dispatchers.IO) {
             loadedDeepSkyObjects.associateWith { DeepSkyCatalogGroup.of(it) }
         }
+        // Performance-Fix 2026-09-02 (Objekte-Menü-Slider fror ein): analog zu loadedDeepSkyCatalogGroups
+        // einmalig vorberechnet statt bei JEDER DSO-Neuberechnung (jeder Slider-Commit) erneut über den
+        // kompletten ~91k-Objekte-Katalog zu laufen -- s. AstapOverlayMapper.createDeepSkyOverlays
+        // bestKnownMatches-Parameter.
+        val loadedDeepSkyBestKnownMatches = withContext(Dispatchers.IO) {
+            loadedDeepSkyObjects.associateWith { BestKnownCatalog.match(it) }
+        }
         val loadedShapes = withContext(Dispatchers.IO) {
             runCatching { DsoShapeLoader.load(context) }.getOrElse { emptyMap() }
         }
@@ -3478,6 +5005,7 @@ fun StarMapperApp() {
         referenceCatalogStars = loadedReferenceStars
         deepSkyObjects = loadedDeepSkyObjects
         deepSkyCatalogGroups = loadedDeepSkyCatalogGroups
+        deepSkyBestKnownMatches = loadedDeepSkyBestKnownMatches
         dsoShapes = loadedShapes
         AppDiagnostics.record(
             "catalogs_loaded constellations=${loaded.size} milkyWayLayers=${loadedMilkyWay.size} " +
@@ -3563,14 +5091,16 @@ fun StarMapperApp() {
                         null
                     }
                 }
-                // Tiny Sky (siehe tinySkyActive/tinySkyBitmap oben): Kacheln UND Overlays (Sternbilder/
-                // Text/Formen) bleiben KANONISCH im Original-Bild-Koordinatenraum gespeichert — für
-                // Anzeige UND Bearbeitung in dieser Ansicht werden sie nur ABGELEITET umgerechnet
-                // (displaySolveTiles/displayOverlays), Änderungen rechnen beim Speichern sofort zurück.
-                // Dadurch braucht es keinen gesonderten "Umrechnen-beim-Verlassen"-Schritt: die Daten
-                // sind jederzeit schon korrekt im Original gespeichert, das Umschalten ändert nur die
-                // Anzeige. Bewusst NICHT an calibrationActive gekoppelt (kein Auto-Exit) — der Nutzer
-                // soll Tiny Sky verlassen der Kalibrierung nutzen können (andere Werkzeuge).
+                // Tiny Sky (siehe tinySkyActive/tinySkyBitmap oben): Kacheln bleiben KANONISCH in ihrem
+                // jeweils eigenen Ursprungsraum gespeichert (Native ODER TinySky, s. TileSourceSpace) --
+                // keine Umrechnung, keine Ansicht-übergreifende Sichtbarkeit (Plan Nachtrag 3). Overlays
+                // (Sternbilder/Text/Formen) bleiben dagegen KANONISCH im Original-Bild-Koordinatenraum
+                // gespeichert — für die Anzeige in Tiny Sky werden sie nur ABGELEITET umgerechnet
+                // (displayOverlays), Änderungen rechnen beim Speichern sofort zurück. Dadurch braucht es
+                // für Overlays keinen gesonderten "Umrechnen-beim-Verlassen"-Schritt: die Daten sind
+                // jederzeit schon korrekt im Original gespeichert, das Umschalten ändert nur die Anzeige.
+                // Bewusst NICHT an calibrationActive gekoppelt (kein Auto-Exit) — der Nutzer soll Tiny
+                // Sky verlassen der Kalibrierung nutzen können (andere Werkzeuge).
                 val tinySkyNativeProjection = remember(currentBitmap) {
                     TileDeWarp.equirectangularNativeModel(currentBitmap.width, currentBitmap.height).projection
                 }
@@ -3578,31 +5108,149 @@ fun StarMapperApp() {
                 val tinySkyOverviewProjection = tinySkyBitmapValue?.let {
                     TileDeWarp.stereographicOverviewModel(it.width).projection
                 }
-                val effectiveBitmap = if (tinySkyActive && tinySkyBitmapValue != null) tinySkyBitmapValue else currentBitmap
-                val displaySolveTiles = if (tinySkyActive && tinySkyBitmapValue != null && tinySkyOverviewProjection != null) {
-                    val overviewProj = tinySkyOverviewProjection
-                    solveTiles.mapNotNull { tile ->
-                        convertOverlayGeometry(tile.center, tile.size, tile.rotationDegrees, tinySkyNativeProjection, overviewProj)
-                            ?.let { (c, s, r) -> tile.copy(center = c, size = s, rotationDegrees = r) }
-                    }
+                // Für EditorCanvas' Auto-Zoom auf die Himmel-Scheibe (s. dortiger Parameter) -- nur in
+                // Tiny Sky ein Wert, sonst null (kein Auto-Zoom im normalen 2:1-Modus).
+                val tinySkyDiscRadiusPx = if (tinySkyActive) {
+                    tinySkyBitmapValue?.let { TileDeWarp.stereographicSkyDiscRadius(it.width) }
                 } else {
-                    solveTiles
+                    null
                 }
-                // Overlays (Sternbilder/Text/Formen/Reticle): schon verankerte Sternbilder (individuelle
-                // Anker-Punkte/gekrümmte Linien, siehe anchorOverrides/edgePolylines) werden NICHT
-                // einzeln umgerechnet -> würden bei Bearbeitung in Tiny Sky an Anker/Linien vs.
-                // Mittelpunkt auseinanderlaufen. Bekannte, bewusste Grenze (s. Plan): deren Bearbeitung
-                // wird in den Callbacks unten aktiv blockiert; sie werden hier trotzdem (unkonvertiert
-                // an ihrer nativen Position) mitgerendert statt zu verschwinden.
+                // Periodische 360°-Naht in der Tiny-Sky-Ansicht (Nutzer-Auftrag 2026-09-03). NUR hier:
+                // Tiny Sky aktiv UND das Quellbild ist wirklich ein 2:1-Panorama -- sonst null, dann wird
+                // weder eine Linie gezeichnet noch eine Kachel geschnappt (normaler Editor, tinySky=false,
+                // Export, Annotationen und Spherical360 sehen davon nichts). Toleranz 0.02 wie
+                // FisheyeRefiner.FULL_PANORAMA_ASPECT_TOLERANCE (dort private, hier derselbe Wert).
+                val tinySkySeam = remember(tinySkyActive, tinySkyBitmapValue, currentBitmap) {
+                    val ts = tinySkyBitmapValue
+                    val aspect = currentBitmap.width.toDouble() / currentBitmap.height.toDouble()
+                    if (tinySkyActive && ts != null && kotlin.math.abs(aspect - 2.0) <= 0.02) {
+                        TileDeWarp.tinySkySeamGeometry(ts.width, currentBitmap.width, currentBitmap.height)
+                    } else {
+                        null
+                    }
+                }
+                LaunchedEffect(tinySkySeam) {
+                    val seam = tinySkySeam ?: return@LaunchedEffect
+                    AppDiagnostics.record(
+                        "tiny_seam_geometry imageWidth=${currentBitmap.width} imageHeight=${currentBitmap.height} " +
+                            "tinySkySize=${tinySkyBitmapValue?.width ?: 0} seamAxis=horizontal " +
+                            "seamTinyY=${"%.2f".format(seam.y)} " +
+                            "seamTinyX0=${"%.2f".format(seam.minX)} seamTinyX1=${"%.2f".format(seam.maxX)} " +
+                            "periodPx=${"%.2f".format(seam.periodPx)} " +
+                            "continuityMaxAngularError=${"%.3e".format(seam.maxAngularErrorDeg)} " +
+                            "continuityMaxPixelError=${"%.3e".format(seam.maxPixelErrorPx)}",
+                    )
+                }
+                val effectiveBitmap = if (tinySkyActive && tinySkyBitmapValue != null) tinySkyBitmapValue else currentBitmap
+                // Kacheln sind rein ansichts-lokal (Nutzer-Einwand 2026-08-23, s. Plan Nachtrag 3): eine
+                // Kachel ist nur sichtbar/anfassbar, wenn ihr sourceSpace zur AKTUELL aktiven Ansicht
+                // passt -- exakt wie beim Wechsel zu einem komplett anderen Foto. Keine
+                // Cross-Projektions-Umrechnung/-Näherung mehr im Zeichen-/Gesten-Pfad (das war die
+                // eigentliche Ursache der wiederholten Kachel-Instabilität, nicht nur unzureichend
+                // repariert). EditorCanvas bekommt die kanonische, stabile Liste direkt + activeTileSpace
+                // zum Filtern; die Filterung selbst passiert dort (Zeichenschleife/solveTileAtScreen).
+                val activeTileSpace = if (tinySkyActive && tinySkyBitmapValue != null) {
+                    TileSourceSpace.TinySky
+                } else {
+                    TileSourceSpace.Native
+                }
+                // Overlays (Sternbilder/Text/Formen/Reticle): center/size/rotationDegrees werden für die
+                // Anzeige immer umgerechnet (nie zurückgeschrieben). Verankerte Sternbilder (individuelle
+                // Anker-Punkte/gekrümmte Linien, siehe anchorOverrides/edgePolylines) bekommen ZUSÄTZLICH
+                // jeden Anker-/Kantenlinien-Punkt einzeln exakt umgerechnet (convertProjectedPoint) --
+                // vorher blieben diese Punkte unkonvertiert in nativen Pixelwerten stehen und landeten
+                // dadurch an einer für Tiny Sky bedeutungslosen Position (Ursache für "Sternbilder passen
+                // im Tiny Sky nicht", s. Plan Nachtrag 1 Folgefehler). Bearbeitung bleibt weiterhin aktiv
+                // blockiert (s. Callbacks unten) -- nur die reine Anzeige wird hier korrigiert.
                 val displayOverlays = (
                     if (tinySkyActive && tinySkyBitmapValue != null && tinySkyOverviewProjection != null) {
                         val overviewProj = tinySkyOverviewProjection
+                        // StereographicProjection.directionToPixel lehnt NUR die exakte Antipode ab
+                        // (theta ~180°), nicht theta > TINY_SKY_MAX_THETA_DEG (100°) -- ein Stern nahe
+                        // dem Horizont im Originalfoto (theta z.B. 150°) bekommt dadurch eine technisch
+                        // gültige, aber SINNLOS weit von der sichtbaren Scheibe entfernte Pixelposition
+                        // (r wächst unbeschränkt mit tan(theta/2)) statt als "außerhalb" erkannt zu
+                        // werden. Eine Kantenlinie von einem korrekt nahe Zenit sitzenden zu einem so
+                        // einem weit-weg-abgebildeten Punkt zeichnet einen langen Strich quer über/aus
+                        // der Scheibe hinaus -- bei mehreren betroffenen Sternbildern (je nach Himmels-
+                        // position in unterschiedliche Richtungen) sichtbar als "Striche Kreuz und quer"
+                        // (Nutzerbefund 2026-08-24). Fix: nur Punkte behalten, die tatsächlich innerhalb
+                        // der quadratischen Tiny-Sky-Bitmap landen -- alles andere ist ohnehin unsichtbar
+                        // (Canvas würde es clippen), wird hier aber VOR dem Zeichnen ausgefiltert statt
+                        // als lange Linie bis zum Clip-Rand gezeichnet.
+                        fun convertVisiblePoint(pt: Offset, reference: Offset?): Offset? {
+                            val converted = convertProjectedPoint(pt, tinySkyNativeProjection, overviewProj, reference) ?: return null
+                            return converted.takeIf {
+                                it.x >= 0f && it.x <= tinySkyBitmapValue.width && it.y >= 0f && it.y <= tinySkyBitmapValue.height
+                            }
+                        }
+                        // Jede Text-Verformung/-Ausrichtung von Beschriftungen (Zenit-Wölbung UND das
+                        // ältere, native nameWarp-Feld selbst) wurde auf Nutzer-Wunsch komplett entfernt
+                        // (2026-08-25, s. Plan Nachtrag 15/17) -- Beschriftungen erscheinen jetzt überall
+                        // (nativ UND Tiny Sky) unverändert waagerecht. Diese `overlays.map{}`-Umrechnung
+                        // betrifft daher nur noch Geometrie (center/size/rotationDegrees/labelAngleDeg/
+                        // Anker-/Kantenlinien), keine Text-Verformung mehr. Die entfernten Fassungen bleiben
+                        // im Commit b1ba053/Tag pre-rollback-zenith-labels-2026-08-25 vollständig erhalten.
                         overlays.map { ov ->
-                            if (ov.anchorOverrides.isNotEmpty() || ov.edgePolylines != null) {
-                                ov
-                            } else {
+                            val tsg = ov.tinySkyGeometry
+                            if (tsg != null) {
+                                // In Tiny Sky entstanden/bearbeitet -- Form/Position bleiben die
+                                // mitlaufende Tiny-Sky-Geometrie, KEINE Projektionsrechnung dafür
+                                // (Nutzer-Vorgabe: soll dort aussehen/sich verhalten wie in einem
+                                // normalen Bild, s. Kommentar bei snapshotTinySkyGeometryIfActive).
+                                // Anker-/Kantenlinien-Umrechnung entfällt weiterhin bewusst -- ein solches
+                                // Overlay hat nie echte anchorOverrides/edgePolylines (nur per Solve oder
+                                // gesperrter Anker-Ziehgeste erreichbar, s. blockedAnchored in onUpdateOverlay).
+                                return@map ov.copy(
+                                    center = tsg.center, size = tsg.size, rotationDegrees = tsg.rotationDegrees,
+                                    labelAngleDeg = tsg.labelAngleDeg, labelLeaderPx = tsg.labelLeaderPx,
+                                    // tsg.freehandSegments (nicht ov.freehandSegments) -- die kanonischen
+                                    // Punkte wurden beim letzten Verlassen von Tiny Sky NEU auf natives
+                                    // center/size normiert (s. reprojectFreehandViaPoints); kombiniert mit
+                                    // der HIER wiederhergestellten Tiny-Sky-Geometrie wäre das ein
+                                    // Koordinatenraum-Mix (Nutzerbefund 2026-08-25: Zeichnung verformt sich
+                                    // beim erneuten Betreten von Tiny Sky). Fallback auf ov.freehandSegments
+                                    // nur für ältere tsg-Schnappschüsse von vor diesem Feld.
+                                    freehandSegments = tsg.freehandSegments ?: ov.freehandSegments,
+                                )
+                            }
+                            // Isotrope Umrechnung für alles mit real bedeutsamer Kontur (DSO-Marker,
+                            // Reticle, nutzerplatzierte Formen, Sternmarker) -- Nutzer-Vorgabe 2026-08-27
+                            // "wieder normal ohne Verzerrung, sowohl in Tiny Sky als auch im 2:1-Bild".
+                            // Konstellation (nur grobe Box, echte Form kommt separat aus den Anker-/
+                            // Kantenlinien-Punkten unten) und Text (kein Flächen-Seitenverhältnis-Konzept)
+                            // bleiben bewusst auf der alten, bounding-box-basierten Umrechnung.
+                            val converted = if (ov.kind == OverlayKind.Constellation || ov.kind == OverlayKind.Text) {
                                 convertOverlayGeometry(ov.center, ov.size, ov.rotationDegrees, tinySkyNativeProjection, overviewProj)
-                                    ?.let { (c, s, r) -> ov.copy(center = c, size = s, rotationDegrees = r) } ?: ov
+                            } else {
+                                convertOverlayGeometryIsotropic(ov.center, ov.size, ov.rotationDegrees, tinySkyNativeProjection, overviewProj)
+                            }
+                            val (c, s, r) = converted ?: Triple(ov.center, ov.size, ov.rotationDegrees)
+                            // Callout-Richtung (labelAngleDeg) ist bildabsolut -- derselbe lokale
+                            // Verdrehungswinkel, den convertOverlayGeometry oben bereits für rotationDegrees
+                            // berechnet hat (r - ov.rotationDegrees), muss auch hier angewendet werden,
+                            // sonst zeigt die Führungslinie am Scheibenrand zunehmend in eine falsche
+                            // absolute Richtung (Nachtrag 11, optionale Zusatzverbesserung).
+                            val tinySkyLabelAngle = ov.labelAngleDeg + (r - ov.rotationDegrees)
+                            if (ov.anchorOverrides.isEmpty() && ov.edgePolylines == null) {
+                                ov.copy(center = c, size = s, rotationDegrees = r, labelAngleDeg = tinySkyLabelAngle)
+                            } else {
+                                // `c` (Overlay-Zentrum, oben schon umgerechnet) als Entfaltungs-Referenz
+                                // für jeden Anker-/Kantenlinien-Punkt -- defensiv konsistent mit
+                                // convertOverlayGeometrys eigener Eck-Umrechnung (die dieselbe Referenz
+                                // nutzt); aktuell wirkungslos, da StereographicProjection keine
+                                // periodische Ast-Wahl hat, aber schützt vor einer künftigen periodischen
+                                // toProjection ohne weiteres Zutun hier.
+                                val convertedAnchors = ov.anchorOverrides.mapNotNull { (idx, pt) ->
+                                    convertVisiblePoint(pt, c)?.let { idx to it }
+                                }.toMap()
+                                val convertedEdges = ov.edgePolylines?.map { poly ->
+                                    poly.mapNotNull { pt -> convertVisiblePoint(pt, c) }
+                                }
+                                ov.copy(
+                                    center = c, size = s, rotationDegrees = r, labelAngleDeg = tinySkyLabelAngle,
+                                    anchorOverrides = convertedAnchors, edgePolylines = convertedEdges,
+                                )
                             }
                         }
                     } else {
@@ -3617,6 +5265,7 @@ fun StarMapperApp() {
                 EditorCanvas(
                     modifier = Modifier.fillMaxSize(),
                     bitmap = effectiveBitmap,
+                    tinySkyAutoFitRadiusPx = tinySkyDiscRadiusPx,
                     overlays = displayOverlays,
                     // Solve-Vorschau-Overlays/-Sterne (editorSession.solvePreviewOverlays/-Stars) sind
                     // reine Lesevorschau (kein Editier-Callback) und in Tiny Sky bewusst NICHT
@@ -3681,7 +5330,9 @@ fun StarMapperApp() {
                         // pro Segment -> flüssig). Die teure Commit-Version bumpt erst am Strichende.
                         editorSession.annotationErasePreviewVersionState.intValue++
                     },
-                    solveTiles = displaySolveTiles,
+                    solveTiles = solveTiles,
+                    activeTileSpace = activeTileSpace,
+                    tinySkySeam = tinySkySeam,
                     tileOwnRmsById = tileOwnRmsById,
                     tileOverlapRmsById = tileOverlapRmsById,
                     selectedSolveTileId = selectedSolveTileId,
@@ -3690,30 +5341,33 @@ fun StarMapperApp() {
                     tilesVisible = tilesVisible,
                     onTileEditBegin = { snapshotTilesForUndo() },
                     onAddSolveTile = { center, size ->
+                        // Nutzer-Einwand (2026-08-23) zurecht: eine Kachel ist nur ein rechteckiger
+                        // Bildausschnitt für den Sternfeld-Löser -- die braucht keine an die Projektion
+                        // angepasste Geometrie. Das gezeichnete Rechteck wird daher UNVERÄNDERT
+                        // übernommen, egal ob gerade Tiny Sky oder die native 2:1-Ansicht aktiv ist;
+                        // sourceSpace merkt sich nur, aus welcher Ansicht/welchem Bild es stammt (für
+                        // Zuschnitt-Quelle beim Lösen s. solveAllTiles(), für Bearbeitungs-Sperre in der
+                        // "falschen" Ansicht s. onUpdateSolveTile). Keine convertOverlayGeometry-
+                        // Umrechnung mehr beim Erzeugen -> kann auch nicht mehr fehlschlagen.
                         snapshotTilesForUndo()
-                        // In Tiny Sky kommen center/size aus der Tiny-Sky-Ansicht (Gesten laufen gegen
-                        // effectiveBitmap) -> vor dem Speichern zurück in Original-Koordinaten.
-                        val (finalCenter, finalSize) = if (
-                            tinySkyActive && tinySkyBitmapValue != null && tinySkyOverviewProjection != null
-                        ) {
-                            convertOverlayGeometry(center, size, 0f, tinySkyOverviewProjection, tinySkyNativeProjection)
-                                ?.let { (c, s, _) -> c to s } ?: (center to size)
-                        } else {
-                            center to size
-                        }
-                        // Neue Kachel erbt den aktuellen De-Warp-Default (dewarpEnabled). Pro Kachel
-                        // später per Langdruck umschaltbar.
+                        val creatingInTinySky = tinySkyActive && tinySkyBitmapValue != null
+                        // Neue Kachel erbt den aktuellen De-Warp-Default (dewarpEnabled) -- identisch in
+                        // Tiny Sky wie im Normalmodus (Nutzer-Vorgabe: gleiche Kachellogik, keine
+                        // Ausnahmen). Die Tiny-Sky-Bitmap ist als Korrekturgrundlage sogar EINFACHER als
+                        // das native Bild: ihre Projektion ist von Anfang an exakt bekannt (reine
+                        // Geometrie, kein Fit aus Ankern nötig), s. solveAllTiles()/dewarpModel.
                         solveTiles.add(
                             SolveTile(
                                 id = nextSolveTileId++,
-                                center = finalCenter,
-                                size = finalSize,
+                                center = center,
+                                size = size,
+                                sourceSpace = if (creatingInTinySky) TileSourceSpace.TinySky else TileSourceSpace.Native,
                                 dewarpRequested = dewarpEnabled,
                             ),
                         )
-                        // EINE Kachel platziert -> zurück auf Move (Kachel ist nun beweg-/skalierbar wie
-                        // gewohnt) und gleich ausgewählt. Popup bleibt verborgen bis „Fertig". Für die
-                        // NÄCHSTE Kachel erneut „Kachel +".
+                        // EINE Kachel platziert -> zurück auf Move (Kachel ist nun beweg-/skalierbar
+                        // wie gewohnt) und gleich ausgewählt. Popup bleibt verborgen bis „Fertig".
+                        // Für die NÄCHSTE Kachel erneut „Kachel +".
                         selectedSolveTileId = solveTiles.last().id
                         selectedTool = EditorTool.Move
                     },
@@ -3722,28 +5376,18 @@ fun StarMapperApp() {
                         // Kachel per Langdruck zum Bearbeiten gewählt -> Popup ausblenden (bis „Fertig").
                         if (id != null) calibrationPopupHidden = true
                     },
-                    onUpdateSolveTile = { updated ->
+                    onUpdateSolveTile = { updated, _ ->
+                        // Kacheln sind rein ansichts-lokal (Plan Nachtrag 3) -- eine Kachel der jeweils
+                        // anderen Ansicht ist in EditorCanvas gar nicht mehr sichtbar/anfassbar (gefiltert
+                        // über activeTileSpace), kann hier also nie ankommen. Reiner, unbedingter
+                        // Durchreicher, exakt wie die Kachel-Bearbeitung im Normalmodus schon immer
+                        // funktioniert hat -- keine Sperre, keine Projektionsrechnung mehr nötig.
                         val i = solveTiles.indexOfFirst { it.id == updated.id }
                         if (i >= 0) {
-                            // In Tiny Sky kommt die neue Geometrie aus der Tiny-Sky-Ansicht -> vor dem
-                            // Speichern zurück in Original-Koordinaten umrechnen.
-                            val (finalCenter, finalSize, finalRotation) = if (
-                                tinySkyActive && tinySkyBitmapValue != null && tinySkyOverviewProjection != null
-                            ) {
-                                convertOverlayGeometry(
-                                    updated.center, updated.size, updated.rotationDegrees,
-                                    tinySkyOverviewProjection, tinySkyNativeProjection,
-                                ) ?: Triple(updated.center, updated.size, updated.rotationDegrees)
-                            } else {
-                                Triple(updated.center, updated.size, updated.rotationDegrees)
-                            }
-                            // Geometrie geändert -> Lösung passt nicht mehr: invalidieren (zurück auf offen,
-                            // WCS + De-Warp-Anker verwerfen), damit Anker/Mosaik nie eine veraltete Lösung
-                            // zur neuen Position paaren.
+                            // Geometrie geändert -> Lösung passt nicht mehr: invalidieren (zurück auf
+                            // offen, WCS + De-Warp-Anker verwerfen), damit Anker/Mosaik nie eine
+                            // veraltete Lösung zur neuen Position paaren.
                             solveTiles[i] = updated.copy(
-                                center = finalCenter,
-                                size = finalSize,
-                                rotationDegrees = finalRotation,
                                 status = SolveTileStatus.Pending,
                                 wcs = null,
                                 dewarp = false,
@@ -3835,9 +5479,18 @@ fun StarMapperApp() {
                     },
                     onRemoveOverlay = { id ->
                         AppDiagnostics.record("overlay_removed id=$id")
-                        editorSession.recordInteractionMutation()
+                        // Fällt auf einen eigenständigen recordHistory()-Schritt zurück, wenn KEINE Geste
+                        // offen ist (z.B. der runde Papierkorb-Button in der Langdruck-Aktionsleiste --
+                        // der ruft diesen Callback NACH Gestenende auf, recordInteractionMutation() wäre
+                        // sonst ein stiller No-Op und die Löschung bliebe unaufzeichenbar/nicht rückgängig
+                        // machbar). Gesten-interne Aufrufer (Fixed-Delete-Icon, Radierer) bleiben davon
+                        // unberührt -- dort liefert recordInteractionMutation() weiterhin true.
+                        if (!editorSession.recordInteractionMutation()) editorSession.recordHistory()
                         overlays.removeAll { it.id == id }
                         if (selectedOverlayId == id) selectedOverlayId = null
+                        // Punkt 2: ein gelöschtes Objekt/eine gelöschte Form kann ein Hindernis gewesen
+                        // sein, dem ein anderes DSO-Label bisher auswich -- entprellt, s. oben.
+                        dsoNeighborRecheckTick++
                     },
                     onOpenConstellationReference = { id -> referenceOverlayId = id },
                     onTransformOverlay = { id, imagePan, zoomChange, rotationChangeDegrees ->
@@ -3894,41 +5547,62 @@ fun StarMapperApp() {
                             }
                         }
                     },
-                    onUpdateOverlay = { updated ->
+                    onUpdateOverlay = { updated, kind ->
                         val index = overlays.indexOfFirst { it.id == updated.id }
                         if (index >= 0) {
                             val stored = overlays[index]
-                            if (tinySkyActive && (stored.anchorOverrides.isNotEmpty() || stored.edgePolylines != null)) {
-                                Toast.makeText(context, context.getString(R.string.toast_edit_anchored_in_2to1), Toast.LENGTH_SHORT).show()
-                            } else {
-                                editorSession.recordInteractionMutation()
-                                // updated kommt aus Resize-/Rotate-Griff-Ziehen gegen die aktuelle Anzeige
-                                // (Tiny Sky, falls aktiv) -> vor dem Speichern zurück nach Original umrechnen.
-                                val finalOverlay = if (
-                                    tinySkyActive && tinySkyBitmapValue != null && tinySkyOverviewProjection != null
-                                ) {
-                                    convertOverlayGeometry(
-                                        updated.center, updated.size, updated.rotationDegrees,
-                                        tinySkyOverviewProjection, tinySkyNativeProjection,
-                                    )?.let { (c, s, r) -> updated.copy(center = c, size = s, rotationDegrees = r) } ?: updated
+                            // Verankerte Sternbilder (individuelle Anker-Punkte/gekrümmte Linien) bleiben in
+                            // Tiny Sky grundsätzlich blockiert (bestehende Regel, unverändert) -- UND
+                            // zusätzlich JEDER Anker-Zieh-Versuch selbst, auch beim allerersten Anker eines
+                            // gerade erst in Tiny Sky platzierten (noch unverankerten) Sternbilds. Das ist
+                            // unabhängig vom neuen tinySkyGeometry-Mechanismus unten: Anker-/Kantenlinien-
+                            // Punkte werden davon nicht erfasst (nur center/size/rotationDegrees), ein
+                            // Sternbild mit echten Ankern müsste sie also weiterhin verlieren/verzerren --
+                            // deshalb bleibt dieser Fall bewusst gesperrt statt "normal" editierbar.
+                            val blockedAnchored = tinySkyActive && (
+                                stored.anchorOverrides.isNotEmpty() ||
+                                    stored.edgePolylines != null ||
+                                    kind == GeometryEditKind.AnchorPoint
+                                )
+                            // Sternbildnamen-Position (neu, s. ConstellationNameHandle) ist ausschließlich
+                            // eine Bild-px-Größe im nativen 2:1-Raum -- anders als center/size/rotationDegrees
+                            // hat sie kein eigenes tinySkyGeometry-Gegenstück, würde also beim Verlassen von
+                            // Tiny Sky im falschen Koordinatenraum landen. Deshalb unabhängig vom
+                            // Ankerungs-Status IMMER in Tiny Sky gesperrt, statt einen weiteren Tiny-Sky-
+                            // Sonderfall einzuführen.
+                            val blockedNamePosition = tinySkyActive && kind == GeometryEditKind.ConstellationName
+                            if (blockedAnchored || blockedNamePosition) {
+                                val messageRes = if (blockedNamePosition && !blockedAnchored) {
+                                    R.string.toast_constellation_name_edit_in_2to1
                                 } else {
-                                    updated
+                                    R.string.toast_edit_anchored_in_2to1
                                 }
+                                Toast.makeText(context, context.getString(messageRes), Toast.LENGTH_SHORT).show()
+                            } else {
+                                // Reiner Durchreicher, exakt wie im Normalmodus -- KEINE Projektionsrechnung
+                                // mehr während der Bearbeitung (Nutzer-Vorgabe: Objekte sollen sich in Tiny
+                                // Sky verhalten wie in einem normalen Bild, s. Kommentar bei
+                                // snapshotTinySkyGeometryIfActive). In Tiny Sky wird zusätzlich die
+                                // mitlaufende Tiny-Sky-Geometrie aktualisiert -- einzige Grundlage der
+                                // Umrechnung ist danach der einmalige Schritt beim Verlassen von Tiny Sky.
+                                val finalOverlay = updated.snapshotTinySkyGeometryIfActive()
+                                editorSession.recordInteractionMutation()
                                 overlays[index] = finalOverlay
                                 annotate.recordDsoSizeOverride(finalOverlay)
+                                // Punkt 2: Verschieben/Skalieren/Drehen kann NACHBAR-Labels betreffen (s.
+                                // dsoNeighborRecheckTick-Deklaration/LaunchedEffect oben) -- entprellt,
+                                // feuert bei jedem Zieh-Frame, löst aber erst 150ms nach dem letzten aus.
+                                dsoNeighborRecheckTick++
                             }
                         }
                     },
-                    onCreateOverlay = { tool, rawImagePoint ->
-                        // In Tiny Sky kommt der Tipp-Punkt aus der Tiny-Sky-Anzeige -> vor der
-                        // Overlay-Erstellung zurück in Original-Koordinaten umrechnen (deckt Sternbild/
-                        // Text/Formen/Reticle einheitlich ab, da alle imagePoint als center nutzen).
-                        val imagePoint = if (tinySkyActive && tinySkyBitmapValue != null && tinySkyOverviewProjection != null) {
-                            tinySkyOverviewProjection.pixelToDirection(rawImagePoint.x.toDouble(), rawImagePoint.y.toDouble())
-                                ?.let { tinySkyNativeProjection.directionToPixel(it) } ?: rawImagePoint
-                        } else {
-                            rawImagePoint
-                        }
+                    onCreateOverlay = createOverlay@{ tool, rawImagePoint ->
+                        // Tipp-Punkt wird IMMER direkt übernommen, auch in Tiny Sky -- Objekte sollen dort
+                        // entstehen wie in einem normalen Bild, keine Umrechnung beim Erstellen (s.
+                        // snapshotTinySkyGeometryIfActive-Kommentar bei tinySkyActive). Die neuen Overlays
+                        // unten bekommen ihre Tiny-Sky-Momentaufnahme über denselben Helper am Ende dieses
+                        // Blocks.
+                        val imagePoint = rawImagePoint
                         editorSession.recordInteractionMutation()
                         when (tool) {
                             EditorTool.Constellation -> {
@@ -3949,11 +5623,15 @@ fun StarMapperApp() {
                                     showName = constellationShowName,
                                     nameTextSize = constellationNameTextSize,
                                     font = constellationFont,
-                                )
+                                ).snapshotTinySkyGeometryIfActive()
                                 selectedOverlayId = overlays.last().id
                                 AppDiagnostics.record(
                                     "overlay_created id=${overlays.last().id} kind=Constellation constellation=${selectedConstellation.id}",
                                 )
+                                // Punkt 3: neu eingefügte Form/Objekt kann bestehende Nachbar-Labels
+                                // verdecken -> entprellte Neuberechnung anstoßen (dieselbe Logik wie beim
+                                // Verschieben/Skalieren, s. dsoNeighborRecheckTick-Deklaration oben).
+                                dsoNeighborRecheckTick++
                             }
                             EditorTool.ReticleOpen, EditorTool.ReticleComet -> {
                                 // „Markieren": offenes bzw. halbes Fadenkreuz als Ellipse-Overlay mit
@@ -3972,9 +5650,10 @@ fun StarMapperApp() {
                                     } else {
                                         ReticleStyle.OpenCrosshair
                                     },
-                                )
+                                ).snapshotTinySkyGeometryIfActive()
                                 selectedOverlayId = overlays.last().id
                                 AppDiagnostics.record("overlay_created id=${overlays.last().id} kind=Reticle")
+                                dsoNeighborRecheckTick++
                             }
                             EditorTool.Ellipse -> {
                                 val base = min(currentBitmap.width, currentBitmap.height) * 0.18f
@@ -3989,9 +5668,10 @@ fun StarMapperApp() {
                                     opacity = shapeOpacity,
                                     filled = shapeFilled,
                                     font = shapeFont,
-                                )
+                                ).snapshotTinySkyGeometryIfActive()
                                 selectedOverlayId = overlays.last().id
                                 AppDiagnostics.record("overlay_created id=${overlays.last().id} kind=Ellipse")
+                                dsoNeighborRecheckTick++
                             }
                             EditorTool.Rectangle -> {
                                 val base = min(currentBitmap.width, currentBitmap.height) * 0.18f
@@ -4006,9 +5686,10 @@ fun StarMapperApp() {
                                     opacity = shapeOpacity,
                                     filled = shapeFilled,
                                     font = shapeFont,
-                                )
+                                ).snapshotTinySkyGeometryIfActive()
                                 selectedOverlayId = overlays.last().id
                                 AppDiagnostics.record("overlay_created id=${overlays.last().id} kind=Rectangle")
+                                dsoNeighborRecheckTick++
                             }
                             EditorTool.Text -> pendingTextPosition = imagePoint
                             // Draw: entsteht NICHT über einen einzelnen Tap/imagePoint, sondern über
@@ -4055,7 +5736,7 @@ fun StarMapperApp() {
                                     size = size,
                                     rotationDegrees = 0f,
                                     freehandSegments = OverlayGeometry.normalizeFreehandPoints(segments, center, size),
-                                )
+                                ).snapshotTinySkyGeometryIfActive()
                                 val index = overlays.indexOfFirst { it.id == editSource.id }
                                 if (index >= 0) overlays[index] = updated else overlays += updated
                                 selectedOverlayId = editSource.id
@@ -4063,12 +5744,14 @@ fun StarMapperApp() {
                                     "overlay_edited id=${editSource.id} kind=Freehand " +
                                         "segments=${segments.size} points=${allPoints.size}",
                                 )
+                                dsoNeighborRecheckTick++
                             } else {
                                 overlays.removeAll { it.id == editSource.id }
                                 if (selectedOverlayId == editSource.id) selectedOverlayId = null
                                 AppDiagnostics.record(
                                     "overlay_removed id=${editSource.id} kind=Freehand reason=erased_empty",
                                 )
+                                dsoNeighborRecheckTick++
                             }
                             editingFreehandSource = null
                         } else if (allPoints.size >= 3) {
@@ -4086,12 +5769,15 @@ fun StarMapperApp() {
                                 filled = shapeFilled,
                                 font = shapeFont,
                                 freehandSegments = OverlayGeometry.normalizeFreehandPoints(segments, center, size),
-                            )
+                            ).snapshotTinySkyGeometryIfActive()
                             selectedOverlayId = overlays.last().id
                             AppDiagnostics.record(
                                 "overlay_created id=${overlays.last().id} kind=Freehand " +
                                     "segments=${segments.size} points=${allPoints.size}",
                             )
+                            // Punkt 3: neu eingefügte Freihandform kann bestehende Nachbar-Labels
+                            // verdecken -> entprellte Neuberechnung anstoßen.
+                            dsoNeighborRecheckTick++
                         }
                     },
                     onContinueDrawing = ::continueEditingFreehand,
@@ -4365,7 +6051,8 @@ fun StarMapperApp() {
                                         selected = annotate.constellationsEnabled,
                                         onClick = {
                                             annotate.constellationsEnabled = !annotate.constellationsEnabled
-                                            syncConstellationLayer()
+                                            // VisualOnly: reiner Ein-/Ausblenden-Schalter, keine neue Lösung.
+                                            syncConstellationLayer(reason = ConstellationSyncReason.VisualOnly)
                                         },
                                         leadingIcon = {
                                             Icon(
@@ -4449,9 +6136,109 @@ fun StarMapperApp() {
                                             }) { Text(context.getString(R.string.action_tile_plus)) }
                                             OutlinedButton(
                                                 onClick = {
+                                                    // Kacheln sind ansichts-lokal (Plan Nachtrag 3) --
+                                                    // eine gerade ausgewählte Kachel der ALTEN Ansicht
+                                                    // darf nach dem Wechsel nicht als "ausgewählt" (mit
+                                                    // Aktions-Buttons) hängen bleiben, obwohl sie dort
+                                                    // jetzt unsichtbar/ungefiltert ist.
+                                                    selectedSolveTileId = null
                                                     val src = bitmap
                                                     when {
-                                                        tinySkyActive -> tinySkyActive = false
+                                                        tinySkyActive -> {
+                                                            // Verlassen von Tiny Sky: JETZT (einmalig, nicht
+                                                            // laufend) für jedes Overlay mit einer mitlaufenden
+                                                            // Tiny-Sky-Geometrie (s. snapshotTinySkyGeometryIfActive)
+                                                            // die native, projektionsverzerrte Geometrie berechnen
+                                                            // -- Nutzer-Vorgabe: die Verformung soll erst beim
+                                                            // Verlassen des Modus stattfinden. tinySkyGeometry
+                                                            // selbst bleibt erhalten (nicht gelöscht), damit ein
+                                                            // erneutes Betreten dieselbe Form unverändert bearbeitbar
+                                                            // wiederfindet. Schlägt die Umrechnung für ein Objekt
+                                                            // fehl (z.B. Randbereich außerhalb der Himmel-Scheibe),
+                                                            // bleibt dessen native Geometrie beim letzten bekannten
+                                                            // Stand -- kein Objektverlust, nur ggf. vorübergehend
+                                                            // falsch positioniert bis zur nächsten Bearbeitung.
+                                                            if (src != null) {
+                                                                val tsBitmap = tinySkyBitmap
+                                                                if (tsBitmap != null) {
+                                                                    val nativeProj = TileDeWarp.equirectangularNativeModel(src.width, src.height).projection
+                                                                    val overviewProj = TileDeWarp.stereographicOverviewModel(tsBitmap.width).projection
+                                                                    for (i in overlays.indices) {
+                                                                        val tsg = overlays[i].tinySkyGeometry ?: continue
+                                                                        val ov = overlays[i]
+                                                                        // Nutzer-Vorgabe 2026-08-24: "einfache Umprojektion wie die Sternbilder...
+                                                                        // pixelgenau" -- Formen mit einer echten Kontur (Freihand-Konturpunkte
+                                                                        // bzw. Ellipse-/Rechteck-Randlinie) werden über VIELE einzeln reprojizierte
+                                                                        // Punkte umgerechnet statt über eine einzelne Jacobi-Schätzung am
+                                                                        // Mittelpunkt (s. reprojectFreehandViaPoints/reprojectBoundaryViaPoints).
+                                                                        // Liefert das nichts (zu wenige Punkte überlebt) oder ist es eine andere
+                                                                        // Overlay-Art (Sternbild/Reticle/Text), bleibt die bisherige Jacobi-
+                                                                        // basierte Umrechnung als Rückfall.
+                                                                        val freehandResult = if (ov.kind == OverlayKind.Freehand) {
+                                                                            reprojectFreehandViaPoints(ov, tsg, overviewProj, nativeProj)
+                                                                        } else {
+                                                                            null
+                                                                        }
+                                                                        val converted = when {
+                                                                            freehandResult != null -> Triple(freehandResult.center, freehandResult.size, 0f)
+                                                                            ov.kind == OverlayKind.Ellipse || ov.kind == OverlayKind.Rectangle ->
+                                                                                reprojectBoundaryViaPoints(tsg, ov.kind, overviewProj, nativeProj)
+                                                                            else -> convertOverlayGeometryLocal(
+                                                                                tsg.center, tsg.size, tsg.rotationDegrees, overviewProj, nativeProj,
+                                                                            )
+                                                                        }
+                                                                        if (converted != null) {
+                                                                            val (c, s, r) = converted
+                                                                            // Callout-Beschriftung (Nachtrag 11, Bug-B-Kernfix): labelAngleDeg/
+                                                                            // labelLeaderPx sind bildabsolut und wurden bislang NIE mitkonvertiert
+                                                                            // (Nutzerbefund: Linie zeigt nach dem Verlassen "woanders hin"). Statt
+                                                                            // die abstrakten Zahlen naiv zu übernehmen (falsch, da rotationDegrees
+                                                                            // sich durch die SVD-Umrechnung ändern kann und labelAngleDeg relativ
+                                                                            // dazu interpretiert wird), wird der TATSÄCHLICHE alte Ankerpunkt (die
+                                                                            // sichtbare Nutzer-Intention) über convertProjectedPoint mitkonvertiert
+                                                                            // und daraus per labelHandleFromDrag neu hergeleitet -- konsistent zum
+                                                                            // neuen rotationDegrees, dämpft statt verstärkt die bekannte
+                                                                            // Nicht-Idempotenz von convertOverlayGeometryLocal.
+                                                                            var newLabelAngleDeg = ov.labelAngleDeg
+                                                                            var newLabelLeaderPx = ov.labelLeaderPx
+                                                                            if (ov.showName && ov.text.isNotBlank()) {
+                                                                                // WICHTIG: tsg.labelAngleDeg/labelLeaderPx (nicht ov.*) -- das sind
+                                                                                // die Werte, die dem Nutzer tatsächlich zuletzt in Tiny Sky angezeigt
+                                                                                // wurden (s. displayOverlays' tsg-Zweig, Schritt 8); ov.* könnten noch
+                                                                                // vom letzten NATIVEN Stand stammen, falls dieses Objekt in der
+                                                                                // aktuellen Tiny-Sky-Sitzung nie angefasst wurde -- ein Mix aus
+                                                                                // Tiny-Sky-Geometrie und nativ kalibriertem Label wäre exakt dieselbe
+                                                                                // Inkonsistenz, die dieser Fix beheben soll.
+                                                                                val oldLayout = OverlayGeometry.markerLabelLayout(
+                                                                                    ov.copy(
+                                                                                        center = tsg.center, size = tsg.size, rotationDegrees = tsg.rotationDegrees,
+                                                                                        labelAngleDeg = tsg.labelAngleDeg, labelLeaderPx = tsg.labelLeaderPx,
+                                                                                    ),
+                                                                                )
+                                                                                val oldAbsoluteAnchor = tsg.center + oldLayout.nameAnchor
+                                                                                val newAbsoluteAnchor = convertProjectedPoint(oldAbsoluteAnchor, overviewProj, nativeProj, c)
+                                                                                if (newAbsoluteAnchor != null) {
+                                                                                    val handle = OverlayGeometry.labelHandleFromDrag(
+                                                                                        ov.copy(center = c, size = s, rotationDegrees = r),
+                                                                                        newAbsoluteAnchor - c,
+                                                                                    )
+                                                                                    newLabelAngleDeg = handle.labelAngleDeg
+                                                                                    newLabelLeaderPx = handle.labelLeaderPx
+                                                                                }
+                                                                                // Fehlschlag (newAbsoluteAnchor==null): alte Werte beibehalten,
+                                                                                // konsistent mit der Fallback-Philosophie oben (kein Objektverlust).
+                                                                            }
+                                                                            overlays[i] = ov.copy(
+                                                                                center = c, size = s, rotationDegrees = r,
+                                                                                labelAngleDeg = newLabelAngleDeg, labelLeaderPx = newLabelLeaderPx,
+                                                                                freehandSegments = freehandResult?.segments ?: ov.freehandSegments,
+                                                                            )
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                            tinySkyActive = false
+                                                        }
                                                         tinySkyBitmap != null -> tinySkyActive = true
                                                         src != null -> {
                                                             tinySkyLoading = true
@@ -4460,7 +6247,13 @@ fun StarMapperApp() {
                                                                     runCatching {
                                                                         // Einmaliger Render (kein Live-Loop mehr) -> höhere
                                                                         // Auflösung als frühere Anläufe ist hier vertretbar.
-                                                                        TileDeWarp.buildStereographicOverview(src, outputSize = 3200) {
+                                                                        // Größe orientiert sich an der Quellauflösung (Nutzer-
+                                                                        // Vorgabe 2026-08-24: Tiny Sky soll am Zenit mindestens
+                                                                        // dieselbe Pixel-Dichte wie das Original erreichen, s.
+                                                                        // TileDeWarp.stereographicOutputSizeForSource) statt
+                                                                        // einer festen, von der Quelle unabhängigen Zahl.
+                                                                        val size = TileDeWarp.stereographicOutputSizeForSource(src.width)
+                                                                        TileDeWarp.buildStereographicOverview(src, outputSize = size) {
                                                                             if (!isActive) throw CancellationException()
                                                                         }
                                                                     }.getOrNull()
@@ -4469,6 +6262,14 @@ fun StarMapperApp() {
                                                                 if (warped != null) {
                                                                     tinySkyBitmap = warped
                                                                     tinySkyActive = true
+                                                                    // Ab hier gilt dieses Bild als echter
+                                                                    // 360°-/Tiny-Sky-Workflow (s. Kommentar
+                                                                    // an tinySkyWorkflowUsed).
+                                                                    tinySkyWorkflowUsed = true
+                                                                    AppDiagnostics.record(
+                                                                        "tinysky_workflow_entered outputSize=${warped.width} " +
+                                                                            "sourceSize=${src.width}x${src.height}",
+                                                                    )
                                                                 } else {
                                                                     Toast.makeText(
                                                                         context,
@@ -4511,7 +6312,7 @@ fun StarMapperApp() {
                                             }
                                             // Ganzes Bild als Einzelbild lösen (ersetzt „Bild automatisch ausrichten").
                                             Button(
-                                                onClick = { startSingleImageSolve() },
+                                                onClick = { requestSingleImageSolve() },
                                                 enabled = bitmap != null && astapSolveJob == null,
                                             ) { Text(context.getString(R.string.action_solve_single_image)) }
                                             OutlinedButton(onClick = { showSolveLog = true }) {
@@ -4679,29 +6480,44 @@ fun StarMapperApp() {
                                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
+                                            // Nutzer-Auftrag 2026-09-03: ALLE Projektionen sind IMMER sichtbar.
+                                            // Nicht verfügbar heißt jetzt "sichtbar, aber deaktiviert" -- und
+                                            // "nicht verfügbar" bedeutet ausschließlich "es existiert technisch
+                                            // keine benutzbare Lösung", NICHT "hat die automatische Bewertung
+                                            // verloren". Solange noch kein Kachel-Solve gelaufen ist
+                                            // (projectionCandidateRms leer), bleibt alles anwählbar -- die Wahl
+                                            // wirkt dann wie bisher als Vorgabe für den nächsten Solve.
+                                            val rigidAvailable: (PanoProjectionKind) -> Boolean = { kind ->
+                                                projectionCandidateRms.isEmpty() || projectionCandidateRms[kind] != null
+                                            }
                                             buildList {
-                                                add("Auto" to context.getString(R.string.label_auto))
-                                                add("Rectilinear" to context.getString(R.string.projection_rectilinear))
-                                                add("Fisheye" to "Fisheye")
-                                                add("Stereographic" to context.getString(R.string.projection_stereographic))
-                                                add("Equirectangular" to context.getString(R.string.label_equirect_short))
-                                                add("Cylindrical" to context.getString(R.string.projection_cylindrical))
-                                                add("Mercator" to "Mercator")
-                                                // Eigenständige, manuell wählbare Mesh-Korrektur aus dichten echten
-                                                // .corr-Sternmessungen (richMeshFit) -- nur sichtbar, solange ein
-                                                // solcher Fit existiert (analog "Custom" direkt darunter), UNABHÄNGIG
-                                                // von der automatischen Mesh-Konkurrenz bei "Auto" (die bleibt
-                                                // unverändert; s. Kommentar an richMeshFit).
-                                                if (richMeshFit != null) {
-                                                    add("Mesh" to "Mesh")
-                                                }
+                                                add(Triple("Auto", context.getString(R.string.label_auto), true))
+                                                add(Triple("Rectilinear", context.getString(R.string.projection_rectilinear), rigidAvailable(PanoProjectionKind.Rectilinear)))
+                                                add(Triple("Fisheye", "Fisheye", rigidAvailable(PanoProjectionKind.Fisheye)))
+                                                add(Triple("Stereographic", context.getString(R.string.projection_stereographic), rigidAvailable(PanoProjectionKind.Stereographic)))
+                                                add(Triple("Equirectangular", context.getString(R.string.label_equirect_short), rigidAvailable(PanoProjectionKind.Equirectangular)))
+                                                add(Triple("Cylindrical", context.getString(R.string.projection_cylindrical), rigidAvailable(PanoProjectionKind.Cylindrical)))
+                                                add(Triple("Mercator", "Mercator", rigidAvailable(PanoProjectionKind.Mercator)))
+                                                // "Mesh" = SparseAnchorMesh (der 7. Kandidat aus
+                                                // solvetiles_candidates, FisheyeRefiner.fitMesh über die groben
+                                                // Kachel-Anker). Wählbar, sobald so ein Fit existiert -- auch wenn
+                                                // er die BIC-Auswahl verloren hat.
+                                                add(Triple("Mesh", context.getString(R.string.projection_mesh), sparseMeshFit != null))
+                                                // "Detail-Mesh" = RichCorrMesh (dichte echte .corr-Sternmessungen).
+                                                // Wählbar, sobald ein technisch gültiger Fit existiert -- die
+                                                // Qualitäts-Gates (A8/Kreuzvalidierung) entscheiden nur noch über
+                                                // die AUTOMATIK, nicht mehr über die manuelle Verfügbarkeit
+                                                // (s. RichCorrMesh.fitCandidate).
+                                                add(Triple("DetailMesh", context.getString(R.string.projection_detail_mesh), richMeshFit != null))
                                                 // Nur sichtbar, solange ein per Feinjustierung manuell verfeinerter
                                                 // Fit existiert (Goldstandard) -> verschwindet wieder bei
-                                                // "Original-Astrometrie wiederherstellen".
+                                                // "Original-Astrometrie wiederherstellen". Bewusst weiterhin
+                                                // bedingt sichtbar: "Eigene" ist kein Projektionsmodell, sondern
+                                                // ein einmaliges Nutzerergebnis.
                                                 if (customAlignFit != null) {
-                                                    add("Custom" to context.getString(R.string.label_custom))
+                                                    add(Triple("Custom", context.getString(R.string.label_custom), true))
                                                 }
-                                            }.forEach { (key, label) ->
+                                            }.forEach { (key, label, available) ->
                                                 // Optik wie „Kachel +": aktiv = gefüllter Button, sonst umrandet.
                                                 val onPick: () -> Unit = {
                                                     // Vor-Zustand sichern -> JEDER Projektionswechsel ist ein
@@ -4725,25 +6541,31 @@ fun StarMapperApp() {
                                                             syncConstellationLayer(recordUndo = false)
                                                             syncDeepSkyLayer(recordUndo = false)
                                                             syncStarLayer(recordUndo = false)
+                                                            logConstellationAudit("manual_$key")
                                                         }
-                                                    } else if (key == "Mesh") {
-                                                        // Kein Neu-Fit -- der beim letzten Kachel-Solve bereits aus
-                                                        // den ECHTEN .corr-Sternmessungen gefittete Mesh-Fit
-                                                        // (richMeshFit) wird 1:1 wieder eingesetzt, exakt wie beim
-                                                        // "Custom"-Zweig oben. NICHT in preferences persistiert (wie
-                                                        // "Custom": überlebt keinen Neustart und keinen weiteren
-                                                        // Kachel-Solve ohne Neuberechnung).
-                                                        val fit = richMeshFit
+                                                    } else if (key == "Mesh" || key == "DetailMesh") {
+                                                        // Kein Neu-Fit -- der beim letzten Kachel-Solve bereits
+                                                        // gebaute Mesh-Fit wird 1:1 wieder eingesetzt, exakt wie beim
+                                                        // "Custom"-Zweig oben. "Mesh" = SparseAnchorMesh (grobe
+                                                        // Kachel-Anker), "Detail-Mesh" = RichCorrMesh (dichte echte
+                                                        // .corr-Sternmessungen) -- zwei getrennte Mechanismen, hier
+                                                        // bewusst nur EIN gemeinsamer Anwende-Zweig, weil beide
+                                                        // dieselbe fertige PanoramaWcsSolution einsetzen. NICHT in
+                                                        // preferences persistiert (wie "Custom": überlebt keinen
+                                                        // Neustart und keinen weiteren Kachel-Solve ohne Neuberechnung).
+                                                        val fit = if (key == "Mesh") sparseMeshFit else richMeshFit
+                                                        val rms = if (key == "Mesh") sparseMeshRms else richMeshRms
                                                         if (fit != null) {
                                                             lastSolvedWcs = fit
                                                             fisheyeBaseFit = fit
                                                             fisheyeAlignSeed = fit
                                                             alignProjectionKind = PanoProjectionKind.Mesh
-                                                            alignProjectionRms = richMeshRms
+                                                            alignProjectionRms = rms
                                                             annotate.constellationsEnabled = true
                                                             syncConstellationLayer(recordUndo = false)
                                                             syncDeepSkyLayer(recordUndo = false)
                                                             syncStarLayer(recordUndo = false)
+                                                            logConstellationAudit("manual_$key")
                                                         }
                                                     } else {
                                                         // Preferences NUR für echte Modelle persistieren -- "Custom"
@@ -4754,10 +6576,13 @@ fun StarMapperApp() {
                                                         reprojectPanorama()
                                                     }
                                                 }
+                                                // Nicht verfügbar = sichtbar, aber deaktiviert. Material3 graut
+                                                // einen `enabled = false`-Button selbst dezent aus -- keine
+                                                // Warnfarbe, kein Zusatzdialog, Name bleibt lesbar.
                                                 if (panoProjectionChoice == key) {
-                                                    Button(onClick = onPick) { Text(label) }
+                                                    Button(onClick = onPick, enabled = available) { Text(label) }
                                                 } else {
-                                                    OutlinedButton(onClick = onPick) { Text(label) }
+                                                    OutlinedButton(onClick = onPick, enabled = available) { Text(label) }
                                                 }
                                             }
                                         }
@@ -4787,33 +6612,6 @@ fun StarMapperApp() {
                 showDetectedStars = showDetectedStars,
                 showConstellationAnchors = showConstellationAnchors,
                 starDetectionSensitivity = starDetectionSensitivity,
-                constellationColorArgb = constellationColorArgb,
-                constellationFont = constellationFont,
-                constellationLineStyle = constellationLineStyle,
-                constellationStrokeWidth = constellationStrokeWidth,
-                constellationAnchorRadiusRatio = constellationAnchorRadiusRatio,
-                constellationOpacity = constellationOpacity,
-                constellationShowName = constellationShowName,
-                constellationNameTextSize = constellationNameTextSize,
-                shapeColorArgb = shapeColorArgb,
-                shapeStrokeWidth = shapeStrokeWidth,
-                shapeLineStyle = shapeLineStyle,
-                shapeOpacity = shapeOpacity,
-                shapeFilled = shapeFilled,
-                shapeIsReticle = selectedTool == EditorTool.ReticleOpen ||
-                    selectedTool == EditorTool.ReticleComet ||
-                    overlays.firstOrNull { it.id == selectedOverlayId }?.reticle != null,
-                shapeFont = shapeFont,
-                shapeShowName = shapeShowName,
-                shapeNameText = overlays.firstOrNull { it.id == selectedOverlayId }?.text ?: "",
-                shapeNameTextSize = shapeNameTextSize,
-                shapeNameColorArgb = shapeNameColorArgb,
-                shapeNameBold = shapeNameBold,
-                textColorArgb = textColorArgb,
-                textFont = textFont,
-                textSize = textSize,
-                textBold = textBold,
-                textOpacity = textOpacity,
                 isDetecting = isDetecting,
                 astapCaptureSettings = astapCaptureSettings,
                 astapExifFieldOfView = astapExifFieldOfView,
@@ -4827,11 +6625,52 @@ fun StarMapperApp() {
                     leftHandedDrawing = it
                     preferences.edit().putBoolean("left_handed_drawing", it).apply()
                 },
-                maskToolActive = selectedTool == EditorTool.Mask,
-                maskEraseMode = maskEraseMode,
-                maskBrushFraction = maskBrushFraction,
-                maskBrushHardness = maskBrushHardness,
-                maskPresent = editorSession.solveMaskState.value != null,
+                starDisplayCap = starDisplayCap,
+                onStarDisplayCapChange = {
+                    starDisplayCap = it
+                    preferences.edit().putInt("star_display_cap", it).apply()
+                    syncStarLayer(recordUndo = true)
+                },
+                exportImageFormat = exportImageFormat,
+                onExportImageFormatChange = {
+                    exportImageFormat = it
+                    preferences.edit().putString("export_image_format", it.name).apply()
+                },
+                canExportSolution = lastSolvedWcs?.isExportable() == true,
+                onExportSolution = {
+                    AppDiagnostics.record(
+                        "solution_export_started projectionKind=$alignProjectionKind " +
+                            "exportable=${lastSolvedWcs?.isExportable() == true}",
+                    )
+                    lastSolvedWcs?.exportBlockReason()?.let {
+                        AppDiagnostics.record("solution_export_blocked reason=$it projectionKind=$alignProjectionKind")
+                    }
+                    exportSolutionLauncher.launch("sternbild_mapper_loesung_${System.currentTimeMillis()}.json")
+                },
+                onImportSolution = {
+                    AppDiagnostics.record("solution_import_started")
+                    importSolutionLauncher.launch(arrayOf("application/json"))
+                },
+                maskPanel = MaskPanelBundle(
+                    toolActive = selectedTool == EditorTool.Mask,
+                    eraseMode = maskEraseMode,
+                    brushFraction = maskBrushFraction,
+                    brushHardness = maskBrushHardness,
+                    present = editorSession.solveMaskState.value != null,
+                    onToolToggle = {
+                        // Auto-Aktivierung durch den offenen „Vordergrund"-Tab (MaskPanel-LaunchedEffect):
+                        // Maskenpinsel aktiv. Verlassen des Menüs setzt via activePanel-Guard zurück auf Bewegen.
+                        selectedTool = EditorTool.Mask
+                    },
+                    onEraseModeChange = { maskEraseMode = it },
+                    onBrushFractionChange = { maskBrushFraction = it },
+                    onBrushHardnessChange = { maskBrushHardness = it },
+                    onClear = {
+                        editorSession.solveMaskState.value = null
+                        editorSession.solveMaskVersionState.intValue++
+                        AppDiagnostics.record("solve_mask_cleared")
+                    },
+                ),
                 deepSkyAvailable = lastSolvedWcs != null,
                 deepSkyObjects = deepSkyObjects,
                 targetObjectQuery = targetObjectQuery,
@@ -4844,42 +6683,44 @@ fun StarMapperApp() {
                     AppDiagnostics.record("astap_solver_choice solver=${choice.name}")
                 },
                 onNovaApiKeyChange = { novaApiKey = it.trim() },
-                onMaskToolToggle = {
-                    // Auto-Aktivierung durch den offenen „Vordergrund"-Tab (MaskPanel-LaunchedEffect):
-                    // Maskenpinsel aktiv. Verlassen des Menüs setzt via activePanel-Guard zurück auf Bewegen.
-                    selectedTool = EditorTool.Mask
-                },
-                onMaskEraseModeChange = { maskEraseMode = it },
-                onMaskBrushFractionChange = { maskBrushFraction = it },
-                onMaskBrushHardnessChange = { maskBrushHardness = it },
-                onClearMask = {
-                    editorSession.solveMaskState.value = null
-                    editorSession.solveMaskVersionState.intValue++
-                    AppDiagnostics.record("solve_mask_cleared")
-                },
                 onTargetObjectQueryChange = { targetObjectQuery = it },
                 annotateSelections = annotate,
-                onApplyConstellations = { syncConstellationLayer() },
-                onApplyDeepSky = { record -> syncDeepSkyLayer(recordUndo = record) },
+                // VisualOnly: Sichtbarkeits-Schalter im Objekt-/Katalogmenü, keine neue Lösung.
+                onApplyConstellations = { syncConstellationLayer(reason = ConstellationSyncReason.VisualOnly) },
+                // Performance-Fix 2026-09-02: `record=false` (Live-Drag-Zwischenwert) löst seit diesem Fix
+                // GAR KEINE Pipeline mehr aus (die betroffenen Regler committen entweder gar nicht mehr --
+                // reine Darstellungsgrößen wirken über die reaktiven LaunchedEffect(annotate.xxx)-Blöcke
+                // weiter unten, s. applyDeepSkyStyleToAll/applyDeepSkyOpacityLive-KDoc -- oder erst bei
+                // record=true) -- `record=true` (Commit) läuft jetzt über requestDeepSkySync()
+                // hintergrund-berechnet statt synchron im UI-Event. BEWUSST kein onDeepSkyStyleLive/
+                // onDeepSkyOpacityLive-Parameter hier (MethodTooLargeException-Risiko an dieser Stelle
+                // bereits 2x aufgetreten, s. Memory -- reaktiv statt durchgereicht vermeidet neue
+                // Closure-Captures genau an diesem übervollen Aufruf).
+                onApplyDeepSky = { record -> if (record) requestDeepSkySync() },
                 onApplyStars = { record -> syncStarLayer(recordUndo = record) },
                 onConstellationNamesChanged = {
-                    if (annotate.constellationsEnabled) syncConstellationLayer()
+                    // VisualOnly: nur showName ändert sich, die Geometrie bleibt identisch.
+                    if (annotate.constellationsEnabled) {
+                        syncConstellationLayer(reason = ConstellationSyncReason.VisualOnly)
+                    }
                 },
-                eraserActive = selectedTool == EditorTool.EraseArea,
-                eraseBrushFraction = eraseBrushFraction,
-                eraseBrushHardness = eraseBrushHardness,
-                eraseMaskPresent = editorSession.annotationEraseMaskState.value != null,
-                onToggleEraser = {
-                    // Auto-Aktivierung durch den offenen „Beschriftung"-Tab (MaskPanel-LaunchedEffect):
-                    // Beschriftungs-Radierer aktiv.
-                    selectedTool = EditorTool.EraseArea
-                },
-                onEraseBrushChange = { eraseBrushFraction = it },
-                onEraseBrushHardnessChange = { eraseBrushHardness = it },
-                onClearErase = {
-                    editorSession.annotationEraseMaskState.value = null
-                    editorSession.annotationEraseVersionState.intValue++
-                },
+                eraserPanel = EraserPanelBundle(
+                    active = selectedTool == EditorTool.EraseArea,
+                    brushFraction = eraseBrushFraction,
+                    brushHardness = eraseBrushHardness,
+                    maskPresent = editorSession.annotationEraseMaskState.value != null,
+                    onToggle = {
+                        // Auto-Aktivierung durch den offenen „Beschriftung"-Tab (MaskPanel-LaunchedEffect):
+                        // Beschriftungs-Radierer aktiv.
+                        selectedTool = EditorTool.EraseArea
+                    },
+                    onBrushChange = { eraseBrushFraction = it },
+                    onBrushHardnessChange = { eraseBrushHardness = it },
+                    onClear = {
+                        editorSession.annotationEraseMaskState.value = null
+                        editorSession.annotationEraseVersionState.intValue++
+                    },
+                ),
                 onAddConstellation = {
                     // "Sternbild hinzufügen" öffnet den virtuellen Sternhimmel (Sky-Picker),
                     // der das gewählte Sternbild platziert. Macht den alten Sternhimmel-Chip
@@ -4959,69 +6800,79 @@ fun StarMapperApp() {
                         astapOperationState = AstapOperationState.Idle
                     }
                 },
-                onStartAstapSolve = { startSingleImageSolve() },
+                onStartAstapSolve = { requestSingleImageSolve() },
                 onCancelAstapSolve = ::cancelAstapSolve,
-                onConstellationOpacityChange = { value ->
-                    constellationOpacity = value
-                    applyConstellationStyle { it.copy(opacity = value) }
-                },
-                onConstellationColorChange = { value ->
-                    constellationColorArgb = value
-                    applyConstellationStyle { it.copy(colorArgb = value) }
-                },
-                onConstellationFontChange = { value ->
-                    constellationFont = value
-                    applyConstellationStyle { it.copy(font = value) }
-                },
-                onConstellationLineStyleChange = { value ->
-                    constellationLineStyle = value
-                    applyConstellationStyle { it.copy(lineStyle = value) }
-                },
-                onConstellationStrokeWidthChange = { value ->
-                    constellationStrokeWidth = value
-                    applyConstellationStyle { it.copy(strokeWidth = value) }
-                },
-                onConstellationAnchorRadiusChange = { value ->
-                    constellationAnchorRadiusRatio = value
-                    applyConstellationStyle { it.copy(anchorRadiusRatio = value) }
-                },
-                onConstellationShowNameChange = { value ->
-                    constellationShowName = value
-                    applyConstellationStyle { it.copy(showName = value) }
-                },
-                onConstellationNameTextSizeChange = { value ->
-                    constellationNameTextSize = value
-                    applyConstellationStyle { it.copy(nameTextSize = value) }
-                },
-                onConstellationOpacityChangeGlobal = { value ->
-                    constellationOpacity = value
-                    applyConstellationStyleToAll { it.copy(opacity = value) }
-                },
-                // NUR State setzen (billig, live für die Vorschau-Kachel) -- das tatsächliche Anwenden
-                // auf ALLE bestehenden Sternbild-Overlays läuft entprellt über einen LaunchedEffect
-                // weiter unten (s. dortiger Kommentar), sonst würde jedes Pixel einer Zieh-Geste im
-                // Farbwähler einen vollen Umfärbe-Durchlauf über alle Sternbild-Overlays auslösen.
-                onConstellationColorChangeGlobal = { value -> constellationColorArgb = value },
-                onConstellationFontChangeGlobal = { value ->
-                    constellationFont = value
-                    applyConstellationStyleToAll { it.copy(font = value) }
-                },
-                onConstellationLineStyleChangeGlobal = { value ->
-                    constellationLineStyle = value
-                    applyConstellationStyleToAll { it.copy(lineStyle = value) }
-                },
-                onConstellationStrokeWidthChangeGlobal = { value ->
-                    constellationStrokeWidth = value
-                    applyConstellationStyleToAll { it.copy(strokeWidth = value) }
-                },
-                onConstellationAnchorRadiusChangeGlobal = { value ->
-                    constellationAnchorRadiusRatio = value
-                    applyConstellationStyleToAll { it.copy(anchorRadiusRatio = value) }
-                },
-                onConstellationNameTextSizeChangeGlobal = { value ->
-                    constellationNameTextSize = value
-                    applyConstellationStyleToAll { it.copy(nameTextSize = value) }
-                },
+                constellationStyle = ConstellationStyleBundle(
+                    colorArgb = constellationColorArgb,
+                    font = constellationFont,
+                    lineStyle = constellationLineStyle,
+                    strokeWidth = constellationStrokeWidth,
+                    anchorRadiusRatio = constellationAnchorRadiusRatio,
+                    opacity = constellationOpacity,
+                    showName = constellationShowName,
+                    nameTextSize = constellationNameTextSize,
+                    onOpacityChange = { value ->
+                        constellationOpacity = value
+                        applyConstellationStyle { it.copy(opacity = value) }
+                    },
+                    onColorChange = { value ->
+                        constellationColorArgb = value
+                        applyConstellationStyle { it.copy(colorArgb = value) }
+                    },
+                    onFontChange = { value ->
+                        constellationFont = value
+                        applyConstellationStyle { it.copy(font = value) }
+                    },
+                    onLineStyleChange = { value ->
+                        constellationLineStyle = value
+                        applyConstellationStyle { it.copy(lineStyle = value) }
+                    },
+                    onStrokeWidthChange = { value ->
+                        constellationStrokeWidth = value
+                        applyConstellationStyle { it.copy(strokeWidth = value) }
+                    },
+                    onAnchorRadiusChange = { value ->
+                        constellationAnchorRadiusRatio = value
+                        applyConstellationStyle { it.copy(anchorRadiusRatio = value) }
+                    },
+                    onShowNameChange = { value ->
+                        constellationShowName = value
+                        applyConstellationStyle { it.copy(showName = value) }
+                    },
+                    onNameTextSizeChange = { value ->
+                        constellationNameTextSize = value
+                        applyConstellationStyle { it.copy(nameTextSize = value) }
+                    },
+                    onOpacityChangeGlobal = { value ->
+                        constellationOpacity = value
+                        applyConstellationStyleToAll { it.copy(opacity = value) }
+                    },
+                    // NUR State setzen (billig, live für die Vorschau-Kachel) -- das tatsächliche Anwenden
+                    // auf ALLE bestehenden Sternbild-Overlays läuft entprellt über einen LaunchedEffect
+                    // weiter unten (s. dortiger Kommentar), sonst würde jedes Pixel einer Zieh-Geste im
+                    // Farbwähler einen vollen Umfärbe-Durchlauf über alle Sternbild-Overlays auslösen.
+                    onColorChangeGlobal = { value -> constellationColorArgb = value },
+                    onFontChangeGlobal = { value ->
+                        constellationFont = value
+                        applyConstellationStyleToAll { it.copy(font = value) }
+                    },
+                    onLineStyleChangeGlobal = { value ->
+                        constellationLineStyle = value
+                        applyConstellationStyleToAll { it.copy(lineStyle = value) }
+                    },
+                    onStrokeWidthChangeGlobal = { value ->
+                        constellationStrokeWidth = value
+                        applyConstellationStyleToAll { it.copy(strokeWidth = value) }
+                    },
+                    onAnchorRadiusChangeGlobal = { value ->
+                        constellationAnchorRadiusRatio = value
+                        applyConstellationStyleToAll { it.copy(anchorRadiusRatio = value) }
+                    },
+                    onNameTextSizeChangeGlobal = { value ->
+                        constellationNameTextSize = value
+                        applyConstellationStyleToAll { it.copy(nameTextSize = value) }
+                    },
+                ),
                 layerDrawOrder = layerDrawOrder,
                 onLayerDrawOrderChange = { value -> layerDrawOrder = value },
                 // Globale Standardfarben (Katalog bearbeiten -> Farben): DSO-Gruppen setzen den State
@@ -5029,159 +6880,184 @@ fun StarMapperApp() {
                 // Formen-Namen/Text setzen NUR den State -- bewusst OHNE updateSelectedOverlay (anders
                 // als onShapeColorChange direkt unten): das globale Menü hat keinen Objekt-Auswahl-
                 // Kontext, wirkt nur als Default für künftig Neues.
-                dsoGalaxyColorArgb = dsoGalaxyColorArgb,
-                onDsoGalaxyColorChangeGlobal = { value -> dsoGalaxyColorArgb = value },
-                dsoGlobularColorArgb = dsoGlobularColorArgb,
-                onDsoGlobularColorChangeGlobal = { value -> dsoGlobularColorArgb = value },
-                dsoOpenClusterColorArgb = dsoOpenClusterColorArgb,
-                onDsoOpenClusterColorChangeGlobal = { value -> dsoOpenClusterColorArgb = value },
-                dsoNebulaColorArgb = dsoNebulaColorArgb,
-                onDsoNebulaColorChangeGlobal = { value -> dsoNebulaColorArgb = value },
-                dsoOtherColorArgb = dsoOtherColorArgb,
-                onDsoOtherColorChangeGlobal = { value -> dsoOtherColorArgb = value },
-                reticleColorArgb = reticleColorArgb,
-                onReticleColorChangeGlobal = { value -> reticleColorArgb = value },
-                onShapeColorChangeGlobal = { value -> shapeColorArgb = value },
-                onShapeNameColorChangeGlobal = { value -> shapeNameColorArgb = value },
-                onTextColorChangeGlobal = { value -> textColorArgb = value },
-                onShapeColorChange = { value ->
-                    shapeColorArgb = value
-                    updateSelectedOverlay { overlay ->
-                        if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
-                            overlay.copy(colorArgb = value)
-                        } else {
-                            overlay
+                dsoGlobalColors = DsoGlobalColorBundle(
+                    galaxyColorArgb = dsoGalaxyColorArgb,
+                    onGalaxyColorChangeGlobal = { value -> dsoGalaxyColorArgb = value },
+                    globularColorArgb = dsoGlobularColorArgb,
+                    onGlobularColorChangeGlobal = { value -> dsoGlobularColorArgb = value },
+                    openClusterColorArgb = dsoOpenClusterColorArgb,
+                    onOpenClusterColorChangeGlobal = { value -> dsoOpenClusterColorArgb = value },
+                    nebulaColorArgb = dsoNebulaColorArgb,
+                    onNebulaColorChangeGlobal = { value -> dsoNebulaColorArgb = value },
+                    otherColorArgb = dsoOtherColorArgb,
+                    onOtherColorChangeGlobal = { value -> dsoOtherColorArgb = value },
+                    reticleColorArgb = reticleColorArgb,
+                    onReticleColorChangeGlobal = { value -> reticleColorArgb = value },
+                ),
+                shapeStyle = ShapeStyleBundle(
+                    colorArgb = shapeColorArgb,
+                    strokeWidth = shapeStrokeWidth,
+                    lineStyle = shapeLineStyle,
+                    opacity = shapeOpacity,
+                    filled = shapeFilled,
+                    isReticle = selectedTool == EditorTool.ReticleOpen ||
+                        selectedTool == EditorTool.ReticleComet ||
+                        overlays.firstOrNull { it.id == selectedOverlayId }?.reticle != null,
+                    font = shapeFont,
+                    showName = shapeShowName,
+                    nameText = overlays.firstOrNull { it.id == selectedOverlayId }?.text ?: "",
+                    nameTextSize = shapeNameTextSize,
+                    nameColorArgb = shapeNameColorArgb,
+                    nameBold = shapeNameBold,
+                    onColorChange = { value ->
+                        shapeColorArgb = value
+                        updateSelectedOverlay { overlay ->
+                            if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
+                                overlay.copy(colorArgb = value)
+                            } else {
+                                overlay
+                            }
                         }
-                    }
-                },
-                onShapeStrokeWidthChange = { value ->
-                    shapeStrokeWidth = value
-                    updateSelectedOverlay { overlay ->
-                        if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
-                            overlay.copy(strokeWidth = value)
-                        } else {
-                            overlay
+                    },
+                    onStrokeWidthChange = { value ->
+                        shapeStrokeWidth = value
+                        updateSelectedOverlay { overlay ->
+                            if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
+                                overlay.copy(strokeWidth = value)
+                            } else {
+                                overlay
+                            }
                         }
-                    }
-                },
-                onShapeLineStyleChange = { value ->
-                    shapeLineStyle = value
-                    updateSelectedOverlay { overlay ->
-                        if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
-                            overlay.copy(lineStyle = value)
-                        } else {
-                            overlay
+                    },
+                    onLineStyleChange = { value ->
+                        shapeLineStyle = value
+                        updateSelectedOverlay { overlay ->
+                            if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
+                                overlay.copy(lineStyle = value)
+                            } else {
+                                overlay
+                            }
                         }
-                    }
-                },
-                onShapeOpacityChange = { value ->
-                    shapeOpacity = value
-                    updateSelectedOverlay { overlay ->
-                        if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
-                            overlay.copy(opacity = value)
-                        } else {
-                            overlay
+                    },
+                    onOpacityChange = { value ->
+                        shapeOpacity = value
+                        updateSelectedOverlay { overlay ->
+                            if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
+                                overlay.copy(opacity = value)
+                            } else {
+                                overlay
+                            }
                         }
-                    }
-                },
-                onShapeFilledChange = { value ->
-                    shapeFilled = value
-                    updateSelectedOverlay { overlay ->
-                        if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
-                            overlay.copy(filled = value)
-                        } else {
-                            overlay
+                    },
+                    onFilledChange = { value ->
+                        shapeFilled = value
+                        updateSelectedOverlay { overlay ->
+                            if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
+                                overlay.copy(filled = value)
+                            } else {
+                                overlay
+                            }
                         }
-                    }
-                },
-                onShapeFontChange = { value ->
-                    shapeFont = value
-                    updateSelectedOverlay { overlay ->
-                        if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
-                            overlay.copy(font = value)
-                        } else {
-                            overlay
+                    },
+                    onFontChange = { value ->
+                        shapeFont = value
+                        updateSelectedOverlay { overlay ->
+                            if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
+                                overlay.copy(font = value)
+                            } else {
+                                overlay
+                            }
                         }
-                    }
-                },
-                onShapeShowNameChange = { value ->
-                    shapeShowName = value
-                    updateSelectedOverlay { overlay ->
-                        if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
-                            overlay.copy(showName = value)
-                        } else {
-                            overlay
+                    },
+                    onShowNameChange = { value ->
+                        shapeShowName = value
+                        updateSelectedOverlay { overlay ->
+                            if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
+                                overlay.copy(showName = value)
+                            } else {
+                                overlay
+                            }
                         }
-                    }
-                },
-                onEditShapeName = { selectedOverlayId?.let { editingTextOverlayId = it } },
-                onShapeNameTextSizeChange = { value ->
-                    shapeNameTextSize = value
-                    updateSelectedOverlay { overlay ->
-                        if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
-                            overlay.copy(nameTextSize = value)
-                        } else {
-                            overlay
+                    },
+                    onEditName = { selectedOverlayId?.let { editingTextOverlayId = it } },
+                    onNameTextSizeChange = { value ->
+                        shapeNameTextSize = value
+                        updateSelectedOverlay { overlay ->
+                            if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
+                                overlay.copy(nameTextSize = value)
+                            } else {
+                                overlay
+                            }
                         }
-                    }
-                },
-                onShapeNameColorChange = { value ->
-                    shapeNameColorArgb = value
-                    updateSelectedOverlay { overlay ->
-                        if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
-                            overlay.copy(nameColorArgb = value)
-                        } else {
-                            overlay
+                    },
+                    onNameColorChange = { value ->
+                        shapeNameColorArgb = value
+                        updateSelectedOverlay { overlay ->
+                            if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
+                                overlay.copy(nameColorArgb = value)
+                            } else {
+                                overlay
+                            }
                         }
-                    }
-                },
-                onShapeNameBoldChange = { value ->
-                    shapeNameBold = value
-                    updateSelectedOverlay { overlay ->
-                        if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
-                            overlay.copy(textBold = value)
-                        } else {
-                            overlay
+                    },
+                    onNameBoldChange = { value ->
+                        shapeNameBold = value
+                        updateSelectedOverlay { overlay ->
+                            if (overlay.kind == OverlayKind.Ellipse || overlay.kind == OverlayKind.Rectangle || overlay.kind == OverlayKind.Freehand) {
+                                overlay.copy(textBold = value)
+                            } else {
+                                overlay
+                            }
                         }
-                    }
-                },
-                onTextColorChange = { value ->
-                    textColorArgb = value
-                    updateSelectedOverlay { overlay ->
-                        if (overlay.kind == OverlayKind.Text) overlay.copy(colorArgb = value) else overlay
-                    }
-                },
-                onTextFontChange = { value ->
-                    textFont = value
-                    updateSelectedOverlay { overlay ->
-                        if (overlay.kind == OverlayKind.Text) overlay.copy(font = value) else overlay
-                    }
-                },
-                onTextSizeChange = { value ->
-                    textSize = value
-                    updateSelectedOverlay { overlay ->
-                        if (overlay.kind == OverlayKind.Text) overlay.copy(size = Size(value * 5f, value)) else overlay
-                    }
-                },
-                onTextBoldChange = { value ->
-                    textBold = value
-                    updateSelectedOverlay { overlay ->
-                        if (overlay.kind == OverlayKind.Text) overlay.copy(textBold = value) else overlay
-                    }
-                },
-                onTextOpacityChange = { value ->
-                    textOpacity = value
-                    updateSelectedOverlay { overlay ->
-                        if (overlay.kind == OverlayKind.Text) overlay.copy(opacity = value) else overlay
-                    }
-                },
-                onEditSelectedText = {
-                    val selectedText = overlays.firstOrNull { it.id == selectedOverlayId && it.kind == OverlayKind.Text }
-                    if (selectedText != null) {
-                        activePanel = null
-                        editingTextOverlayId = selectedText.id
-                    }
-                },
+                    },
+                    onColorChangeGlobal = { value -> shapeColorArgb = value },
+                    onNameColorChangeGlobal = { value -> shapeNameColorArgb = value },
+                ),
+                textStyle = TextStyleBundle(
+                    colorArgb = textColorArgb,
+                    font = textFont,
+                    size = textSize,
+                    bold = textBold,
+                    opacity = textOpacity,
+                    onColorChange = { value ->
+                        textColorArgb = value
+                        updateSelectedOverlay { overlay ->
+                            if (overlay.kind == OverlayKind.Text) overlay.copy(colorArgb = value) else overlay
+                        }
+                    },
+                    onFontChange = { value ->
+                        textFont = value
+                        updateSelectedOverlay { overlay ->
+                            if (overlay.kind == OverlayKind.Text) overlay.copy(font = value) else overlay
+                        }
+                    },
+                    onSizeChange = { value ->
+                        textSize = value
+                        updateSelectedOverlay { overlay ->
+                            if (overlay.kind == OverlayKind.Text) overlay.copy(size = Size(value * 5f, value)) else overlay
+                        }
+                    },
+                    onBoldChange = { value ->
+                        textBold = value
+                        updateSelectedOverlay { overlay ->
+                            if (overlay.kind == OverlayKind.Text) overlay.copy(textBold = value) else overlay
+                        }
+                    },
+                    onOpacityChange = { value ->
+                        textOpacity = value
+                        updateSelectedOverlay { overlay ->
+                            if (overlay.kind == OverlayKind.Text) overlay.copy(opacity = value) else overlay
+                        }
+                    },
+                    onEditSelectedText = {
+                        val selectedText = overlays.firstOrNull { it.id == selectedOverlayId && it.kind == OverlayKind.Text }
+                        if (selectedText != null) {
+                            activePanel = null
+                            editingTextOverlayId = selectedText.id
+                        }
+                    },
+                    onColorChangeGlobal = { value -> textColorArgb = value },
+                ),
                 onDetectStars = {
                     val sourceBitmap = currentBitmap
                     if (sourceBitmap == null) {
@@ -5210,11 +7086,20 @@ fun StarMapperApp() {
                             "mirrorX=$selectedConstellationMirrorX mirrorY=$selectedConstellationMirrorY",
                     )
                 },
-                onShareExport = { exportScale, includeBackground ->
+                onShareExport = { exportScale, includeBackground, projectionMode, ssaaFactor ->
                     val sourceBitmap = currentBitmap
                     if (sourceBitmap == null) {
                         Toast.makeText(context, context.getString(R.string.toast_load_image_first), Toast.LENGTH_SHORT).show()
                     } else {
+                        // Punkt 1 (Nutzer-Vorgabe 2026-08-30): Diagnose, welche Sprache der Export TATSÄCHLICH
+                        // sieht -- vergleichbar mit den language_resync-Zeilen oben. Ein Beispiel-Overlay-Text
+                        // (falls vorhanden) macht sichtbar, ob overlay.text bereits in dieser Sprache steht,
+                        // ohne den vollen Bestand zu loggen (Diagnose-Datei-Budget).
+                        AppDiagnostics.record(
+                            "export_language lang=${AppLocale.resolvedLanguageTag} appLang=${AppLocale.current} " +
+                                "sampleConstellationText=${overlays.firstOrNull { it.layer == AnnotationLayer.Constellation }?.text} " +
+                                "sampleDeepSkyText=${overlays.firstOrNull { it.layer == AnnotationLayer.DeepSky }?.text}",
+                        )
                         scope.launch {
                             val uri = withContext(Dispatchers.Default) {
                                 // Original-Export: Bild in voller Auflösung neu dekodieren (Anzeige-Bitmap ist
@@ -5250,11 +7135,27 @@ fun StarMapperApp() {
                                     imageInverted = annotate.imageInverted,
                                     overlayCoordScale = coordScale,
                                     layerDrawOrder = layerDrawOrder,
+                                    imageFormat = exportImageFormat,
+                                    wcs = lastSolvedWcs,
+                                    projectionMode = projectionMode,
+                                    textSupersampleFactor = ssaaFactor,
+                                    lang = AppLocale.resolvedLanguageTag,
+                                    sourceDiagnostics = ExportSourceDiagnostics(
+                                        originalWidth = loadedImage?.originalWidth ?: sourceBitmap.width,
+                                        originalHeight = loadedImage?.originalHeight ?: sourceBitmap.height,
+                                        workingWidth = sourceBitmap.width,
+                                        workingHeight = sourceBitmap.height,
+                                        backgroundSource = if (fullRes != null) "ORIGINAL_FILE" else "WORKING_BITMAP",
+                                        originalFileBytes = originalFileSizeBytes(context, imageUri),
+                                    ),
                                 )
                                 if (fullRes != null && fullRes !== sourceBitmap) fullRes.recycle()
                                 result
                             }
-                            context.sharePng(uri)
+                            context.shareImage(
+                                uri,
+                                ExportRenderer.mimeTypeFor(ExportRenderer.effectiveFormat(exportImageFormat, includeBackground)),
+                            )
                             AppDiagnostics.record(
                                 "image_export_shared scale=${exportScale.name} background=$includeBackground overlays=${overlays.size}",
                             )
@@ -5262,11 +7163,16 @@ fun StarMapperApp() {
                         }
                     }
                 },
-                onSaveExport = { exportScale, includeBackground ->
+                onSaveExport = { exportScale, includeBackground, projectionMode, ssaaFactor ->
                     val sourceBitmap = currentBitmap
                     if (sourceBitmap == null) {
                         Toast.makeText(context, context.getString(R.string.toast_load_image_first), Toast.LENGTH_SHORT).show()
                     } else {
+                        AppDiagnostics.record(
+                            "export_language lang=${AppLocale.resolvedLanguageTag} appLang=${AppLocale.current} " +
+                                "sampleConstellationText=${overlays.firstOrNull { it.layer == AnnotationLayer.Constellation }?.text} " +
+                                "sampleDeepSkyText=${overlays.firstOrNull { it.layer == AnnotationLayer.DeepSky }?.text}",
+                        )
                         scope.launch {
                             withContext(Dispatchers.Default) {
                                 val fullRes = if (exportScale == ExportScale.Original) decodeOriginalBitmap(context, imageUri) else null
@@ -5300,6 +7206,19 @@ fun StarMapperApp() {
                                     imageInverted = annotate.imageInverted,
                                     overlayCoordScale = coordScale,
                                     layerDrawOrder = layerDrawOrder,
+                                    imageFormat = exportImageFormat,
+                                    wcs = lastSolvedWcs,
+                                    projectionMode = projectionMode,
+                                    textSupersampleFactor = ssaaFactor,
+                                    lang = AppLocale.resolvedLanguageTag,
+                                    sourceDiagnostics = ExportSourceDiagnostics(
+                                        originalWidth = loadedImage?.originalWidth ?: sourceBitmap.width,
+                                        originalHeight = loadedImage?.originalHeight ?: sourceBitmap.height,
+                                        workingWidth = sourceBitmap.width,
+                                        workingHeight = sourceBitmap.height,
+                                        backgroundSource = if (fullRes != null) "ORIGINAL_FILE" else "WORKING_BITMAP",
+                                        originalFileBytes = originalFileSizeBytes(context, imageUri),
+                                    ),
                                 )
                                 if (fullRes != null && fullRes !== sourceBitmap) fullRes.recycle()
                             }
@@ -5560,9 +7479,10 @@ fun StarMapperApp() {
                     opacity = textOpacity,
                     textBold = textBold,
                     font = textFont,
-                )
+                ).snapshotTinySkyGeometryIfActive()
                 selectedOverlayId = overlays.last().id
                 pendingTextPosition = null
+                dsoNeighborRecheckTick++
             },
         )
     }
@@ -5601,6 +7521,8 @@ fun StarMapperApp() {
                             OverlayGeometry.findManualShapeLabelPlacement(
                                 current.copy(text = newText),
                                 overlays.filter { it.id != current.id },
+                                bitmap?.width?.toFloat() ?: Float.MAX_VALUE,
+                                bitmap?.height?.toFloat() ?: Float.MAX_VALUE,
                             )
                         } else {
                             null
@@ -5691,6 +7613,61 @@ fun StarMapperApp() {
                 },
             )
         }
+    }
+
+    // Unit 6 (2026-09-02): Positions-Hinweis-Dialog für den EINZELBILD-Solve -- reine Wiederverwendung
+    // von ManualHintDialog/findStarByName (dieselbe Mechanik wie manualHintDialogTileId oben), self-
+    // contained hier direkt in StarMapperApp() platziert (KEIN neuer EditorPanelSheet-Parameter, s.
+    // project_methodtoolarge_editorpanelsheet in Memory -- die 67-Parameter-Reduktion bleibt unberührt).
+    // initialText immer leer: jede Öffnung ist eine frische, unabhängige Wahl, kein persistierter
+    // Zustand wie bei der Kachel (deshalb ist "Entfernen" hier nie sichtbar, s. ManualHintDialog).
+    if (showSingleSolveHintDialog) {
+        ManualHintDialog(
+            initialText = "",
+            referenceCatalogStars = referenceCatalogStars,
+            skyCatalogStars = skyCatalogStars,
+            onDismiss = {
+                // Schließen des HINWEIS-Dialogs (Zurück/Antippen daneben/"Abbrechen") ist NICHT dasselbe
+                // wie einen laufenden Solve abzubrechen -- der Hinweis wird nur übersprungen, der Solve
+                // startet trotzdem, nur blind.
+                showSingleSolveHintDialog = false
+                singleSolveHintPoint = null
+                AppDiagnostics.record("single_solve_hint_skipped fallback=blind")
+                startSingleImageSolve()
+            },
+            onClear = {
+                showSingleSolveHintDialog = false
+                singleSolveHintPoint = null
+                AppDiagnostics.record("single_solve_hint_skipped fallback=blind")
+                startSingleImageSolve()
+            },
+            onConfirm = { name ->
+                val trimmed = name.trim()
+                if (trimmed.isBlank()) {
+                    showSingleSolveHintDialog = false
+                    singleSolveHintPoint = null
+                    AppDiagnostics.record("single_solve_hint_skipped fallback=blind")
+                    startSingleImageSolve()
+                } else {
+                    val found = findStarByName(trimmed, referenceCatalogStars, skyCatalogStars)
+                    if (found == null) {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.star_not_found, trimmed),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    } else {
+                        singleSolveHintPoint = found.point
+                        showSingleSolveHintDialog = false
+                        AppDiagnostics.record(
+                            "single_solve_hint_selected ra=${found.point.raDegrees} dec=${found.point.decDegrees} " +
+                                "radiusDeg=${astapFieldOfView.toDouble().coerceIn(5.0, 90.0)} source=manual",
+                        )
+                        startSingleImageSolve()
+                    }
+                }
+            },
+        )
     }
 
     referenceOverlayId?.let { id ->
@@ -5814,6 +7791,13 @@ private fun EditorCanvas(
     onMaskStroke: (Offset, Offset) -> Unit,
     onAnnotationEraseStroke: (Offset, Offset) -> Unit = { _, _ -> },
     solveTiles: List<SolveTile> = emptyList(),
+    // Nur Kacheln mit passendem sourceSpace sind in der aktuell aktiven Ansicht sichtbar/anfassbar (Plan
+    // Nachtrag 3) -- exakt wie beim Wechsel zu einem komplett anderen Foto, keine Sonderbehandlung.
+    activeTileSpace: TileSourceSpace = TileSourceSpace.Native,
+    // Periodische 360°-Naht der Tiny-Sky-Ansicht (nur dort != null, s. Berechnungsstelle in
+    // StarMapperApp). Reine Bedienhilfe: rote Linie + Kachel-Snap. Wird NIE in Overlays, Projekte
+    // oder Export übernommen.
+    tinySkySeam: TileDeWarp.TinySkySeam? = null,
     // Kachel-Zuverlässigkeits-Signale (s. TileConsistency), NUR für die Warnmarkierung unten in der
     // Kachel-Zeichen-Schleife -- beeinflussen nichts an der eigentlichen Fit-/Solve-Logik hier.
     tileOwnRmsById: Map<Long, TileOwnAccuracy> = emptyMap(),
@@ -5825,7 +7809,7 @@ private fun EditorCanvas(
     onTileEditBegin: () -> Unit = {},
     onAddSolveTile: (Offset, Size) -> Unit = { _, _ -> },
     onSelectSolveTile: (Long?) -> Unit = {},
-    onUpdateSolveTile: (SolveTile) -> Unit = {},
+    onUpdateSolveTile: (SolveTile, GeometryEditKind) -> Unit = { _, _ -> },
     onDeleteSolveTile: (Long) -> Unit = {},
     // De-Warp-Wunsch DIESER Kachel umschalten (ohne eine vorhandene Lösung zu invalidieren).
     onToggleTileDewarp: (Long) -> Unit = {},
@@ -5845,7 +7829,7 @@ private fun EditorCanvas(
     onRemoveOverlay: (Long) -> Unit,
     onOpenConstellationReference: (Long) -> Unit,
     onTransformOverlay: (Long, Offset, Float, Float) -> Unit,
-    onUpdateOverlay: (AnnotationOverlay) -> Unit,
+    onUpdateOverlay: (AnnotationOverlay, GeometryEditKind) -> Unit,
     onCreateOverlay: (EditorTool, Offset) -> Unit,
     // „Fertig zeichnen" gedrückt: alle in dieser Sitzung gesammelten Freihand-SEGMENTE (Bild-px,
     // je ein Strich zwischen Zweitfinger-Drücken/-Loslassen) committen.
@@ -5855,7 +7839,7 @@ private fun EditorCanvas(
     onContinueDrawing: (AnnotationOverlay) -> Unit = {},
     // Aktueller Formen-Stil (Popup-Regler) fürs Zeichnen-Live-Vorschau (WYSIWYG, s. allFreehandSegments).
     shapeColorArgb: Long = 0xFFFFD28A,
-    shapeStrokeWidth: Float = 4f,
+    shapeStrokeWidth: Float = 1.5f,
     shapeLineStyle: OverlayLineStyle = OverlayLineStyle.Solid,
     pendingPlacement: EditorTool? = null,
     onInteractionStart: () -> Unit = {},
@@ -5877,10 +7861,45 @@ private fun EditorCanvas(
     onDrawStrokeBegin: () -> Unit = {},
     // Strich fertig (Finger B oder A losgelassen) -> Aufrufer übernimmt den neuen Stand.
     onDrawSegmentsCommitted: (List<List<Offset>>) -> Unit = {},
+    // Radius (Bild-px des ÜBERGEBENEN bitmap) der automatisch einzuzoomenden Scheibe, z.B. die
+    // Himmel-Halbkugel der Tiny-Sky-Ganzansicht (s. TileDeWarp.stereographicSkyDiscRadius) -- null
+    // für die normale 2:1-Ansicht (kein Auto-Zoom). EditorCanvas selbst weiß nichts über Tiny Sky,
+    // bekommt nur "zoome auf einen Kreis mit diesem Radius, zentriert im Bild" mitgeteilt.
+    tinySkyAutoFitRadiusPx: Float? = null,
 ) {
     var zoom by remember(bitmap) { mutableFloatStateOf(1f) }
     var pan by remember(bitmap) { mutableStateOf(Offset.Zero) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+    // BUGFIX Tiny-Sky-Verschieben (Plan Nachtrag 3): `overlays` ist ein Parameter, der in Tiny Sky bei
+    // jeder Rekomposition als FRISCHE Listen-Kopie hereinkommt (displayOverlays beim Aufrufer, wegen der
+    // Cross-Projektions-Umrechnung nach wie vor nötig, s. dort). Die Gesten-Coroutine unten läuft über
+    // eine ganze -- inzwischen sogar über mehrere -- Gesten in derselben Coroutine weiter (s. den
+    // geometriefreien pointerInput-Key oben); ein direkter Zugriff auf `overlays` dort würde für die
+    // gesamte Lebensdauer der Coroutine auf dem beim letzten (Re-)Start aktuellen Listen-Objekt
+    // "einfrieren" statt die eigene vorherige Änderung zu sehen -> Verschieben akkumuliert nicht (exakt
+    // derselbe Fehler wie bei den Kacheln, nur dort durch die Architektur-Vereinfachung gegenstandslos).
+    // rememberUpdatedState hält bei jedem Lesen automatisch den jeweils aktuellen Parameterwert bereit.
+    val liveOverlays by rememberUpdatedState(overlays)
+    // Einmaliges Einzoomen auf die Kreis-Scheibe (s. tinySkyAutoFitRadiusPx oben), sobald canvasSize
+    // bekannt ist -- ein Kreis füllt in einem umschließenden Quadrat rechnerisch nie mehr als ~78,5%
+    // der Fläche; ohne dies bliebe die Himmel-Scheibe trotz Fix D (s. TileDeWarp) nur zentriert-aber-
+    // kleiner als nötig. Analog zum Stift-Zentrieren-Muster oben (LaunchedEffect(pendingPlacement,
+    // canvasSize)): EINMALIG pro neuem Bitmap gesetzt, kein Live-Folgen -- danach frei zoom-/pan-bar.
+    LaunchedEffect(bitmap, canvasSize, tinySkyAutoFitRadiusPx) {
+        val discRadius = tinySkyAutoFitRadiusPx
+        if (discRadius != null && discRadius > 0f && canvasSize != IntSize.Zero) {
+            val baseScale = min(
+                canvasSize.width / bitmap.width.toFloat(),
+                canvasSize.height / bitmap.height.toFloat(),
+            )
+            val targetZoom = (bitmap.width.toFloat() / (2f * discRadius)).coerceAtLeast(1f)
+            zoom = targetZoom
+            pan = Offset(
+                (bitmap.width * baseScale / 2f) * (1f - targetZoom),
+                (bitmap.height * baseScale / 2f) * (1f - targetZoom),
+            )
+        }
+    }
     var editingOverlayId by remember(bitmap) { mutableStateOf<Long?>(null) }
     // Langdruck-Aktionsbuttons (Verschieben/Bearbeiten/[Text]/Löschen) für dieses Overlay sichtbar.
     var actionOverlayId by remember(bitmap) { mutableStateOf<Long?>(null) }
@@ -5948,6 +7967,9 @@ private fun EditorCanvas(
     // Nächster Zeichen-Punkt wird erst übernommen, wenn er mindestens so weit vom letzten entfernt
     // liegt -- verhindert hunderte Punkte pro Sekunde ohne sichtbaren Qualitätsverlust.
     val freehandDecimateMinPx = with(density) { 3.dp.toPx() }
+    // Fängt einen frei gezeichneten Strich automatisch ein, wenn sein Ende beim Loslassen wieder
+    // nahe am eigenen Anfang liegt (Lasso-artiges Auto-Schließen, s. closeFreehandSegmentIfNearStart).
+    val freehandCloseSnapPx = with(density) { 20.dp.toPx() }
     // Stift-Grafik für den Zeichnen-Cursor (Nutzer-Icon, res/drawable/pencil_cursor.png).
     val pencilCursorImage = ImageBitmap.imageResource(id = R.drawable.pencil_cursor)
 
@@ -6043,6 +8065,14 @@ private fun EditorCanvas(
     var graticulePathsMemo by remember(bitmap) {
         mutableStateOf<Pair<GraticuleGeometry, List<androidx.compose.ui.graphics.Path>>?>(null)
     }
+    // PERFORMANCE (Nachtrag 4, 2026-08-22, Ruckeln bei sehr hoher Overlay-Zahl, z.B. 600 Sterne): anders
+    // als milkyWayPathsMemo/graticulePathsMemo oben braucht diese Gruppierung einen INHALTS-Hash statt
+    // `===` -- `overlays` ist dieselbe dauerhaft in-place mutierte `mutableStateListOf` wie bei
+    // groupedOverlays weiter unten (s. dortiger Kommentar), ein `===`-Vergleich auf sie selbst würde nach
+    // dem ersten Zeichnen für immer einfrieren (bereits einmal als Regression erlebt).
+    var groupedOverlaysMemo by remember(bitmap) {
+        mutableStateOf<Pair<Int, Map<DrawLayer, List<AnnotationOverlay>>>?>(null)
+    }
 
     // Verschiebe-/Anker-Modus aktiv -> Eltern sperren das Menü (nur Zoom/Pan bleiben erlaubt).
     LaunchedEffect(moveOverlayId, anchorEditOverlayId) {
@@ -6055,11 +8085,14 @@ private fun EditorCanvas(
             anchorEditOverlayId = null
         }
     }
-    // Zeichnen-Modus betreten (erstmals überhaupt): Stift sofort sichtbar, an der Sichtfeld-Mitte --
-    // NICHT erst bei der ersten Geste. Bleibt danach an seiner letzten Position stehen (auch über ein
-    // Verlassen/Wiederbetreten hinweg), daher nur einmalig (penPositionImg bleibt sonst != null).
+    // Zeichnen-Modus betreten: Stift sofort sichtbar an der AKTUELLEN Sichtfeld-Mitte -- NICHT erst bei
+    // der ersten Geste. Bei JEDEM erneuten Aktivieren neu zentriert (nicht nur beim allerersten Mal
+    // überhaupt), damit der Stift auch nach zwischenzeitlichem Pan/Zoom im gerade sichtbaren Ausschnitt
+    // auftaucht statt an seiner alten, evtl. jetzt weit entfernten Bild-Position (Nutzerwunsch
+    // 2026-08-22). Während einer laufenden Zeichen-Sitzung selbst bleibt der Stift unangetastet -- zoom/
+    // pan sind bewusst KEINE Keys, nur ein einmaliger Schnappschuss bei Eintritt in den Modus.
     LaunchedEffect(pendingPlacement, canvasSize) {
-        if (pendingPlacement == EditorTool.Draw && penPositionImg == null && canvasSize != IntSize.Zero) {
+        if (pendingPlacement == EditorTool.Draw && canvasSize != IntSize.Zero) {
             val launchViewport = ImageViewport.from(canvasSize, bitmap.width, bitmap.height, zoom, pan)
             penPositionImg = launchViewport.screenToImage(Offset(canvasSize.width / 2f, canvasSize.height / 2f))
         }
@@ -6072,7 +8105,9 @@ private fun EditorCanvas(
         if (exitDrawModeRequest > 0) {
             val trailing = activeSegment
             val finalSegments = if (trailing != null && trailing.size >= 2) {
-                allSegments + listOf(trailing)
+                val vp = ImageViewport.from(canvasSize, bitmap.width, bitmap.height, zoom, pan)
+                val closed = OverlayGeometry.closeFreehandSegmentIfNearStart(trailing, freehandCloseSnapPx / vp.scale)
+                allSegments + listOf(closed)
             } else {
                 allSegments
             }
@@ -6109,14 +8144,27 @@ private fun EditorCanvas(
                 leftHandedDrawing,
                 selectedOverlayId,
                 editingOverlayId,
-                overlays,
+                // NICHT die volle overlays-Liste als Key: in Tiny Sky ist die hier ANKOMMENDE Liste
+                // (displayOverlays beim Aufrufer) bei jeder Cross-Projektions-Umrechnung eine frisch
+                // allozierte Kopie mit geänderter Geometrie -- jede einzelne Zieh-Bewegung
+                // (onUpdateOverlay pro Pointer-Event) hätte die Liste dadurch strukturell verändert und
+                // den Key pro Frame wechseln lassen -> Compose bricht die laufende Gesten-Coroutine
+                // MITTEN in der Geste ab und startet neu (Symptom: Objekt "springt" nach einem Frame und
+                // lässt sich danach nicht mehr sauber ziehen; für den Bewegen-Fall zusätzlich per
+                // rememberUpdatedState/liveOverlays abgesichert, s. dort). Stattdessen ein geometriefreier
+                // Schlüssel, der nur wechselt, wenn tatsächlich ein Objekt hinzukommt/verschwindet --
+                // ID/Kind ändern sich bei reinem Verschieben/Skalieren/Rotieren nie. `solveTiles` ist seit
+                // Plan Nachtrag 3 ohnehin immer die kanonische, stabile Liste (keine Cross-Projektions-
+                // Kopie mehr) -- der geometriefreie Key dort ist nicht mehr strikt nötig, aber als
+                // einheitliches "Neustart nur bei echtem Hinzufügen/Entfernen"-Muster beibehalten.
+                overlays.map { it.id to it.kind },
                 detectedStars,
                 showDetectedStars,
                 showConstellationAnchors,
                 touchSlop,
                 handleHitRadius,
                 rotationHandleOffset,
-                solveTiles,
+                solveTiles.map { it.id to it.sourceSpace },
                 selectedSolveTileId,
                 tilesLocked,
                 calibrationActive,
@@ -6128,7 +8176,7 @@ private fun EditorCanvas(
                     if (mid != null) {
                         // Verschiebe-Modus: jede Geste bewegt NUR dieses Overlay; nichts anderes
                         // ist Ziel (kein Resize/Rotate/Anchor/anderes Objekt).
-                        return if (overlays.any { it.id == mid }) {
+                        return if (liveOverlays.any { it.id == mid }) {
                             EditorGestureTarget.OverlayBody(mid)
                         } else {
                             EditorGestureTarget.FreeImage
@@ -6141,7 +8189,7 @@ private fun EditorCanvas(
                         val t = resolveEditorGestureTarget(
                             screenPoint = screenPoint,
                             canvasSize = canvasSize,
-                            overlays = overlays,
+                            overlays = liveOverlays,
                             viewport = currentViewport(),
                             selectedOverlayId = anchorMode,
                             editingOverlayId = anchorMode,
@@ -6161,7 +8209,7 @@ private fun EditorCanvas(
                     val resolved = resolveEditorGestureTarget(
                         screenPoint = screenPoint,
                         canvasSize = canvasSize,
-                        overlays = overlays,
+                        overlays = liveOverlays,
                         viewport = currentViewport(),
                         selectedOverlayId = selectedOverlayId,
                         editingOverlayId = editingOverlayId,
@@ -6186,6 +8234,7 @@ private fun EditorCanvas(
                             is EditorGestureTarget.ResizeHandle -> resolved.id
                             is EditorGestureTarget.RotateHandle -> resolved.id
                             is EditorGestureTarget.LabelHandle -> resolved.id
+                            is EditorGestureTarget.ConstellationNameHandle -> resolved.id
                             is EditorGestureTarget.FixedReference -> resolved.id
                             else -> null
                         }
@@ -6209,17 +8258,17 @@ private fun EditorCanvas(
                         }
                         is EditorGestureTarget.OverlayBody -> {
                             val dragViewport = currentViewport()
-                            overlays.firstOrNull { it.id == target.id }?.let { overlay ->
+                            liveOverlays.firstOrNull { it.id == target.id }?.let { overlay ->
                                 onSelectOverlay(overlay.id)
                                 val imageDelta = dragViewport.screenDeltaToImage(screenDelta)
                                 // Kein Magnet beim Ziehen mehr (verursachte Hin-und-Her-Springen,
                                 // wenn Text über Objekte gezogen wurde) -> Text frei bewegen.
-                                onUpdateOverlay(translateOverlay(overlay, imageDelta))
+                                onUpdateOverlay(translateOverlay(overlay, imageDelta), GeometryEditKind.Move)
                             }
                         }
                         is EditorGestureTarget.ConstellationAnchor -> {
                             val dragViewport = currentViewport()
-                            overlays.firstOrNull { it.id == target.id }?.let { overlay ->
+                            liveOverlays.firstOrNull { it.id == target.id }?.let { overlay ->
                                 val rawImagePoint = dragViewport.screenToImage(currentPoint)
                                 val snappedPoint = nearestDetectedStar(rawImagePoint, detectedStars, dragViewport, 42f)
                                     ?: rawImagePoint
@@ -6231,24 +8280,31 @@ private fun EditorCanvas(
                                         // gezeichnet werden und die Linien dem Anker FOLGEN.
                                         edgePolylines = null,
                                     ),
+                                    GeometryEditKind.AnchorPoint,
                                 )
                             }
                         }
                         is EditorGestureTarget.ResizeHandle -> {
                             val dragViewport = currentViewport()
-                            overlays.firstOrNull { it.id == target.id }?.let { overlay ->
-                                onUpdateOverlay(resizeOverlayFromScreenPoint(overlay, currentPoint, dragViewport, overlays))
+                            liveOverlays.firstOrNull { it.id == target.id }?.let { overlay ->
+                                onUpdateOverlay(
+                                    resizeOverlayFromScreenPoint(overlay, currentPoint, dragViewport, liveOverlays),
+                                    GeometryEditKind.Resize,
+                                )
                             }
                         }
                         is EditorGestureTarget.RotateHandle -> {
                             val dragViewport = currentViewport()
-                            overlays.firstOrNull { it.id == target.id }?.let { overlay ->
-                                onUpdateOverlay(rotateOverlayFromScreenPoint(overlay, currentPoint, dragViewport))
+                            liveOverlays.firstOrNull { it.id == target.id }?.let { overlay ->
+                                onUpdateOverlay(
+                                    rotateOverlayFromScreenPoint(overlay, currentPoint, dragViewport),
+                                    GeometryEditKind.Rotate,
+                                )
                             }
                         }
                         is EditorGestureTarget.LabelHandle -> {
                             val dragViewport = currentViewport()
-                            overlays.firstOrNull { it.id == target.id }?.let { overlay ->
+                            liveOverlays.firstOrNull { it.id == target.id }?.let { overlay ->
                                 val imagePoint = dragViewport.screenToImage(currentPoint)
                                 val handle = OverlayGeometry.labelHandleFromDrag(overlay, imagePoint - overlay.center)
                                 onUpdateOverlay(
@@ -6256,6 +8312,18 @@ private fun EditorCanvas(
                                         labelAngleDeg = handle.labelAngleDeg,
                                         labelLeaderPx = handle.labelLeaderPx,
                                     ),
+                                    GeometryEditKind.FieldOnly,
+                                )
+                            }
+                        }
+                        is EditorGestureTarget.ConstellationNameHandle -> {
+                            val dragViewport = currentViewport()
+                            liveOverlays.firstOrNull { it.id == target.id }?.let { overlay ->
+                                val imageDelta = dragViewport.screenDeltaToImage(screenDelta)
+                                val base = overlay.constellationNameOffset ?: Offset.Zero
+                                onUpdateOverlay(
+                                    overlay.copy(constellationNameOffset = base + imageDelta),
+                                    GeometryEditKind.ConstellationName,
                                 )
                             }
                         }
@@ -6306,6 +8374,19 @@ private fun EditorCanvas(
                             target is EditorGestureTarget.ResizeHandle ||
                             target is EditorGestureTarget.RotateHandle ||
                             target is EditorGestureTarget.LabelHandle -> Unit
+                        // Antippen des Sternbildnamens OHNE Ziehen = manuellen Versatz zurücksetzen
+                        // (Rückkehr zur automatischen Position). Ziehen selbst läuft über applyDrag.
+                        target is EditorGestureTarget.ConstellationNameHandle -> {
+                            liveOverlays.firstOrNull { it.id == target.id }?.let { overlay ->
+                                if (overlay.constellationNameOffset != null) {
+                                    AppDiagnostics.record("constellation_name_reset id=${overlay.id}")
+                                    onUpdateOverlay(
+                                        overlay.copy(constellationNameOffset = null),
+                                        GeometryEditKind.ConstellationName,
+                                    )
+                                }
+                            }
+                        }
                         // Bewusstes Platzieren (Einmal-Modus): nur wenn vorher "Hinzufügen"
                         // gedrückt wurde. Ohne pendingPlacement setzt ein Tipp NICHTS.
                         pendingPlacement != null -> onCreateOverlay(pendingPlacement, imagePoint)
@@ -6422,6 +8503,7 @@ private fun EditorCanvas(
                                     is EditorGestureTarget.ResizeHandle,
                                     is EditorGestureTarget.RotateHandle,
                                     is EditorGestureTarget.LabelHandle,
+                                    is EditorGestureTarget.ConstellationNameHandle,
                                     EditorGestureTarget.FreeImage -> Unit
                                 }
                             }
@@ -6511,7 +8593,15 @@ private fun EditorCanvas(
                         // Stift muss immer zuerst gegriffen sein) -- die alte B-Kennung wird wirkungslos,
                         // damit ein evtl. noch aufliegender Finger nicht in derselben Geste weiterwirkt.
                         val hadActiveB = pointerB != null
-                        activeSegment?.let { seg -> if (seg.size >= 2) allSegments = allSegments + listOf(seg) }
+                        activeSegment?.let { seg ->
+                            if (seg.size >= 2) {
+                                val closed = OverlayGeometry.closeFreehandSegmentIfNearStart(
+                                    seg,
+                                    freehandCloseSnapPx / currentViewport().scale,
+                                )
+                                allSegments = allSegments + listOf(closed)
+                            }
+                        }
                         activeSegment = null
                         if (hadActiveB) {
                             onDrawSegmentsCommitted(allSegments)
@@ -6542,7 +8632,15 @@ private fun EditorCanvas(
                         drawTriggerScreenPos = null
                     }
                     fun endTriggerB() {
-                        activeSegment?.let { seg -> if (seg.size >= 2) allSegments = allSegments + listOf(seg) }
+                        activeSegment?.let { seg ->
+                            if (seg.size >= 2) {
+                                val closed = OverlayGeometry.closeFreehandSegmentIfNearStart(
+                                    seg,
+                                    freehandCloseSnapPx / currentViewport().scale,
+                                )
+                                allSegments = allSegments + listOf(closed)
+                            }
+                        }
                         activeSegment = null
                         onDrawSegmentsCommitted(allSegments)
                         pointerB = null
@@ -6639,6 +8737,45 @@ private fun EditorCanvas(
 
                     // KACHEL-AUSRICHTUNG (nur im Kalibrierungs-Modus): Bereich hinzufügen = Rechteck
                     // aufziehen -> neue Kachel.
+                    // 360°-Naht-Snap (Nutzer-Auftrag 2026-09-03): eine Solve-Kachel darf in der
+                    // Tiny-Sky-Ansicht nie beide Seiten der periodischen Naht gleichzeitig überdecken.
+                    // Läuft AUSSCHLIESSLICH beim Bestätigen (Erzeugen bzw. Loslassen), nicht pro
+                    // Zieh-Frame -- während der Geste folgt die Kachel frei dem Finger, dadurch gibt es
+                    // kein Links/Rechts-Flackern direkt auf der Naht und es braucht keine Hysterese.
+                    // Liefert null, wenn nichts zu tun ist (keine Naht / andere Ansicht / Kachel liegt
+                    // schon sauber auf einer Seite).
+                    fun seamSnapCenter(
+                        tileId: Long?,
+                        center: Offset,
+                        left: Float,
+                        top: Float,
+                        right: Float,
+                        bottom: Float,
+                        vp: ImageViewport,
+                    ): Offset? {
+                        val seam = tinySkySeam ?: return null
+                        if (activeTileSpace != TileSourceSpace.TinySky) return null
+                        // 10 dp sichtbarer Abstand -> in Bild-px zur aktuellen Zoomstufe; geklemmt, damit
+                        // extremes Ein-/Auszoomen keinen absurd kleinen/großen Sprung erzeugt.
+                        val marginPx = (10.dp.toPx() / vp.scale).coerceIn(2f, 64f)
+                        val snap = TileDeWarp.tinySkySeamSnap(
+                            left = left, top = top, right = right, bottom = bottom,
+                            centerY = center.y, seam = seam, safetyMarginPx = marginPx,
+                        ) ?: return null
+                        AppDiagnostics.record(
+                            "tiny_seam_tile_snap tile=${tileId ?: -1} seamAxis=horizontal " +
+                                "seamY=${"%.1f".format(seam.y)} " +
+                                "beforeTop=${"%.1f".format(top)} beforeBottom=${"%.1f".format(bottom)} " +
+                                "aboveOverlap=${"%.1f".format(snap.overlapAbovePx)} " +
+                                "belowOverlap=${"%.1f".format(snap.overlapBelowPx)} " +
+                                "chosenSide=${snap.side} " +
+                                "afterTop=${"%.1f".format(top + snap.deltaY)} " +
+                                "afterBottom=${"%.1f".format(bottom + snap.deltaY)} " +
+                                "safetyMarginPx=${"%.1f".format(marginPx)}",
+                        )
+                        return Offset(center.x, center.y + snap.deltaY)
+                    }
+
                     if (calibrationActive && !tilesLocked && selectedTool == EditorTool.SolveRegion) {
                         val startImg = currentViewport().screenToImage(down.position)
                         var curImg = startImg
@@ -6662,7 +8799,15 @@ private fun EditorCanvas(
                         if (draft != null && draft.width >= 48f && draft.height >= 48f) {
                             val cx = ((draft.left + draft.right) / 2f).coerceIn(0f, bitmap.width.toFloat())
                             val cy = ((draft.top + draft.bottom) / 2f).coerceIn(0f, bitmap.height.toFloat())
-                            onAddSolveTile(Offset(cx, cy), Size(draft.width, draft.height))
+                            // Frisch aufgezogene Kachel ist unrotiert -> Hüllbox = center +/- size/2.
+                            val halfW = draft.width / 2f
+                            val halfH = draft.height / 2f
+                            val center = seamSnapCenter(
+                                tileId = null, center = Offset(cx, cy),
+                                left = cx - halfW, top = cy - halfH, right = cx + halfW, bottom = cy + halfH,
+                                vp = currentViewport(),
+                            ) ?: Offset(cx, cy)
+                            onAddSolveTile(center, Size(draft.width, draft.height))
                         }
                         return@awaitEachGesture
                     }
@@ -6679,7 +8824,7 @@ private fun EditorCanvas(
                                 .distanceTo(down.position) <= handleHitRadius
                             val onResize = !onRotate && solveTileResizeHit(sel, down.position, vp0, handleHitRadius)
                             val onBody = !onRotate && !onResize &&
-                                solveTileAtScreen(down.position, solveTiles, vp0, handleHitRadius)?.id == sel.id
+                                solveTileAtScreen(down.position, solveTiles, vp0, handleHitRadius, activeTileSpace)?.id == sel.id
                             if (onRotate || onResize || onBody) {
                                 onTileEditBegin()
                                 down.consume()
@@ -6689,14 +8834,21 @@ private fun EditorCanvas(
                                     val change = event.changes.firstOrNull { it.id == down.id }
                                     if (change != null) {
                                         when {
-                                            onRotate -> onUpdateSolveTile(rotateSolveTile(sel, change.position, currentViewport()))
-                                            onResize -> onUpdateSolveTile(resizeSolveTile(sel, change.position, currentViewport()))
+                                            onRotate -> onUpdateSolveTile(
+                                                rotateSolveTile(sel, change.position, currentViewport()),
+                                                GeometryEditKind.Rotate,
+                                            )
+                                            onResize -> onUpdateSolveTile(
+                                                resizeSolveTile(sel, change.position, currentViewport()),
+                                                GeometryEditKind.Resize,
+                                            )
                                             else -> {
                                                 val d = change.position - last
                                                 val cur = solveTiles.firstOrNull { it.id == sel.id }
                                                 if (cur != null && d.getDistance() > 0f) {
                                                     onUpdateSolveTile(
                                                         cur.copy(center = cur.center + currentViewport().screenDeltaToImage(d)),
+                                                        GeometryEditKind.Move,
                                                     )
                                                 }
                                             }
@@ -6707,11 +8859,24 @@ private fun EditorCanvas(
                                     if (change != null && !change.pressed) break
                                     if (event.changes.none { it.pressed }) break
                                 }
+                                // Loslassen: jetzt (und nur jetzt) ggf. von der 360°-Naht wegschnappen.
+                                // Gilt für Verschieben, Skalieren UND Drehen -- alle drei können die
+                                // Hüllbox über die Naht bringen.
+                                solveTiles.firstOrNull { it.id == sel.id }?.let { moved ->
+                                    val bb = solveTileBoundingBox(moved)
+                                    seamSnapCenter(
+                                        tileId = moved.id, center = moved.center,
+                                        left = bb.left, top = bb.top, right = bb.right, bottom = bb.bottom,
+                                        vp = currentViewport(),
+                                    )?.let { snapped ->
+                                        onUpdateSolveTile(moved.copy(center = snapped), GeometryEditKind.Move)
+                                    }
+                                }
                                 return@awaitEachGesture
                             }
                         }
                         // (2) Sonst: Lang-Druck auf Kachel = auswählen; 2 Finger = Zoom; 1-Finger-Drag = Pan.
-                        val tileUnder = solveTileAtScreen(down.position, solveTiles, vp0, handleHitRadius)
+                        val tileUnder = solveTileAtScreen(down.position, solveTiles, vp0, handleHitRadius, activeTileSpace)
                         var twoFinger: List<PointerInputChange>? = null
                         val outcome = withTimeoutOrNull(MOVE_LONG_PRESS_MS) {
                             while (true) {
@@ -6796,7 +8961,8 @@ private fun EditorCanvas(
                                     is EditorGestureTarget.ConstellationAnchor,
                                     is EditorGestureTarget.ResizeHandle,
                                     is EditorGestureTarget.RotateHandle,
-                                    is EditorGestureTarget.LabelHandle -> target
+                                    is EditorGestureTarget.LabelHandle,
+                                    is EditorGestureTarget.ConstellationNameHandle -> target
                                     // Im Verschiebe-Modus folgt das Objekt direkt dem Finger.
                                     is EditorGestureTarget.OverlayBody ->
                                         if (moveOverlayId == target.id) target else EditorGestureTarget.FreeImage
@@ -7096,22 +9262,33 @@ private fun EditorCanvas(
             // bei der Deklaration von milkyWayPathsMemo oben) -- `overlays` ist eine dauerhaft in-place
             // mutierte `mutableStateListOf`, deren Referenz sich nie ändert, ein solcher Cache würde nach
             // dem ersten Zeichnen für immer einfrieren (u.a. nach jedem Solve alles unsichtbar machen).
-            val groupedOverlays = OverlayGeometry.groupByDrawLayer(overlays)
+            // Stattdessen (Nachtrag 4) hinter einem INHALTS-Hash gecacht -- ändert sich garantiert bei
+            // jeder echten Änderung (Hinzufügen/Entfernen/copy()-Ersetzen ändert immer mind. einen Term),
+            // bleibt bei reinem Pan/Zoom stabil. Nötig bei sehr hoher Overlay-Zahl (600 Sterne): ein volles
+            // groupBy jeden Frame skaliert sonst spürbar mit der Gesamtzahl aktiver Overlays.
+            var overlaysContentHash = 0
+            overlays.forEach { ov -> overlaysContentHash = overlaysContentHash * 31 + System.identityHashCode(ov) }
+            val groupedOverlays = groupedOverlaysMemo?.takeIf { it.first == overlaysContentHash }?.second
+                ?: OverlayGeometry.groupByDrawLayer(overlays).also { groupedOverlaysMemo = overlaysContentHash to it }
 
             // Cache-Signatur: identityHashCode pro gecachtem Overlay DIESER Schicht (Edits ersetzen die
             // Instanz via copy -> ändert sich bei jeder echten Änderung, stabil bei Pan/Zoom) + Radierer-
             // Version + globaler Ankerschalter. Billig (wenige Overlays), kein Tiefenvergleich von
             // edgePolylines. Extrahiert (Fix 2), damit drawCombinedOverlayRun dieselbe Signatur-Logik je
-            // Mitglied wiederverwenden kann, statt sie zu duplizieren.
-            fun bucketCacheSig(bucket: List<AnnotationOverlay>): String = buildString {
+            // Mitglied wiederverwenden kann, statt sie zu duplizieren. Ganzzahl-Rolling-Hash statt
+            // String-Verkettung (Nachtrag 4) -- bei 600 Overlays sonst 600x Ganzzahl-zu-Text-Umwandlung
+            // JEDEN Frame, nur um eine Cache-Invalidierung zu prüfen.
+            fun bucketCacheSig(bucket: List<AnnotationOverlay>): String {
+                var hash = 0
                 bucket.forEach { ov ->
                     if (ov.id !in liveIds) {
-                        append(System.identityHashCode(ov)); append(';')
+                        hash = hash * 31 + System.identityHashCode(ov)
                     }
                 }
-                append('#'); append(annotationEraseVersion)
-                append('#'); append(showConstellationAnchors)
-                append('#'); append(if (annotationEraseMask != null) 1 else 0)
+                hash = hash * 31 + annotationEraseVersion
+                hash = hash * 31 + showConstellationAnchors.hashCode()
+                hash = hash * 31 + (if (annotationEraseMask != null) 1 else 0)
+                return hash.toString()
             }
 
             fun drawOverlayBucket(layer: DrawLayer) {
@@ -7429,7 +9606,24 @@ private fun EditorCanvas(
             // man kalibriert. Farbcodiert (gelb=offen, blau=läuft, grün=gelöst, rot=Fehler);
             // ausgewählte Kachel mit Eck-Griffen (Resize) + Rotationsgriff.
             if (calibrationActive && tilesVisible) {
-            solveTiles.forEach { tile ->
+            // 360°-Naht der Tiny-Sky-Ansicht als reine Bedienhilfe (Nutzer-Auftrag 2026-09-03) -- VOR
+            // der Kachel-Schleife, damit Kachelrahmen/Griffe darüber liegen und bedienbar bleiben.
+            // tinySkySeam ist nur in Tiny Sky bei einem echten 2:1-Panorama != null; im normalen Editor,
+            // in Annotationen, in gespeicherten Projekten und in JEDEM Export existiert diese Linie nicht.
+            // strokeWidth in dp -> konstante Bildschirmbreite unabhängig vom Bildzoom (Vorgabe Punkt 1).
+            tinySkySeam?.let { seam ->
+                drawLine(
+                    color = Color(0xFFFF1744).copy(alpha = 0.60f),
+                    start = viewport.imageToScreen(Offset(seam.minX, seam.y)),
+                    end = viewport.imageToScreen(Offset(seam.maxX, seam.y)),
+                    strokeWidth = 3.dp.toPx(),
+                    cap = StrokeCap.Round,
+                )
+            }
+            // Nur Kacheln der aktiven Ansicht (Plan Nachtrag 3) -- forEachIndexed statt forEach, damit
+            // die Nummerierung unten (1,2,3...) innerhalb JEDER Ansicht bei 1 beginnt, unabhängig davon,
+            // wie viele Kacheln der jeweils anderen Ansicht in derselben Sitzung existieren.
+            solveTiles.filter { it.sourceSpace == activeTileSpace }.forEachIndexed { tileIdx, tile ->
                 val corners = solveTileScreenCorners(tile, viewport)
                 val color = when (tile.status) {
                     SolveTileStatus.Pending -> Color(0xFFFFEB3B)
@@ -7450,7 +9644,7 @@ private fun EditorCanvas(
                 }
                 // Kachel-Nummer (1-basiert) gut lesbar in die obere-linke Ecke, leicht nach innen versetzt.
                 run {
-                    val n = solveTiles.indexOf(tile) + 1
+                    val n = tileIdx + 1
                     val tl = corners[0]
                     val toCenter = viewport.imageToScreen(tile.center) - tl
                     val pos = tl + toCenter * 0.14f
@@ -7564,7 +9758,10 @@ private fun EditorCanvas(
                 onClick = { onOpenManualHint(selectedTile.id) },
             )
             // De-Warp DIESER Kachel (pro Kachel): cyan (an) = wird vor dem Solve entzerrt; grau (aus) =
-            // roh gelöst. Wirkt erst beim nächsten Lösen; invalidiert keine vorhandene Lösung.
+            // roh gelöst. Wirkt erst beim nächsten Lösen; invalidiert keine vorhandene Lösung. Gleiche
+            // Kachellogik wie im Normalmodus, auch für Tiny-Sky-Kacheln verfügbar (s. solveAllTiles()/
+            // dewarpModel -- die Tiny-Sky-Projektion ist als Korrekturgrundlage von Anfang an exakt
+            // bekannt, kein natives Quellbild dafür nötig).
             ObjectActionButton(
                 screenPos = Offset(bottomMid.x - sidePx * 1f, bottomMid.y + belowPx),
                 color = if (selectedTile.dewarpRequested) Color(0xFF00B8D4) else Color(0xFF546E7A),
@@ -7817,6 +10014,122 @@ private fun EditorBottomBar(
     }
 }
 
+// Performance-Fix 2026-09-02 (MethodTooLargeException, s. Memory project_methodtoolarge_editorpanelsheet):
+// EditorPanelSheet war auf 151 Parameter angewachsen -- Compose generiert pro Composable-Aufruf
+// $changed-Bit-Tracking-Bytecode, dessen Umfang mit der Parameterzahl wächst, und die Aufrufstelle in
+// StarMapperApp() (der Lambda, die EditorPanelSheet(...) konstruiert) hat dadurch wiederholt die JVM-
+// 64KB-Methodengrenze gerissen. Diese 6 Bündel fassen thematisch zusammengehörige Werte+Callbacks
+// (Sternbild-/Formen-/Text-Stil, DSO-Standardfarben, Maske, Radierer) zu je EINEM Parameter zusammen --
+// EditorPanelSheet selbst entpackt sie am Anfang seines Rumpfs wieder in lokale `val`s mit IDENTISCHEM
+// Namen wie die bisherigen Parameter, sodass der GESAMTE übrige Funktionskörper unverändert bleibt.
+private data class ConstellationStyleBundle(
+    val colorArgb: Long,
+    val font: OverlayFont,
+    val lineStyle: OverlayLineStyle,
+    val strokeWidth: Float,
+    val anchorRadiusRatio: Float,
+    val opacity: Float,
+    val showName: Boolean,
+    val nameTextSize: Float,
+    val onOpacityChange: (Float) -> Unit,
+    val onColorChange: (Long) -> Unit,
+    val onFontChange: (OverlayFont) -> Unit,
+    val onLineStyleChange: (OverlayLineStyle) -> Unit,
+    val onStrokeWidthChange: (Float) -> Unit,
+    val onAnchorRadiusChange: (Float) -> Unit,
+    val onShowNameChange: (Boolean) -> Unit,
+    val onNameTextSizeChange: (Float) -> Unit,
+    val onOpacityChangeGlobal: (Float) -> Unit,
+    val onColorChangeGlobal: (Long) -> Unit,
+    val onFontChangeGlobal: (OverlayFont) -> Unit,
+    val onLineStyleChangeGlobal: (OverlayLineStyle) -> Unit,
+    val onStrokeWidthChangeGlobal: (Float) -> Unit,
+    val onAnchorRadiusChangeGlobal: (Float) -> Unit,
+    val onNameTextSizeChangeGlobal: (Float) -> Unit,
+)
+
+private data class ShapeStyleBundle(
+    val colorArgb: Long,
+    val strokeWidth: Float,
+    val lineStyle: OverlayLineStyle,
+    val opacity: Float,
+    val filled: Boolean,
+    val isReticle: Boolean,
+    val font: OverlayFont,
+    val showName: Boolean,
+    val nameText: String,
+    val nameTextSize: Float,
+    val nameColorArgb: Long,
+    val nameBold: Boolean,
+    val onColorChange: (Long) -> Unit,
+    val onStrokeWidthChange: (Float) -> Unit,
+    val onLineStyleChange: (OverlayLineStyle) -> Unit,
+    val onOpacityChange: (Float) -> Unit,
+    val onFilledChange: (Boolean) -> Unit,
+    val onFontChange: (OverlayFont) -> Unit,
+    val onShowNameChange: (Boolean) -> Unit,
+    val onEditName: () -> Unit,
+    val onNameTextSizeChange: (Float) -> Unit,
+    val onNameColorChange: (Long) -> Unit,
+    val onNameBoldChange: (Boolean) -> Unit,
+    val onColorChangeGlobal: (Long) -> Unit,
+    val onNameColorChangeGlobal: (Long) -> Unit,
+)
+
+private data class TextStyleBundle(
+    val colorArgb: Long,
+    val font: OverlayFont,
+    val size: Float,
+    val bold: Boolean,
+    val opacity: Float,
+    val onColorChange: (Long) -> Unit,
+    val onFontChange: (OverlayFont) -> Unit,
+    val onSizeChange: (Float) -> Unit,
+    val onBoldChange: (Boolean) -> Unit,
+    val onOpacityChange: (Float) -> Unit,
+    val onEditSelectedText: () -> Unit,
+    val onColorChangeGlobal: (Long) -> Unit,
+)
+
+private data class DsoGlobalColorBundle(
+    val galaxyColorArgb: Long,
+    val onGalaxyColorChangeGlobal: (Long) -> Unit,
+    val globularColorArgb: Long,
+    val onGlobularColorChangeGlobal: (Long) -> Unit,
+    val openClusterColorArgb: Long,
+    val onOpenClusterColorChangeGlobal: (Long) -> Unit,
+    val nebulaColorArgb: Long,
+    val onNebulaColorChangeGlobal: (Long) -> Unit,
+    val otherColorArgb: Long,
+    val onOtherColorChangeGlobal: (Long) -> Unit,
+    val reticleColorArgb: Long,
+    val onReticleColorChangeGlobal: (Long) -> Unit,
+)
+
+private data class MaskPanelBundle(
+    val toolActive: Boolean,
+    val eraseMode: Boolean,
+    val brushFraction: Float,
+    val brushHardness: Float,
+    val present: Boolean,
+    val onToolToggle: () -> Unit,
+    val onEraseModeChange: (Boolean) -> Unit,
+    val onBrushFractionChange: (Float) -> Unit,
+    val onBrushHardnessChange: (Float) -> Unit,
+    val onClear: () -> Unit,
+)
+
+private data class EraserPanelBundle(
+    val active: Boolean,
+    val brushFraction: Float,
+    val brushHardness: Float,
+    val maskPresent: Boolean,
+    val onToggle: () -> Unit,
+    val onBrushChange: (Float) -> Unit,
+    val onBrushHardnessChange: (Float) -> Unit,
+    val onClear: () -> Unit,
+)
+
 @Composable
 private fun EditorPanelSheet(
     panel: EditorPanel,
@@ -7825,31 +10138,9 @@ private fun EditorPanelSheet(
     showDetectedStars: Boolean,
     showConstellationAnchors: Boolean,
     starDetectionSensitivity: Float,
-    constellationColorArgb: Long,
-    constellationFont: OverlayFont,
-    constellationLineStyle: OverlayLineStyle,
-    constellationStrokeWidth: Float,
-    constellationAnchorRadiusRatio: Float,
-    constellationOpacity: Float,
-    constellationShowName: Boolean,
-    constellationNameTextSize: Float,
-    shapeColorArgb: Long,
-    shapeStrokeWidth: Float,
-    shapeLineStyle: OverlayLineStyle,
-    shapeOpacity: Float,
-    shapeFilled: Boolean,
-    shapeIsReticle: Boolean,
-    shapeFont: OverlayFont,
-    shapeShowName: Boolean,
-    shapeNameText: String,
-    shapeNameTextSize: Float,
-    shapeNameColorArgb: Long,
-    shapeNameBold: Boolean,
-    textColorArgb: Long,
-    textFont: OverlayFont,
-    textSize: Float,
-    textBold: Boolean,
-    textOpacity: Float,
+    constellationStyle: ConstellationStyleBundle,
+    shapeStyle: ShapeStyleBundle,
+    textStyle: TextStyleBundle,
     isDetecting: Boolean,
     astapCaptureSettings: AstapCaptureSettings,
     astapExifFieldOfView: AstapExifFieldOfView?,
@@ -7860,11 +10151,14 @@ private fun EditorPanelSheet(
     novaApiKey: String,
     leftHandedDrawing: Boolean,
     onLeftHandedDrawingChange: (Boolean) -> Unit,
-    maskToolActive: Boolean,
-    maskEraseMode: Boolean,
-    maskBrushFraction: Float,
-    maskBrushHardness: Float,
-    maskPresent: Boolean,
+    starDisplayCap: Int,
+    onStarDisplayCapChange: (Int) -> Unit,
+    exportImageFormat: ExportImageFormat,
+    onExportImageFormatChange: (ExportImageFormat) -> Unit,
+    canExportSolution: Boolean,
+    onExportSolution: () -> Unit,
+    onImportSolution: () -> Unit,
+    maskPanel: MaskPanelBundle,
     deepSkyAvailable: Boolean,
     deepSkyObjects: List<DeepSkyObject>,
     targetObjectQuery: String,
@@ -7872,24 +10166,12 @@ private fun EditorPanelSheet(
     annotateSelections: AnnotateSelections,
     onAstapSolverChoiceChange: (AstapSolverChoice) -> Unit,
     onNovaApiKeyChange: (String) -> Unit,
-    onMaskToolToggle: () -> Unit,
-    onMaskEraseModeChange: (Boolean) -> Unit,
-    onMaskBrushFractionChange: (Float) -> Unit,
-    onMaskBrushHardnessChange: (Float) -> Unit,
-    onClearMask: () -> Unit,
     onTargetObjectQueryChange: (String) -> Unit,
     onApplyConstellations: () -> Unit,
     onApplyDeepSky: (Boolean) -> Unit,
     onApplyStars: (Boolean) -> Unit,
     onConstellationNamesChanged: () -> Unit,
-    eraserActive: Boolean,
-    eraseBrushFraction: Float,
-    eraseBrushHardness: Float,
-    eraseMaskPresent: Boolean,
-    onToggleEraser: () -> Unit,
-    onEraseBrushChange: (Float) -> Unit,
-    onEraseBrushHardnessChange: (Float) -> Unit,
-    onClearErase: () -> Unit,
+    eraserPanel: EraserPanelBundle,
     onAddConstellation: () -> Unit,
     onStartFisheyeAlign: () -> Unit,
     onRevertAstrometry: () -> Unit,
@@ -7906,69 +10188,113 @@ private fun EditorPanelSheet(
     onAstapCaptureSettingsChange: (AstapCaptureSettings) -> Unit,
     onStartAstapSolve: () -> Unit,
     onCancelAstapSolve: () -> Unit,
-    onConstellationOpacityChange: (Float) -> Unit,
-    onConstellationColorChange: (Long) -> Unit,
-    onConstellationFontChange: (OverlayFont) -> Unit,
-    onConstellationLineStyleChange: (OverlayLineStyle) -> Unit,
-    onConstellationStrokeWidthChange: (Float) -> Unit,
-    onConstellationAnchorRadiusChange: (Float) -> Unit,
-    onConstellationShowNameChange: (Boolean) -> Unit,
-    onConstellationNameTextSizeChange: (Float) -> Unit,
-    // "Global"-Varianten: identische Wirkung wie die obigen, nur auf ALLE Sternbilder statt nur das
-    // ausgewählte -- ausschließlich vom Katalog-bearbeiten-Menü genutzt (Nutzerwunsch 2026-08-20).
-    onConstellationOpacityChangeGlobal: (Float) -> Unit,
-    onConstellationColorChangeGlobal: (Long) -> Unit,
-    onConstellationFontChangeGlobal: (OverlayFont) -> Unit,
-    onConstellationLineStyleChangeGlobal: (OverlayLineStyle) -> Unit,
-    onConstellationStrokeWidthChangeGlobal: (Float) -> Unit,
-    onConstellationAnchorRadiusChangeGlobal: (Float) -> Unit,
-    onConstellationNameTextSizeChangeGlobal: (Float) -> Unit,
     layerDrawOrder: List<DrawLayer>,
     onLayerDrawOrderChange: (List<DrawLayer>) -> Unit,
-    // Globale Standardfarben (Katalog bearbeiten -> Farben). shapeColorArgb/shapeNameColorArgb/
-    // textColorArgb-WERTE sind weiter unten bereits vorhanden (Live-Vorschau) -- hier nur die
-    // zusätzlichen "Global"-Callbacks + die komplett neuen DSO-Gruppen-/Kometenmarker-Werte.
-    dsoGalaxyColorArgb: Long,
-    onDsoGalaxyColorChangeGlobal: (Long) -> Unit,
-    dsoGlobularColorArgb: Long,
-    onDsoGlobularColorChangeGlobal: (Long) -> Unit,
-    dsoOpenClusterColorArgb: Long,
-    onDsoOpenClusterColorChangeGlobal: (Long) -> Unit,
-    dsoNebulaColorArgb: Long,
-    onDsoNebulaColorChangeGlobal: (Long) -> Unit,
-    dsoOtherColorArgb: Long,
-    onDsoOtherColorChangeGlobal: (Long) -> Unit,
-    reticleColorArgb: Long,
-    onReticleColorChangeGlobal: (Long) -> Unit,
-    onShapeColorChangeGlobal: (Long) -> Unit,
-    onShapeNameColorChangeGlobal: (Long) -> Unit,
-    onTextColorChangeGlobal: (Long) -> Unit,
-    onShapeColorChange: (Long) -> Unit,
-    onShapeStrokeWidthChange: (Float) -> Unit,
-    onShapeLineStyleChange: (OverlayLineStyle) -> Unit,
-    onShapeOpacityChange: (Float) -> Unit,
-    onShapeFilledChange: (Boolean) -> Unit,
-    onShapeFontChange: (OverlayFont) -> Unit,
-    onShapeShowNameChange: (Boolean) -> Unit,
-    onEditShapeName: () -> Unit,
-    onShapeNameTextSizeChange: (Float) -> Unit,
-    onShapeNameColorChange: (Long) -> Unit,
-    onShapeNameBoldChange: (Boolean) -> Unit,
-    onTextColorChange: (Long) -> Unit,
-    onTextFontChange: (OverlayFont) -> Unit,
-    onTextSizeChange: (Float) -> Unit,
-    onTextBoldChange: (Boolean) -> Unit,
-    onTextOpacityChange: (Float) -> Unit,
-    onEditSelectedText: () -> Unit,
+    dsoGlobalColors: DsoGlobalColorBundle,
     onDetectStars: () -> Unit,
     onOpenSkyPicker: () -> Unit,
-    onShareExport: (ExportScale, Boolean) -> Unit,
-    onSaveExport: (ExportScale, Boolean) -> Unit,
+    onShareExport: (ExportScale, Boolean, ExportProjectionMode, Int) -> Unit,
+    onSaveExport: (ExportScale, Boolean, ExportProjectionMode, Int) -> Unit,
     onShareAppDiagnostic: () -> Unit,
     onExportSolveCrop: () -> Unit,
     onClose: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    // Performance-Fix 2026-09-02: die 6 Bündel-Parameter oben (s. Klassen direkt vor dieser Funktion)
+    // werden HIER, ganz am Anfang, in lokale `val`s mit IDENTISCHEM Namen wie die vorherigen einzelnen
+    // Parameter entpackt -- der GESAMTE übrige Funktionskörper (inkl. aller Weiterreichungen an
+    // AnnotatePanel/ConstellationPanel/ShapesPanel/TextPanel/MaskPanel weiter unten) bleibt dadurch
+    // UNVERÄNDERT, ohne jede einzelne Verwendungsstelle einzeln anpassen zu müssen.
+    val constellationColorArgb = constellationStyle.colorArgb
+    val constellationFont = constellationStyle.font
+    val constellationLineStyle = constellationStyle.lineStyle
+    val constellationStrokeWidth = constellationStyle.strokeWidth
+    val constellationAnchorRadiusRatio = constellationStyle.anchorRadiusRatio
+    val constellationOpacity = constellationStyle.opacity
+    val constellationShowName = constellationStyle.showName
+    val constellationNameTextSize = constellationStyle.nameTextSize
+    val onConstellationOpacityChange = constellationStyle.onOpacityChange
+    val onConstellationColorChange = constellationStyle.onColorChange
+    val onConstellationFontChange = constellationStyle.onFontChange
+    val onConstellationLineStyleChange = constellationStyle.onLineStyleChange
+    val onConstellationStrokeWidthChange = constellationStyle.onStrokeWidthChange
+    val onConstellationAnchorRadiusChange = constellationStyle.onAnchorRadiusChange
+    val onConstellationShowNameChange = constellationStyle.onShowNameChange
+    val onConstellationNameTextSizeChange = constellationStyle.onNameTextSizeChange
+    val onConstellationOpacityChangeGlobal = constellationStyle.onOpacityChangeGlobal
+    val onConstellationColorChangeGlobal = constellationStyle.onColorChangeGlobal
+    val onConstellationFontChangeGlobal = constellationStyle.onFontChangeGlobal
+    val onConstellationLineStyleChangeGlobal = constellationStyle.onLineStyleChangeGlobal
+    val onConstellationStrokeWidthChangeGlobal = constellationStyle.onStrokeWidthChangeGlobal
+    val onConstellationAnchorRadiusChangeGlobal = constellationStyle.onAnchorRadiusChangeGlobal
+    val onConstellationNameTextSizeChangeGlobal = constellationStyle.onNameTextSizeChangeGlobal
+    val shapeColorArgb = shapeStyle.colorArgb
+    val shapeStrokeWidth = shapeStyle.strokeWidth
+    val shapeLineStyle = shapeStyle.lineStyle
+    val shapeOpacity = shapeStyle.opacity
+    val shapeFilled = shapeStyle.filled
+    val shapeIsReticle = shapeStyle.isReticle
+    val shapeFont = shapeStyle.font
+    val shapeShowName = shapeStyle.showName
+    val shapeNameText = shapeStyle.nameText
+    val shapeNameTextSize = shapeStyle.nameTextSize
+    val shapeNameColorArgb = shapeStyle.nameColorArgb
+    val shapeNameBold = shapeStyle.nameBold
+    val onShapeColorChange = shapeStyle.onColorChange
+    val onShapeStrokeWidthChange = shapeStyle.onStrokeWidthChange
+    val onShapeLineStyleChange = shapeStyle.onLineStyleChange
+    val onShapeOpacityChange = shapeStyle.onOpacityChange
+    val onShapeFilledChange = shapeStyle.onFilledChange
+    val onShapeFontChange = shapeStyle.onFontChange
+    val onShapeShowNameChange = shapeStyle.onShowNameChange
+    val onEditShapeName = shapeStyle.onEditName
+    val onShapeNameTextSizeChange = shapeStyle.onNameTextSizeChange
+    val onShapeNameColorChange = shapeStyle.onNameColorChange
+    val onShapeNameBoldChange = shapeStyle.onNameBoldChange
+    val onShapeColorChangeGlobal = shapeStyle.onColorChangeGlobal
+    val onShapeNameColorChangeGlobal = shapeStyle.onNameColorChangeGlobal
+    val textColorArgb = textStyle.colorArgb
+    val textFont = textStyle.font
+    val textSize = textStyle.size
+    val textBold = textStyle.bold
+    val textOpacity = textStyle.opacity
+    val onTextColorChange = textStyle.onColorChange
+    val onTextFontChange = textStyle.onFontChange
+    val onTextSizeChange = textStyle.onSizeChange
+    val onTextBoldChange = textStyle.onBoldChange
+    val onTextOpacityChange = textStyle.onOpacityChange
+    val onEditSelectedText = textStyle.onEditSelectedText
+    val onTextColorChangeGlobal = textStyle.onColorChangeGlobal
+    val dsoGalaxyColorArgb = dsoGlobalColors.galaxyColorArgb
+    val onDsoGalaxyColorChangeGlobal = dsoGlobalColors.onGalaxyColorChangeGlobal
+    val dsoGlobularColorArgb = dsoGlobalColors.globularColorArgb
+    val onDsoGlobularColorChangeGlobal = dsoGlobalColors.onGlobularColorChangeGlobal
+    val dsoOpenClusterColorArgb = dsoGlobalColors.openClusterColorArgb
+    val onDsoOpenClusterColorChangeGlobal = dsoGlobalColors.onOpenClusterColorChangeGlobal
+    val dsoNebulaColorArgb = dsoGlobalColors.nebulaColorArgb
+    val onDsoNebulaColorChangeGlobal = dsoGlobalColors.onNebulaColorChangeGlobal
+    val dsoOtherColorArgb = dsoGlobalColors.otherColorArgb
+    val onDsoOtherColorChangeGlobal = dsoGlobalColors.onOtherColorChangeGlobal
+    val reticleColorArgb = dsoGlobalColors.reticleColorArgb
+    val onReticleColorChangeGlobal = dsoGlobalColors.onReticleColorChangeGlobal
+    val maskToolActive = maskPanel.toolActive
+    val maskEraseMode = maskPanel.eraseMode
+    val maskBrushFraction = maskPanel.brushFraction
+    val maskBrushHardness = maskPanel.brushHardness
+    val maskPresent = maskPanel.present
+    val onMaskToolToggle = maskPanel.onToolToggle
+    val onMaskEraseModeChange = maskPanel.onEraseModeChange
+    val onMaskBrushFractionChange = maskPanel.onBrushFractionChange
+    val onMaskBrushHardnessChange = maskPanel.onBrushHardnessChange
+    val onClearMask = maskPanel.onClear
+    val eraserActive = eraserPanel.active
+    val eraseBrushFraction = eraserPanel.brushFraction
+    val eraseBrushHardness = eraserPanel.brushHardness
+    val eraseMaskPresent = eraserPanel.maskPresent
+    val onToggleEraser = eraserPanel.onToggle
+    val onEraseBrushChange = eraserPanel.onBrushChange
+    val onEraseBrushHardnessChange = eraserPanel.onBrushHardnessChange
+    val onClearErase = eraserPanel.onClear
     val scrollState = rememberScrollState()
     // Slider-Scroll-Erhalt, PRO PANEL: Beim Ziehen eines Sliders wird der restliche Inhalt
     // ausgeblendet, wodurch die Scroll-Position sonst auf 0 geklemmt wird (Popup springt nach oben).
@@ -8062,6 +10388,13 @@ private fun EditorPanelSheet(
                 onNovaApiKeyChange = onNovaApiKeyChange,
                 leftHandedDrawing = leftHandedDrawing,
                 onLeftHandedDrawingChange = onLeftHandedDrawingChange,
+                starDisplayCap = starDisplayCap,
+                onStarDisplayCapChange = onStarDisplayCapChange,
+                exportImageFormat = exportImageFormat,
+                onExportImageFormatChange = onExportImageFormatChange,
+                canExportSolution = canExportSolution,
+                onExportSolution = onExportSolution,
+                onImportSolution = onImportSolution,
             )
             EditorPanel.Automatic -> {
                 val usesNova = astapSolverChoice == AstapSolverChoice.NovaOnline
@@ -8732,6 +11065,13 @@ private fun SettingsPanel(
     onNovaApiKeyChange: (String) -> Unit,
     leftHandedDrawing: Boolean,
     onLeftHandedDrawingChange: (Boolean) -> Unit,
+    starDisplayCap: Int,
+    onStarDisplayCapChange: (Int) -> Unit,
+    exportImageFormat: ExportImageFormat,
+    onExportImageFormatChange: (ExportImageFormat) -> Unit,
+    canExportSolution: Boolean,
+    onExportSolution: () -> Unit,
+    onImportSolution: () -> Unit,
 ) {
     var showIndexDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -8800,6 +11140,56 @@ private fun SettingsPanel(
             )
         }
         HorizontalDivider()
+        // Anzeige-Deckel für "Alle Sterne bis Magnitude" (s. AstapOverlayMapper.createStarOverlays
+        // maxStars): bewusst hier statt im Katalog-bearbeiten-Menü (Nutzerwunsch 2026-08-22) -- ist keine
+        // bildspezifische Anzeige-Einstellung wie Magnitude/Chips, sondern eine einmalige, geräteweite
+        // Performance-Abwägung ("wie viele Sterne verträgt mein Handy noch flüssig").
+        Text(
+            text = stringResource(R.string.label_star_display_cap),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            stringResource(R.string.star_display_cap_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        var starDisplayCapDraft by remember { mutableStateOf(starDisplayCap.toFloat()) }
+        SettingSlider(
+            label = stringResource(R.string.star_display_cap_value, starDisplayCapDraft.roundToInt()),
+            value = starDisplayCapDraft,
+            valueRange = 0f..10000f,
+            onValueChange = { starDisplayCapDraft = it },
+            onValueChangeFinished = { onStarDisplayCapChange(starDisplayCapDraft.roundToInt()) },
+        )
+        HorizontalDivider()
+        // Bilddateiformat für den "mit Hintergrund"-Export (Nutzerwunsch 2026-08-24): JPEG schreibt
+        // zusätzlich eingebettete 360°-XMP-Metadaten (Google-Photo-Sphere-Standard), damit externe
+        // Galerie-Apps (z.B. Samsung) das exportierte Bild als Panorama erkennen -- geht nur bei JPEG,
+        // nicht bei PNG. Der "nur Overlay"-Export bleibt davon unabhängig immer PNG (Transparenz).
+        Text(
+            text = stringResource(R.string.label_export_image_format),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            stringResource(R.string.export_image_format_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = exportImageFormat == ExportImageFormat.Png,
+                onClick = { onExportImageFormatChange(ExportImageFormat.Png) },
+                label = { Text(stringResource(R.string.label_export_format_png)) },
+            )
+            FilterChip(
+                selected = exportImageFormat == ExportImageFormat.Jpeg,
+                onClick = { onExportImageFormatChange(ExportImageFormat.Jpeg) },
+                label = { Text(stringResource(R.string.label_export_format_jpeg)) },
+            )
+        }
+        HorizontalDivider()
         Text(
             text = stringResource(R.string.label_plate_solver),
             style = MaterialTheme.typography.labelMedium,
@@ -8812,6 +11202,33 @@ private fun SettingsPanel(
             Icon(Icons.Default.CloudDownload, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.label_index_catalogues))
+        }
+        HorizontalDivider()
+        // Astrometrie-Lösung exportieren/laden (Nutzerwunsch 2026-08-25): "damit ich das nicht noch mal
+        // neu lösen muss", wenn dasselbe Foto später erneut geöffnet wird. Bewusst ein einfaches
+        // Export/Import über den System-Dateidialog (SAF) statt einer eigenen Verwaltungsoberfläche --
+        // der Nutzer wählt Ort UND Namen der Datei selbst, mehrere Speicherstände sind dadurch einfach
+        // mehrere selbst benannte Dateien. Export ist deaktiviert, wenn keine (oder eine Mesh-korrigierte/
+        // restkorrigierte, s. SolutionExport.isExportable) Lösung vorliegt.
+        Text(
+            text = stringResource(R.string.label_solution_export_import),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        if (!canExportSolution) {
+            Text(
+                stringResource(R.string.label_solution_not_exportable),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onExportSolution, enabled = canExportSolution, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.action_export_solution))
+            }
+            OutlinedButton(onClick = onImportSolution, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.action_import_solution))
+            }
         }
     }
     if (showIndexDialog) {
@@ -9313,6 +11730,10 @@ private fun SolveActionSection(
 
         when (operationState) {
             AstapOperationState.Idle -> Unit
+            // Unit 6: expliziter Abbruch ist KEIN Fehler -- keine Meldung, UI kehrt genau wie bei Idle
+            // sauber in den Vor-Solve-Zustand zurück (der Zustand selbst bleibt intern trotzdem von
+            // Idle unterschieden, s. AstapOperationState-Deklaration).
+            AstapOperationState.Cancelled -> Unit
             AstapOperationState.Solving -> {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Text(
@@ -9388,9 +11809,11 @@ private fun SolverBackendSection(
     onNovaApiKeyChange: (String) -> Unit,
 ) {
     val context = LocalContext.current
-    // Ist der lokale Offline-Solver einsatzbereit (native Lib + gebündelte Indizes, API28+)?
+    // Ist der lokale Offline-Solver einsatzbereit (native Lib + gebündelte Indizes, API28+)? Reine
+    // Existenzprüfung (isSupported), lädt die native Lib NICHT in den Hauptprozess (Unit 6, s.
+    // LocalAstrometryNative-KDoc).
     val localAvailable = remember(context) {
-        LocalAstrometryNative.available && AstrometryIndexManager.hasBundledIndexes(context)
+        LocalAstrometryNative.isSupported(context) && AstrometryIndexManager.hasBundledIndexes(context)
     }
     val usesNova = solverChoice == AstapSolverChoice.NovaOnline
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -9666,7 +12089,7 @@ private fun AnnotatePanel(
                 SettingSlider(
                     stringResource(R.string.label_line_width),
                     constellationStrokeWidth,
-                    1.4f..40f,
+                    0.2f..40f,
                     onConstellationStrokeWidthChangeGlobal,
                 )
                 SettingSlider(
@@ -9688,7 +12111,11 @@ private fun AnnotatePanel(
                     onConstellationOpacityChangeGlobal,
                 )
             }
-            1 -> DeepSkyAnnotationSection(selections = selections, deepSkyObjects = deepSkyObjects, onApply = onApplyDeepSky)
+            1 -> DeepSkyAnnotationSection(
+                selections = selections,
+                deepSkyObjects = deepSkyObjects,
+                onApply = onApplyDeepSky,
+            )
             2 -> StarAnnotationSection(selections = selections, onApply = onApplyStars)
             3 -> GridAnnotationSection(selections = selections)
             else -> MilkyWayAnnotationSection(selections = selections)
@@ -9802,7 +12229,10 @@ private fun DeepSkyAnnotationSection(
                 items(selections.catalogs.toList(), key = { it.key }) { group ->
                     FilterChip(
                         selected = group == selections.dsoSelectedCatalog,
-                        onClick = { selections.dsoSelectedCatalog = group; onApply(false) },
+                        // Performance-Fix 2026-09-02: wählt nur AUS, welchen Katalog die Regler darunter
+                        // steuern -- ändert für sich genommen nichts Sichtbares, braucht daher KEINEN
+                        // Resync (vorher unnötig onApply(false), löste die volle Pipeline aus).
+                        onClick = { selections.dsoSelectedCatalog = group },
                         label = { Text(stringResource(group.labelResId)) },
                     )
                 }
@@ -9816,7 +12246,10 @@ private fun DeepSkyAnnotationSection(
     )
     FontChoiceRow(
         selected = selections.deepSkyFont,
-        onFontChange = { selections.deepSkyFont = it; onApply(true) },
+        // Performance-Fix 2026-09-02: reine Zustandsschreibung -- ein reaktiver
+        // LaunchedEffect(annotate.deepSkyFont) in StarMapperApp() wendet die Änderung live auf die
+        // bestehenden DSO-Overlays an, ohne die teure Pipeline erneut auszulösen (s. dort).
+        onFontChange = { selections.deepSkyFont = it },
     )
     TextButton(onClick = { selections.resetDeepSky(); onApply(true) }) {
         Text(stringResource(R.string.action_reset_catalogues))
@@ -9933,7 +12366,11 @@ private fun DeepSkyAnnotationSection(
                 ),
                 value = magRange,
                 valueRange = DSO_MAG_SLIDER_MIN..DSO_MAG_SLIDER_MAX,
-                onValueChange = { selections.dsoGlobalMagRange = it; onApply(false) },
+                // Performance-Fix 2026-09-02: WÄHREND des Ziehens nur den lokalen Wert aktualisieren
+                // (Thumb/Label folgen sofort über Compose-Recomposition) -- die tatsächliche Neufilterung
+                // (candidateCount ändert sich) läuft erst beim Loslassen, hintergrund-berechnet, s.
+                // requestDeepSkySync().
+                onValueChange = { selections.dsoGlobalMagRange = it },
                 onValueChangeFinished = { onApply(true) },
                 steps = 199,
             )
@@ -9950,7 +12387,7 @@ private fun DeepSkyAnnotationSection(
                 ),
                 value = magRange,
                 valueRange = DSO_MAG_SLIDER_MIN..DSO_MAG_SLIDER_MAX,
-                onValueChange = { selections.dsoCatalogMagRange[selectedCatalog] = it; onApply(false) },
+                onValueChange = { selections.dsoCatalogMagRange[selectedCatalog] = it },
                 onValueChangeFinished = { onApply(true) },
                 steps = 199,
             )
@@ -9959,6 +12396,9 @@ private fun DeepSkyAnnotationSection(
 
     // Deckkraft: entweder EIN Wert für alle Kataloge, oder pro gewähltem Katalog einzeln (s.
     // dsoOpacityAppliesToAll-Schalter oben) -- unabhängig vom Helligkeits-Regler-Schalter.
+    // Performance-Fix 2026-09-02: reine Zustandsschreibung -- ein reaktiver LaunchedEffect in
+    // StarMapperApp() wendet die Änderung live auf die DSO-Overlays an (kein Katalogfilter/Best-Known/
+    // WCS/Kollisions-Rerun).
     run {
         if (selections.dsoOpacityAppliesToAll) {
             SettingSlider(
@@ -9968,8 +12408,10 @@ private fun DeepSkyAnnotationSection(
                 ),
                 value = selections.dsoGlobalOpacity,
                 valueRange = 0.1f..1f,
-                onValueChange = { selections.dsoGlobalOpacity = it; onApply(false) },
-                onValueChangeFinished = { onApply(true) },
+                // Performance-Fix 2026-09-02: reine Zustandsschreibung -- ein reaktiver
+                // LaunchedEffect(annotate.dsoGlobalOpacity, ...) in StarMapperApp() wendet die Änderung
+                // live auf die bestehenden DSO-Overlays an.
+                onValueChange = { selections.dsoGlobalOpacity = it },
             )
         } else {
             val selectedCatalog = selections.dsoSelectedCatalog
@@ -9983,32 +12425,109 @@ private fun DeepSkyAnnotationSection(
                 ),
                 value = opacityValue,
                 valueRange = 0.1f..1f,
-                onValueChange = { selections.dsoCatalogOpacity[selectedCatalog] = it; onApply(false) },
-                onValueChangeFinished = { onApply(true) },
+                onValueChange = { selections.dsoCatalogOpacity[selectedCatalog] = it },
             )
         }
     }
 
-    // Mindestgröße (Anteil der Bildseite): Objekte, die im Foto kleiner rendern -- kaum noch von
-    // einem Punkt/Stern unterscheidbar -- werden ausgeblendet. Individuell je Foto/Sichtfeld, weil
-    // die tatsächliche Bildgröße pro Objekt bereits aus DIESEM Bild-Maßstab berechnet wird (s.
-    // AstapOverlayMapper.createDeepSkyOverlays minRenderSizeFraction).
+    // Best Known V1 (Nutzer-Vorgabe 2026-09-01): reduziert den sichtbaren Bestand auf eine kuratierte
+    // Liste (Messier/Caldwell/bekannte Nicht-Katalog-Ziele) und ersetzt nur den Anzeigenamen, sofern
+    // eine international/deutsch bekannte Bezeichnung hinterlegt ist. Wirkt unabhängig vom Größenfilter
+    // unten (s. AnnotateSelections.bestKnownEnabled-KDoc).
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.label_best_known),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(
+            checked = selections.bestKnownEnabled,
+            onCheckedChange = { selections.bestKnownEnabled = it; onApply(true) },
+        )
+    }
+
+    // Mindestgröße (Anteil der kürzeren Bildseite), jetzt WCS-basiert auf die ECHTE projizierte
+    // Katalog-Winkelgröße geprüft (Best-Known-Vorgabe Abschnitt I-P) statt auf die Render-/Anzeigegröße
+    // -- s. AstapOverlayMapper.createDeepSkyOverlays minNaturalSizePercent. Linker Anschlag (0) =
+    // "Alle Größen" (Filter AUS); sonst diskrete 0.1-%-Schritte, echte Quantisierung s.
+    // quantizeDsoMinSizePercent (nicht nur die Anzeige gerundet).
+    val dsoSizeValueLabel = if (selections.dsoMinSizePercent <= 0f) {
+        stringResource(R.string.label_dso_min_size_all)
+    } else {
+        "%.1f %%".format(selections.dsoMinSizePercent)
+    }
+    // Performance-Fix 2026-09-02: WÄHREND des Ziehens nur den (quantisierten) lokalen Wert aktualisieren
+    // -- Thumb/Prozent-Label folgen dadurch sofort/flüssig. Die eigentliche Neufilterung (die sichtbare
+    // Objektmenge ändert sich) läuft erst beim Loslassen, hintergrund-berechnet, s. requestDeepSkySync().
     SettingSlider(
-        label = stringResource(R.string.label_dso_min_size, "%.1f".format(selections.dsoMinSizePercent)),
+        label = stringResource(R.string.label_dso_min_size_in_image, dsoSizeValueLabel),
         value = selections.dsoMinSizePercent,
-        valueRange = 0f..3f,
-        onValueChange = { selections.dsoMinSizePercent = it; onApply(false) },
+        valueRange = 0f..DSO_MIN_SIZE_PERCENT_MAX,
+        steps = 29,
+        onValueChange = { selections.dsoMinSizePercent = quantizeDsoMinSizePercent(it) },
         onValueChangeFinished = { onApply(true) },
     )
 
-    // Schriftgröße der Objektnamen (Callout-Beschriftung). Live wie die anderen Regler.
+    // Schriftgröße der Objektnamen (Callout-Beschriftung). Performance-Fix 2026-09-02: reine
+    // Zustandsschreibung -- ein reaktiver LaunchedEffect(annotate.deepSkyNameSize) in StarMapperApp()
+    // wendet die Änderung live auf die bestehenden DSO-Overlays an, kein Pipeline-Rerun.
     SettingSlider(
         label = stringResource(R.string.name_size_label, selections.deepSkyNameSize.roundToInt()),
         value = selections.deepSkyNameSize,
         valueRange = 14f..90f,
-        onValueChange = { selections.deepSkyNameSize = it; onApply(false) },
-        onValueChangeFinished = { onApply(true) },
+        onValueChange = { selections.deepSkyNameSize = it },
     )
+
+    // Punkt 5 (Nutzer-Vorgabe 2026-08-30): direkte Liniendicke-Steuerung für DSO-Konturen, per Schalter
+    // optional -- solange deaktiviert, bleibt das bisherige feste Verhalten (Default 2.5) unverändert.
+    // Performance-Fix 2026-09-02: sowohl Schalter als auch Regler sind reine Zustandsschreibungen -- ein
+    // reaktiver LaunchedEffect in StarMapperApp() wendet die Änderung live auf die DSO-Overlays an.
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.label_deepsky_stroke_width_enabled),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(
+            checked = selections.deepSkyStrokeWidthEnabled,
+            onCheckedChange = { selections.deepSkyStrokeWidthEnabled = it },
+        )
+    }
+    if (selections.deepSkyStrokeWidthEnabled) {
+        SettingSlider(
+            label = stringResource(R.string.label_line_width),
+            value = selections.deepSkyStrokeWidth,
+            valueRange = 0.2f..40f,
+            onValueChange = { selections.deepSkyStrokeWidth = it },
+        )
+    }
+
+    // Punkt 6 (Nutzer-Vorgabe 2026-08-30): Beschriftungs-Deckkraft optional an die Objekt-Deckkraft
+    // koppeln (bisher für DSOs immer fest 1.0, unabhängig vom Deckkraft-Regler des Objekts selbst).
+    // Performance-Fix 2026-09-02: direkte 1:1-Feldzuweisung -- sofort/live, kein Pipeline-Rerun.
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.label_deepsky_name_opacity_linked),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(
+            checked = selections.deepSkyNameOpacityLinked,
+            onCheckedChange = { selections.deepSkyNameOpacityLinked = it },
+        )
+    }
 }
 
 @Composable
@@ -10463,7 +12982,7 @@ private fun ConstellationPanel(
         FontChoiceRow(selected = font, onFontChange = onFontChange)
         ConstellationLineStyleSelector(selected = lineStyle, onSelected = onLineStyleChange)
         }
-        SettingSlider(stringResource(R.string.label_line_width), strokeWidth, 1.4f..40f, onStrokeWidthChange)
+        SettingSlider(stringResource(R.string.label_line_width), strokeWidth, 0.2f..40f, onStrokeWidthChange)
         SettingSlider(stringResource(R.string.label_anchor_size), anchorRadiusRatio, 0.018f..0.075f, onAnchorRadiusChange)
         SettingSlider(stringResource(R.string.label_name_size), nameTextSize, 14f..240f, onNameTextSizeChange)
         SettingSlider(stringResource(R.string.label_opacity), opacity, 0.15f..1f, onOpacityChange)
@@ -10537,7 +13056,7 @@ private fun ShapesPanel(
                 }
             }
         }
-        SettingSlider(stringResource(R.string.label_line_width), strokeWidth, 1.5f..40f, onStrokeWidthChange)
+        SettingSlider(stringResource(R.string.label_line_width), strokeWidth, 0.2f..40f, onStrokeWidthChange)
         SettingSlider(stringResource(R.string.label_opacity), opacity, 0.15f..1f, onOpacityChange)
         if (!isReticle && showName) {
             SettingSlider(stringResource(R.string.label_name_size), nameTextSize, 14f..240f, onNameTextSizeChange)
@@ -10683,6 +13202,12 @@ private fun SettingSlider(
     valueRange: ClosedFloatingPointRange<Float>,
     onValueChange: (Float) -> Unit,
     onValueChangeFinished: () -> Unit = {},
+    // 0 (Default) = bisheriges kontinuierliches Verhalten, unverändert für alle bestehenden Aufrufer.
+    // > 0 = Anzahl der Zwischenschritte (Compose-Slider-Semantik) -- rein visuelle Rastung/Tickmarken;
+    // die tatsächliche Quantisierung übernimmt weiterhin der jeweilige onValueChange-Aufrufer selbst
+    // (s. DSO-Mindestgrößen-Regler), damit der gespeicherte Wert unabhängig von der Slider-Bibliothek
+    // garantiert exakt gerastert ist.
+    steps: Int = 0,
 ) {
     val sliderDrag = LocalSliderDrag.current
     // Wird ein Slider gezogen, bleibt NUR der aktive sichtbar; inaktive blenden sich aus
@@ -10724,6 +13249,7 @@ private fun SettingSlider(
                 onValueChangeFinished()
             },
             valueRange = valueRange,
+            steps = steps,
         )
     }
 }
@@ -11480,14 +14006,24 @@ private fun ConstellationCard(pattern: ConstellationPattern, selected: Boolean, 
 
 @Composable
 private fun ExportSheet(
-    onShare: (ExportScale, Boolean) -> Unit,
-    onSave: (ExportScale, Boolean) -> Unit,
+    onShare: (ExportScale, Boolean, ExportProjectionMode, Int) -> Unit,
+    onSave: (ExportScale, Boolean, ExportProjectionMode, Int) -> Unit,
     onShareDiagnostic: () -> Unit,
     onExportSolveCrop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var scale by remember { mutableStateOf(ExportScale.Small) }
     var includeBackground by remember { mutableStateOf(true) }
+    var projectionMode by remember { mutableStateOf(ExportProjectionMode.Flat) }
+    // Reines Qualitäts-EXPERIMENT (Nutzer-Vorgabe 2026-08-30) -- NUR bei Spherical360 sichtbar/wirksam,
+    // s. SphericalOverlayRenderer.drawTextMesh-KDoc. 1 = aus (Default, unverändertes Verhalten).
+    var ssaaFactor by remember { mutableStateOf(1) }
+    // Komplett selbstständig (kein onRunGpuSmokeTest-Parameter mehr) -- ein zusätzlicher Parameter an
+    // dieser Stelle hatte die ohnehin randvolle StarMapperApp()-Funktion über die 64KB-Bytecode-Grenze
+    // getrieben (MethodTooLargeException). ExportSheet holt sich Scope/Context selbst, kostet dadurch
+    // nur das eigene (viel kleinere) Methodenbudget.
+    val gpuSmokeTestScope = rememberCoroutineScope()
+    val gpuSmokeTestContext = LocalContext.current
 
     // Kopfzeile + Außenabstand kommen vom gemeinsamen Popup-Scaffold (EditorPanelSheet) -> kein
     // eigener Titel/Padding mehr, damit Export wie alle anderen Popups aussieht.
@@ -11518,8 +14054,34 @@ private fun ExportSheet(
                 label = { Text(stringResource(R.string.label_overlay_only)) },
             )
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = projectionMode == ExportProjectionMode.Flat,
+                onClick = { projectionMode = ExportProjectionMode.Flat },
+                label = { Text(stringResource(R.string.label_export_projection_flat)) },
+            )
+            FilterChip(
+                selected = projectionMode == ExportProjectionMode.Spherical360,
+                onClick = { projectionMode = ExportProjectionMode.Spherical360 },
+                label = { Text(stringResource(R.string.label_export_projection_spherical)) },
+            )
+        }
+        if (projectionMode == ExportProjectionMode.Spherical360) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(stringResource(R.string.label_ssaa_experiment), style = MaterialTheme.typography.labelSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(1, 2, 3).forEach { factor ->
+                        FilterChip(
+                            selected = ssaaFactor == factor,
+                            onClick = { ssaaFactor = factor },
+                            label = { Text("${factor}×") },
+                        )
+                    }
+                }
+            }
+        }
         Button(
-            onClick = { onShare(scale, includeBackground) },
+            onClick = { onShare(scale, includeBackground, projectionMode, ssaaFactor) },
             modifier = Modifier.fillMaxWidth(),
         ) {
             Icon(Icons.Default.Share, contentDescription = null)
@@ -11527,7 +14089,7 @@ private fun ExportSheet(
             Text(stringResource(R.string.action_share_png))
         }
         OutlinedButton(
-            onClick = { onSave(scale, includeBackground) },
+            onClick = { onSave(scale, includeBackground, projectionMode, ssaaFactor) },
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.action_save_to_photos))
@@ -11547,6 +14109,34 @@ private fun ExportSheet(
             Icon(Icons.Default.Share, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.action_share_app_diagnostics))
+        }
+        // Reine Vorstufe für den geplanten GPU-Sphere-Space-Renderpfad (Nutzer-Vorgabe 2026-08-30,
+        // Umsetzungsschritt 2: EGL/FBO-Smoke-Test) -- betrifft den eigentlichen Export in keiner Weise,
+        // rein diagnostisch (Ergebnis landet in der App-Diagnose).
+        TextButton(
+            onClick = {
+                gpuSmokeTestScope.launch {
+                    val result = withContext(Dispatchers.Default) { GpuSmokeTest.run() }
+                    AppDiagnostics.record(
+                        "gpu_smoke_test success=${result.success} " +
+                            "glesVersionRequested=${result.glesVersionRequested} " +
+                            "glVersion=${result.glVersion} glVendor=${result.glVendor} glRenderer=${result.glRenderer} " +
+                            "extensionCount=${result.extensionCount} seamlessCubemap=${result.seamlessCubemapExtensionPresent} " +
+                            result.samplePixels.entries.joinToString(" ") { (name, argb) -> "sample_$name=#${"%08X".format(argb)}" } +
+                            (result.failureReason?.let { " failureReason=$it" } ?: ""),
+                    )
+                    Toast.makeText(
+                        gpuSmokeTestContext,
+                        gpuSmokeTestContext.getString(
+                            if (result.success) R.string.toast_gpu_smoke_test_success else R.string.toast_gpu_smoke_test_failed,
+                        ),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.action_run_gpu_smoke_test))
         }
     }
 }
@@ -12629,11 +15219,27 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOverlay(
             }
             val edgePolylines = overlay.edgePolylines
             if (edgePolylines != null) {
-                // Gekrümmte Kanten (Fisheye): vorprojizierte Großkreis-Polylinien, Enden getrimmt.
+                // Gekrümmte Kanten (Fisheye/Panorama): vorprojizierte Großkreis-Polylinien. Trimmen
+                // ZUERST in Bild-px (beide Enden sind echte Sternanker; Trimmen und die reine
+                // Verschiebung+Uniform-Skalierung von imageToScreen vertauschen -- affine Abbildung
+                // erhält Streckenverhältnisse), DANACH an der Bild-Naht aufteilen
+                // (OverlayGeometry.splitPolylineAtSeam) -- die neuen Schnittpunkte sind keine Anker
+                // und dürfen nicht nochmal angeschnitten werden.
                 edgePolylines.forEachIndexed { edgeIndex, poly ->
                     if (poly.size < 2) return@forEachIndexed
-                    val screen = poly.map { viewport.imageToScreen(it) }
-                    drawEdge(trimPolylineEnds(screen, lineTrimGap), edgeIndex)
+                    val trimmed = trimPolylineEnds(poly, lineTrimGap / viewport.scale)
+                    // GOLDEN-RUECKBAU 2026-09-03: Naht-Aufteilung NUR bei periodischer Projektion
+                    // (overlay.seamAware, s. dessen KDoc). Bei einem normalen Einzelfoto verschob
+                    // splitPolylineAtSeam Kantenstuecke ausserhalb [0,imageWidth] um +/-imageWidth
+                    // zurueck INS Bild -- Golden clippte sie schlicht weg.
+                    val pieces = if (overlay.seamAware) {
+                        OverlayGeometry.splitPolylineAtSeam(trimmed, viewport.imageWidth)
+                    } else {
+                        listOf(trimmed)
+                    }
+                    pieces.forEach { piece ->
+                        if (piece.size >= 2) drawEdge(piece.map { viewport.imageToScreen(it) }, edgeIndex)
+                    }
                 }
             } else {
                 overlay.constellation?.edges.orEmpty().forEachIndexed { edgeIndex, (a, b) ->
@@ -12832,7 +15438,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawShapeNameLabel(
     viewport: ImageViewport,
 ) {
     // Sternnamen (Star-Ebene) folgen dem Deckkraft-Regler; andere Marker-Namen bleiben voll deckend.
-    val nameAlpha = if (overlay.layer == AnnotationLayer.Star) overlay.opacity.coerceIn(0f, 1f) else 1f
+    // Punkt 6 (Nutzer-Vorgabe 2026-08-30): overlay.nameOpacityLinked koppelt die Beschriftung
+    // zusätzlich an die Objekt-Deckkraft, unabhängig von der Ebene (bisher NUR für Star fest verdrahtet).
+    val nameAlpha = if (overlay.layer == AnnotationLayer.Star || overlay.nameOpacityLinked) overlay.opacity.coerceIn(0f, 1f) else 1f
     // Schatten-Alpha an die Namens-Deckkraft koppeln (sonst wirkt der Name bei niedriger Deckkraft dunkel).
     val shadowAlpha = (nameAlpha * 255f).roundToInt()
     // Callout (Führungslinie + rotierender Name): bisher nur automatisch platzierte DSO-Marker,
@@ -12878,19 +15486,13 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawShapeNameLabel(
             OverlayGeometry.LabelAlign.Right -> android.graphics.Paint.Align.RIGHT
             OverlayGeometry.LabelAlign.Center -> android.graphics.Paint.Align.CENTER
         }
-        drawContext.canvas.nativeCanvas.drawText(
-            overlay.text,
-            center.x + layout.nameAnchor.x * s,
-            center.y + layout.nameAnchor.y * s + paint.textSize * 0.35f,
-            paint,
-        )
+        val nameX = center.x + layout.nameAnchor.x * s
+        val nameY = center.y + layout.nameAnchor.y * s + paint.textSize * 0.35f
+        drawContext.canvas.nativeCanvas.drawText(overlay.text, nameX, nameY, paint)
     } else {
-        drawContext.canvas.nativeCanvas.drawText(
-            overlay.text,
-            center.x + screenSize.width / 2f + OverlayGeometry.MARKER_NAME_GAP * viewport.scale,
-            center.y + paint.textSize * 0.35f,
-            paint,
-        )
+        val nameX = center.x + screenSize.width / 2f + OverlayGeometry.MARKER_NAME_GAP * viewport.scale
+        val nameY = center.y + paint.textSize * 0.35f
+        drawContext.canvas.nativeCanvas.drawText(overlay.text, nameX, nameY, paint)
     }
 }
 
@@ -12966,27 +15568,86 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawConstellationGl
     color: Color,
     anchorsVisible: Boolean,
 ) {
-    val points = overlay.constellationImagePoints().map { viewport.imageToScreen(it) }
+    // Bild-px statt Bildschirm-px (anders als früher): erst trimmen/an der Naht aufteilen, dann PRO
+    // Teilstück in Bildschirmkoordinaten umrechnen -- sonst würde eine über die 360°-Naht laufende
+    // Kante hier weiterhin als eine lange Querlinie über den ganzen Bildschirm gezeichnet, selbst wenn
+    // der Haupt-Render (s. drawEdge oben) sie schon korrekt aufteilt.
+    val imagePoints = overlay.constellationImagePoints()
     val glowStrokeWidth = imageStrokeToScreen(overlay.strokeWidth, viewport) + 11.dp.toPx()
     // Gleiche Bild-px-Geometrie wie der Haupt-Render (Editier-Hilfe).
     val imageMinDim = min(viewport.imageWidth, viewport.imageHeight).toFloat()
     val anchorRadiusImage = OverlayGeometry.constellationAnchorRadius(overlay, imageMinDim)
-    val glowTrimGap = OverlayGeometry.constellationLineTrimGap(
+    val glowTrimGapImage = OverlayGeometry.constellationLineTrimGap(
         anchorRadiusImage,
         OverlayGeometry.strokeWidth(overlay.strokeWidth),
         anchorsVisible,
         overlay.anchorRadiusRatio,
-    ) * viewport.scale + 5.5.dp.toPx()
+    ) + 5.5.dp.toPx() / viewport.scale
     overlay.constellation?.edges.orEmpty().forEach { (a, b) ->
-        val endpoints = trimmedLineEndpoints(points[a], points[b], glowTrimGap) ?: return@forEach
-        drawLine(
-            color = color.copy(alpha = (color.alpha * 0.24f).coerceIn(0f, 1f)),
-            start = endpoints.first,
-            end = endpoints.second,
-            strokeWidth = glowStrokeWidth,
-            cap = StrokeCap.Round,
-        )
+        val endpoints = trimmedLineEndpoints(imagePoints[a], imagePoints[b], glowTrimGapImage) ?: return@forEach
+        // GOLDEN-RUECKBAU 2026-09-03: s. drawOverlay -- Naht-Aufteilung nur bei periodischer Projektion.
+        val glowPieces = if (overlay.seamAware) {
+            OverlayGeometry.splitPolylineAtSeam(listOf(endpoints.first, endpoints.second), viewport.imageWidth)
+        } else {
+            listOf(listOf(endpoints.first, endpoints.second))
+        }
+        glowPieces.forEach { piece ->
+            if (piece.size < 2) return@forEach
+            drawLine(
+                color = color.copy(alpha = (color.alpha * 0.24f).coerceIn(0f, 1f)),
+                start = viewport.imageToScreen(piece[0]),
+                end = viewport.imageToScreen(piece[1]),
+                strokeWidth = glowStrokeWidth,
+                cap = StrokeCap.Round,
+            )
+        }
     }
+}
+
+/**
+ * Bounding-Box (Bild-px, [l,t,r,b]) des tatsächlich gezeichneten Sternbild-Namens -- exakt dieselbe
+ * Anker-/Positionsherleitung wie [drawConstellationOverlayName] selbst, als Hindernis für die
+ * DSO-Namensplatzierung in syncDeepSkyLayer (Nutzerbefund 2026-08-27: "Kollisionsmechanik funktioniert
+ * auf DSO-Objekte, aber nicht auf Sternbildnamen" -- Ursache war die vorher genutzte
+ * OverlayGeometry.nonCalloutNameLabelBoundingBoxOrNull, die eine feste Position rechts vom Marker
+ * annimmt, für Sternbilder aber nie zutrifft, da center/size dort die Bounding-Box des GANZEN
+ * Linienmusters ist, nicht die Namensposition). null, wenn kein Name gezeichnet wird.
+ */
+private fun constellationNameObstacleBox(overlay: AnnotationOverlay, imageWidth: Float, imageHeight: Float): FloatArray? {
+    val pattern = overlay.constellation ?: return null
+    if (!overlay.showName) return null
+    val anchor = overlay.constellationNameAnchor(imageWidth, imageHeight) ?: return null
+    val nameImg = OverlayGeometry.constellationNameTextSize(overlay)
+    val clearImg = OverlayGeometry.constellationAnchorRadius(overlay, min(imageWidth, imageHeight)) +
+        OverlayGeometry.strokeWidth(overlay.strokeWidth) + OverlayGeometry.CONSTELLATION_NAME_GAP
+    val labelX = anchor.x.coerceIn(nameImg, (imageWidth - nameImg).coerceAtLeast(nameImg))
+    var baselineY = anchor.y - clearImg
+    if (baselineY - nameImg < 0f) baselineY = anchor.y + clearImg + nameImg
+    baselineY = baselineY.coerceIn(nameImg, (imageHeight - nameImg * 0.3f).coerceAtLeast(nameImg))
+    val text = pattern.localizedName()
+    val textW = text.length * nameImg * 0.55f
+    val textH = nameImg * 1.1f
+    val l = labelX - textW / 2f
+    return floatArrayOf(l, baselineY - textH, l + textW, baselineY + textH * 0.2f)
+}
+
+// Bildschirm-Trefferprüfung für den Sternbild-Namen (Ziel: EditorGestureTarget.ConstellationNameHandle)
+// -- dieselbe Box wie constellationNameObstacleBox, nur nach Bildschirm-px umgerechnet + mit etwas
+// Toleranz (padding), passend zu den übrigen Zieh-Griffen (handleHitRadius).
+private fun constellationNameHitTest(
+    overlay: AnnotationOverlay,
+    screenPoint: Offset,
+    viewport: ImageViewport,
+    padding: Float,
+): Boolean {
+    val box = constellationNameObstacleBox(overlay, viewport.imageWidth.toFloat(), viewport.imageHeight.toFloat()) ?: return false
+    val corner1 = viewport.imageToScreen(Offset(box[0], box[1]))
+    val corner2 = viewport.imageToScreen(Offset(box[2], box[3]))
+    val left = min(corner1.x, corner2.x) - padding
+    val right = max(corner1.x, corner2.x) + padding
+    val top = min(corner1.y, corner2.y) - padding
+    val bottom = max(corner1.y, corner2.y) + padding
+    return screenPoint.x in left..right && screenPoint.y in top..bottom
 }
 
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawConstellationOverlayName(
@@ -13290,6 +15951,37 @@ private enum class ResizeCorner {
     BottomLeft,
 }
 
+// Welche Art Geste ein SolveTile-/Overlay-Update auslöst -- an jeder Aufrufstelle bereits genau
+// bekannt, daher explizit durchgereicht statt aus dem Ergebnis erraten. `onUpdateSolveTile` ignoriert
+// dies inzwischen komplett (Kacheln sind rein ansichts-lokal, s. Plan Nachtrag 3); `onUpdateOverlay`
+// braucht nur noch `AnchorPoint`, um verankerte Sternbild-Anker-Ziehgesten in Tiny Sky zu sperren --
+// alle anderen Overlay-Bearbeitungen in Tiny Sky laufen inzwischen unbedingt durch (s.
+// snapshotTinySkyGeometryIfActive), die übrigen Werte existieren nur noch für Aufrufer-Klarheit.
+private enum class GeometryEditKind { Move, Resize, Rotate, AnchorPoint, FieldOnly, ConstellationName }
+
+/**
+ * Grund eines `syncConstellationLayer()`-Aufrufs (Nutzer-Auftrag 2026-09-03).
+ *
+ * Nötig, weil `AnnotationOverlay.anchorOverrides` ZWEI Bedeutungen in einem Feld trägt: die von
+ * `createConstellationOverlays` final projizierten Sternpositionen UND (nach einer Ziehgeste) die
+ * manuelle Korrektur des Nutzers. Aus `prior`/`fresh` allein lässt sich nicht entscheiden, welche der
+ * beiden vorliegt -- insbesondere ist `prior.constellation?.stars == fresh.constellation?.stars` KEIN
+ * gültiges Kriterium: dieselbe Sternliste bedeutet nicht dieselben Pixelpositionen, zwei Projektionen
+ * können exakt dieselben Sterne behalten und trotzdem jeden einzelnen woanders abbilden. Auch
+ * `edgePolylines == null` taugt nicht als Marker für "manuell bearbeitet", da
+ * `createConstellationOverlays` diesen Zustand bei jeder nicht-Panorama-Lösung selbst erzeugt.
+ * Deshalb wird der Grund vom Aufrufer mitgegeben statt abgeleitet.
+ */
+private enum class ConstellationSyncReason {
+    /** Die aktive Lösung/Projektion hat sich geändert (Solve, Reprojektion, Projektionswechsel,
+     *  Solution-Import, Kalibrierungs-Wiederherstellung, Feinjustierung) -> frische Anker gewinnen. */
+    GeometryChanged,
+
+    /** Reiner Darstellungs-Resync bei UNVERÄNDERTER Geometrie (Sprachwechsel, Sichtbarkeits- oder
+     *  Namensschalter) -> vorhandene (ggf. manuell korrigierte) Anker bleiben erhalten. */
+    VisualOnly,
+}
+
 // --- Kachel-Ausrichtung (Multi-Region-Solve) -----------------------------------------------------
 // Mehrere kleine Bereiche werden plate-gesolved; aus ihren WCS werden verteilte Anker (Pixel↔Himmel)
 // abgeleitet und per FisheyeRefiner.calibrateFromReferences zu einem globalen Fisheye-Fit kombiniert,
@@ -13297,7 +15989,9 @@ private enum class ResizeCorner {
 // Suspect = gelöst, aber die Anker widersprechen den übrigen Kacheln massiv (stiller
 // Nova-Falschtreffer, siehe TileConsistency) -> orange, vom Fit/Mosaik ausgeschlossen,
 // beim nächsten "Kacheln lösen" automatisch neu versucht (zählt als offen).
-private enum class SolveTileStatus { Pending, Solving, Solved, Failed, Suspect }
+// internal (nicht private): SolutionExport.kt (Export/Import-Feature) liest diese Kachel-Struktur
+// von außerhalb dieser Datei -- reine Sichtbarkeits-Erweiterung, keine Verhaltensänderung.
+internal enum class SolveTileStatus { Pending, Solving, Solved, Failed, Suspect }
 
 // Maximale Zeilenzahl im Solve-Live-Ticker (ältere werden abgeschnitten).
 private const val MAX_TICKER_LINES = 40
@@ -13397,13 +16091,22 @@ private fun SolveTicker(
     }
 }
 
-private data class SolveTile(
+// Welcher Bildquelle (und damit welchem Pixel-/Projektionsraum) center/size/rotationDegrees UND wcs
+// einer Kachel angehören. Native = wie bisher immer. TinySky = Kachel wurde gezeichnet/gelöst, während
+// die Tiny-Sky-Ansicht aktiv war -- ihre Geometrie bleibt UNVERÄNDERT in Tiny-Sky-Pixeln (kein
+// convertOverlayGeometry mehr für Kacheln, s. Plan Nachtrag 1), nur das Löse-ERGEBNIS (anchors) wird
+// exakt punktweise nach nativen Koordinaten umgerechnet, bevor es in die globale Lösung einfließt.
+internal enum class TileSourceSpace { Native, TinySky }
+
+internal data class SolveTile(
     val id: Long,
     val center: Offset,
     val size: Size,
     val rotationDegrees: Float = 0f,
     val status: SolveTileStatus = SolveTileStatus.Pending,
     val wcs: com.codex.starmapper.processing.WcsSolution? = null,
+    // s. TileSourceSpace oben. Default Native -> bestehende (rein native) Nutzung bleibt exakt gleich.
+    val sourceSpace: TileSourceSpace = TileSourceSpace.Native,
     // De-Warp-WUNSCH pro Kachel (vom Nutzer gesetzt): soll DIESE Kachel vor dem Solve entzerrt
     // werden? Beim Platzieren erbt sie den globalen Default (dewarpEnabled). Der Solve-Loop
     // entzerrt genau die Kacheln mit dewarpRequested = true (statt eines globalen Schalters).
@@ -13412,6 +16115,16 @@ private data class SolveTile(
     // Crop-WCS) und merken sich, dass sie entzerrt gelöst wurden (≈-Markierung an gelösten Kacheln).
     val dewarp: Boolean = false,
     val anchors: List<Pair<Offset, Vec3>>? = null,
+    // NUR für Tiny-Sky-Kacheln (sonst immer null): die eigene, beim Solve gewonnene lokale WCS --
+    // gültig ausschließlich im TINY-SKY-Pixelraum dieser Kachel (anders als [wcs], das für Tiny-Sky-
+    // Kacheln bewusst null bleibt, weil es dort für die NATIVE Fit-Integration missverstanden werden
+    // könnte). Dient EINZIG als Positions-Hinweis-Quelle für andere, noch ungelöste Tiny-Sky-Kacheln
+    // in der Nähe (s. solveAllTiles()'s nearestTileResult) -- ein Nachbar-in-Tiny-Sky-Hinweis bleibt
+    // sonst strukturell unerreichbar, da die Spender-Suche bisher ausschließlich `wcs != null` prüfte
+    // und Tiny-Sky-Kacheln dieses Feld nie füllen (Nutzerbefund 2026-08-25: "Kacheln bekommen falsche
+    // Hinweise, suchen zu lange" -- der schon einmal reparierte Zielrechteck-Umrechnungsfehler aus
+    // Plan Nachtrag 12 war nicht die einzige Ursache).
+    val tinySkyLocalWcs: com.codex.starmapper.processing.WcsSolution? = null,
     // Manueller Positions-Hinweis (Nutzer tippt einen bekannten Sternnamen in der Nähe der Kachel
     // ein): wird beim Solve dieser Kachel VOR der priorFit-Extrapolation geprüft und hat Vorrang,
     // falls der Name im Katalog auflösbar ist (siehe astapSolveJob, rawHint-Berechnung).
@@ -13469,13 +16182,51 @@ private data class TileFitAnchors(
  */
 private const val MESH_SUBSTITUTION_MARGIN = 0.8
 
+/**
+ * Gelockerte Marge fuer die ZYLINDRISCH/PERIODISCHE Modellfamilie (Equirectangular/Cylindrical/
+ * Mercator) auf einem Bild, das KEIN echtes 2:1-Vollpanorama ist (Geraetebefund 2026-09-04,
+ * Diagnose 43/44): dort gewann Mercator bei EXAKTEM Gleichstand (`solvetiles_candidates Mercator=19,4
+ * Mesh=19,4`), war aber sichtbar falsch, waehrend Mesh visuell korrekt lag.
+ *
+ * Warum ein Wert > 1 hier vertretbar und kein "Mesh gewinnt immer" ist:
+ * - `mesh.rms` ist per Leave-One-Tile-Out KREUZVALIDIERT, `rigid.rms` ein optimistischer
+ *   In-Sample-Restfehler (s. KDoc oben) -- bei gleicher Zahl ist Mesh also faktisch bereits besser.
+ * - Mesh ist seit dem Korrektur-Redesign ein Layer UEBER genau diesem `rigid`-Gewinner
+ *   (`CorrectedProjection`, Baseline = rigid) und kann strukturell nicht schlechter als seine eigene
+ *   Baseline sein. Die 0.8-Marge war laut eigenem KDoc bereits "kein Schutz mehr vor einem KAPUTTEN
+ *   Mesh ... sondern reine Stabilitaet".
+ * - Ein echtes Vollpanorama ist ausgenommen (s. `meshSubstitutionMargin`): dort ist die zylindrische
+ *   Familie die richtige Wahl, und ein Wechsel auf `CorrectedProjection` wuerde `horizontalPeriodPx()`
+ *   verlieren und damit die eingefrorene Gradnetz-/Perioden-Mechanik veraendern.
+ * Fisheye/Stereographic/Rectilinear (u.a. der Golden-Fall) behalten unveraendert 0.8.
+ */
+private const val MESH_SUBSTITUTION_MARGIN_PERIODIC = 1.02
+
+/** Marge fuer [pickCalibration]: gelockert nur fuer die periodische Familie auf einem Nicht-2:1-Bild. */
+private fun meshSubstitutionMargin(
+    rigidKind: PanoProjectionKind,
+    imageWidth: Int,
+    imageHeight: Int,
+): Double {
+    val periodicFamily = rigidKind == PanoProjectionKind.Equirectangular ||
+        rigidKind == PanoProjectionKind.Cylindrical ||
+        rigidKind == PanoProjectionKind.Mercator
+    if (!periodicFamily) return MESH_SUBSTITUTION_MARGIN
+    // Gleiche Toleranz wie FisheyeRefiner.FULL_PANORAMA_ASPECT_TOLERANCE (dort private).
+    val fullPanorama = imageHeight > 0 &&
+        kotlin.math.abs(imageWidth.toDouble() / imageHeight.toDouble() - 2.0) <= 0.02
+    return if (fullPanorama) MESH_SUBSTITUTION_MARGIN else MESH_SUBSTITUTION_MARGIN_PERIODIC
+}
+
 private fun pickCalibration(
     rigid: FisheyeRefiner.PanoCalibration?,
     mesh: FisheyeRefiner.PanoCalibration?,
+    imageWidth: Int,
+    imageHeight: Int,
 ): FisheyeRefiner.PanoCalibration? = when {
     mesh == null -> rigid
     rigid == null -> mesh
-    mesh.rms < rigid.rms * MESH_SUBSTITUTION_MARGIN -> mesh
+    mesh.rms < rigid.rms * meshSubstitutionMargin(rigid.kind, imageWidth, imageHeight) -> mesh
     else -> rigid
 }
 
@@ -13508,6 +16259,14 @@ private data class CalibrationSnapshot(
     val customAlignKind: PanoProjectionKind?,
     val richMeshFit: PanoramaWcsSolution?,
     val richMeshRms: Double?,
+    // Manuelle Projektionskandidaten (Nutzer-Auftrag 2026-09-03) -- gehören zum Kalibrierungsstand und
+    // müssen deshalb bei Undo/Redo bzw. "Original-Astrometrie wiederherstellen" mit zurückspringen,
+    // sonst zeigte das Projektionsmenü Verfügbarkeiten eines anderen Solve-Stands an.
+    val richMeshAutoEligible: Boolean = false,
+    val richMeshRejectReason: String? = null,
+    val sparseMeshFit: PanoramaWcsSolution? = null,
+    val sparseMeshRms: Double? = null,
+    val projectionCandidateRms: Map<PanoProjectionKind, Double?> = emptyMap(),
 )
 
 /** Kachel-Undo/Redo-Snapshot: Kacheln + ihre Qualitätswerte + die zugehörige Kalibrierung — alle drei
@@ -13528,6 +16287,151 @@ private data class TileEditSnapshot(
     // eigener Solve-Genauigkeit.
     val overlapRms: Map<Long, TileConsistency.OverlapAccuracy> = emptyMap(),
 )
+
+/**
+ * Untersuchungsauftrag 2026-08-31 (dritte Runde: "warum verlieren TinySky-Kacheln 9 von 10 100% ihrer
+ * .corr-Korrespondenzen als Outlier"): rein additive Detail-Diagnose für die ersten [budget] `.corr`-
+ * Referenzen EINER Tiny-Sky-Kachel, KEINE Verhaltensänderung an Solve/Validierung selbst. Ziel: im
+ * Log-Output selbst zweifelsfrei belegen, in welchem Koordinatenraum [wcs] (die gerade gefittete,
+ * kachel-EIGENE Lösung, IMMER ein reines [WcsSolution]/TAN aus [LocalAstrometrySolver.solve], NIE ein
+ * periodisches Panorama-Modell) tatsächlich vorhersagt -- crop-lokal (Raum des gelösten Bitmaps selbst)
+ * oder bereits nativ.
+ *
+ * [rawRefs] = [LocalAstrometrySolver.LocalSolveResult.corrRefs] VOR jeder Transformation (crop-lokal,
+ * 0-basiert -- die "-1"-FITS-Korrektur ist darin bereits enthalten, das IST bereits "raw field_x/field_y"
+ * im Sinne des Auftrags, nur schon 0-indiziert). Ruft [TileDeWarp.transformTinySkyRefsToNative] pro
+ * EINZELNER Referenz separat auf (statt der ggf. kürzeren, wegen `mapNotNull` nicht mehr index-parallelen
+ * Batch-Liste) -- reine Wiederverwendung der echten Produktionslogik, keine Parallel-Implementierung.
+ *
+ * Vier Vergleichsvarianten pro Referenz: (1) die semantisch korrekte Prüfung crop-lokale Ist-Position vs.
+ * crop-lokale WCS-Vorhersage (das, was der begleitende Fix jetzt tatsächlich nutzt); (2) die BISHERIGE,
+ * verdächtige Prüfung native Ist-Position vs. crop-lokale Vorhersage OHNE Offset (das, was der alte Code
+ * verglich); (3)+(4) dieselbe native Ist-Position gegen die crop-lokale Vorhersage MIT addiertem bzw.
+ * entferntem Crop-Offset (rx,ry) -- klärt empirisch, ob ein simpler Offset-Versatz die Erklärung ist,
+ * unabhängig von der bereits in (1) belegten eigentlichen Ursache. `wcsPredCropLocalRefAware` ist bei
+ * einem reinen TAN-[wcs] IMMER identisch zu `wcsPredCropLocal` (kein periodischer Zweig vorhanden) --
+ * bestätigt im Log-Output direkt, dass der bereits früher angebrachte seam-/branch-bewusste Fix in
+ * [RichCorrMesh.rejectResidualOutliers] für DIESE (Stage-1-TinySky-)Prüfung strukturell wirkungslos ist,
+ * da er nur bei periodischen (Cylindrical-family) Projektionen überhaupt einen Unterschied machen kann.
+ */
+private fun logTinySkyCorrValidationDetail(
+    label: String,
+    rawRefs: List<Pair<Offset, Vec3>>,
+    rx: Int,
+    ry: Int,
+    rh: Int,
+    overviewProjection: PanoramaProjection,
+    nativeProjection: PanoramaProjection,
+    wcs: WcsSolutionLike,
+    budget: Int,
+) {
+    fun fmtPx(o: Offset?): String = if (o == null) "null" else "(${"%.2f".format(o.x)},${"%.2f".format(o.y)})"
+    fun residual(a: Offset?, b: Offset?): String {
+        if (a == null || b == null) return "null"
+        return "%.2f".format(hypot((a.x - b.x).toDouble(), (a.y - b.y).toDouble()))
+    }
+    val offsetPx = Offset(rx.toFloat(), ry.toFloat())
+    for (i in 0 until minOf(budget, rawRefs.size)) {
+        val (cropLocalActualPx, dir) = rawRefs[i]
+        val (raDeg, decDeg) = vectorToRaDec(dir)
+        val sky = SkyPoint(raDeg.toFloat(), decDeg.toFloat())
+        val nativeTransformedActualPx = TileDeWarp.transformTinySkyRefsToNative(
+            listOf(cropLocalActualPx to dir), rx, ry, overviewProjection, nativeProjection,
+        ).firstOrNull()?.first
+        val wcsPredCropLocal = wcs.skyToImage(sky, rh)
+        val wcsPredCropLocalRefAware = wcs.skyToImage(sky, rh, cropLocalActualPx)
+        val wcsPredPlusOffset = wcsPredCropLocal?.let { it + offsetPx }
+        val wcsPredMinusOffset = wcsPredCropLocal?.let { it - offsetPx }
+        AppDiagnostics.record(
+            "corr_pipeline_detail label=$label idx=$i " +
+                "cropLocalActualPx=${fmtPx(cropLocalActualPx)} offX=$rx offY=$ry " +
+                "nativeTransformedActualPx=${fmtPx(nativeTransformedActualPx)} " +
+                "wcsPredCropLocal=${fmtPx(wcsPredCropLocal)} wcsPredCropLocalRefAware=${fmtPx(wcsPredCropLocalRefAware)} " +
+                "residual_cropLocalActual_vs_wcsPredCropLocal=${residual(cropLocalActualPx, wcsPredCropLocal)} " +
+                "residual_nativeActual_vs_wcsPredCropLocal_noOffset=${residual(nativeTransformedActualPx, wcsPredCropLocal)} " +
+                "residual_nativeActual_vs_wcsPredPlusOffset=${residual(nativeTransformedActualPx, wcsPredPlusOffset)} " +
+                "residual_nativeActual_vs_wcsPredMinusOffset=${residual(nativeTransformedActualPx, wcsPredMinusOffset)} " +
+                "raDeg=${"%.4f".format(raDeg)} decDeg=${"%.4f".format(decDeg)}",
+        )
+    }
+}
+
+/**
+ * Untersuchungsauftrag 2026-08-31 (vierte Runde, Stage 2): rein additive Diagnose, KEINE Verhaltens-
+ * änderung an `RichCorrMeshProjection`/Outlier-Schwellen. Stage 1 gilt laut Nutzer als repariert bestätigt
+ * (TinySky-`.corr`-Punkte überleben jetzt in großer Zahl die kachel-eigene Validierung). Der neue Befund:
+ * `rich_corr_mesh_validate` verwarf DANACH trotzdem 920/920 Referenzen mit Residuen um ~2355-2362px,
+ * `seamBranchSuspect=false`, `group0` zeigte eine nahezu KONSTANTE Translation (~+2340px X, +315px Y).
+ *
+ * Direkt im Code gefunden (nicht nur vermutet): [FisheyeRefiner.globalizeTileCorrRefs] addiert
+ * UNBEDINGT `tw.tileOffsetX/Y` auf jede `.corr`-Position, unter der (für native Kacheln korrekten)
+ * Annahme, sie sei kachel-lokal. Für eine Tiny-Sky-Kachel ist [tileCorrRefsById]'s Eintrag dank des
+ * Stufe-1-Fixes aber bereits eine NATIVE Position (`TileDeWarp.transformTinySkyRefsToNative`, exakt
+ * dieselbe geometrische Kette wie [TileDeWarp.tinySkyAnchorsFor], das OHNE jede weitere Offset-Addition
+ * direkt in `tile.anchors` landet -- die Quelle von SparseAnchorMesh). `tw.tileOffsetX/Y` ist für eine
+ * Tiny-Sky-Kachel zudem gar nicht der Kachel-Ursprung, sondern nur eine grobe, für [MosaicWcsSolution]s
+ * Fallback-Buchhaltung gedachte native Bounding-Box-Näherung (`convertOverlayGeometry`, s. TileWcs-
+ * Konstruktionsstelle) -- ihre zusätzliche Addition erklärt exakt eine KONSTANTE Translation pro Kachel/
+ * Gruppe in genau der beobachteten Größenordnung. `seamBranchSuspect=false` passt dazu: eine reine
+ * Translation ist keine periodische Ast-Verwechslung. Begleitend behoben (s. [TileWcs.corrRefsAlreadyNative]-
+ * KDoc + [FisheyeRefiner.globalizeTileCorrRefs]s neue Fallunterscheidung).
+ *
+ * Protokolliert pro echtem, bereits akzeptiertem `.corr`-Punkt (max. [budgetPerTile] je Tiny-Sky-Kachel):
+ * [corrNativePx] (der jetzt korrekte, in [tileCorrRefsById] gespeicherte Wert -- das, was NACH dem Fix
+ * tatsächlich in `corrGlobalRefs` landet); [sparseAnchorEquivalentNativePx] (der nächstgelegene `tile.
+ * anchors`-Punkt DERSELBEN Kachel -- kein exakt derselbe Messpunkt, aber dieselbe Transformationskette,
+ * bestätigt empirisch, dass beide Pfade im selben nativen Koordinatenraum landen); [wouldBeCorruptedByOldOffsetPx]
+ * (was `globalizeTileCorrRefs` VOR diesem Fix geliefert hätte -- zum direkten Abgleich gegen die vom
+ * Nutzer bereits beobachteten ~+2340/+315px); `tileOffsetX`/`tileOffsetY` (die Panorama-Baseline-fremden,
+ * nur für Mosaik-Fallback gedachten Werte, die den alten Fehler verursachten); `baselineExpectedPxMainBranch`/
+ * `baselineExpectedPxRefAware`/`baselineResidualPx` (Soll-Position/Residuum gegen [baseline], referenz-
+ * bewusst -- deckt einen ZUSÄTZLICHEN, unabhängigen Wrap/Branch-Fehler ab, falls doch einer existiert,
+ * ohne ihn vorab anzunehmen); RA/Dec; `group` (Index in [idToTileWcs], identisch zur Gruppen-Reihenfolge,
+ * die [FisheyeRefiner.corrRefGroupSizesAndWeights] für `rich_corr_mesh_validate`s `group0`/`group1`/...
+ * verwendet).
+ */
+private fun logStage2CorrGlobalizationDetail(
+    idToTileWcs: List<Pair<Long, TileWcs>>,
+    tileCorrRefsById: Map<Long, List<Pair<Offset, Vec3>>>,
+    tilesSnapshot: List<SolveTile>,
+    baseline: WcsSolutionLike,
+    imageHeight: Int,
+    budgetPerTile: Int,
+) {
+    fun fmtPx(o: Offset?): String = if (o == null) "null" else "(${"%.2f".format(o.x)},${"%.2f".format(o.y)})"
+    for ((groupIndex, entry) in idToTileWcs.withIndex()) {
+        val (tileId, tw) = entry
+        if (!tw.corrRefsAlreadyNative) continue
+        val corrRefs = tileCorrRefsById[tileId] ?: continue
+        if (corrRefs.isEmpty()) continue
+        val sparseAnchors = tilesSnapshot.firstOrNull { it.id == tileId }?.anchors ?: emptyList()
+        for (i in 0 until minOf(budgetPerTile, corrRefs.size)) {
+            val (corrNativePx, dir) = corrRefs[i]
+            val (raDeg, decDeg) = vectorToRaDec(dir)
+            val sky = SkyPoint(raDeg.toFloat(), decDeg.toFloat())
+            val nearestAnchorPx = sparseAnchors.minByOrNull {
+                hypot((it.first.x - corrNativePx.x).toDouble(), (it.first.y - corrNativePx.y).toDouble())
+            }?.first
+            val wouldBeCorrupted = Offset(corrNativePx.x + tw.tileOffsetX, corrNativePx.y + tw.tileOffsetY)
+            val baselineMainBranch = baseline.skyToImage(sky, imageHeight)
+            val baselineRefAware = baseline.skyToImage(sky, imageHeight, corrNativePx)
+            val baselineResidualPx = baselineRefAware?.let {
+                hypot((corrNativePx.x - it.x).toDouble(), (corrNativePx.y - it.y).toDouble())
+            }
+            AppDiagnostics.record(
+                "corr_globalize_detail tile=$tileId group=$groupIndex idx=$i " +
+                    "corrNativePx=${fmtPx(corrNativePx)} " +
+                    "sparseAnchorEquivalentNativePx=${nearestAnchorPx?.let { fmtPx(it) } ?: "n/a(no_anchors)"} " +
+                    "wouldBeCorruptedByOldOffsetPx=${fmtPx(wouldBeCorrupted)} " +
+                    "tileOffsetX=${tw.tileOffsetX} tileOffsetY=${tw.tileOffsetY} " +
+                    "baselineExpectedPxMainBranch=${fmtPx(baselineMainBranch)} " +
+                    "baselineExpectedPxRefAware=${fmtPx(baselineRefAware)} " +
+                    "baselineResidualPx=${baselineResidualPx?.let { "%.2f".format(it) } ?: "null"} " +
+                    "raDeg=${"%.4f".format(raDeg)} decDeg=${"%.4f".format(decDeg)}",
+            )
+        }
+    }
+}
 
 /**
  * Anker einer gelösten Kachel (Bildpixel <-> äquatoriale Richtung): entzerrte (De-Warp) tragen
@@ -13591,10 +16495,13 @@ private fun pointInsideSolveTile(imagePoint: Offset, tile: SolveTile, padding: F
 /** Oberste Kachel unter dem Bildschirmpunkt (zuletzt hinzugefügte zuerst). */
 private fun solveTileAtScreen(
     screenPoint: Offset, tiles: List<SolveTile>, viewport: ImageViewport, hitRadiusPx: Float,
+    activeTileSpace: TileSourceSpace,
 ): SolveTile? {
     val imagePoint = viewport.screenToImage(screenPoint)
     val pad = hitRadiusPx / viewport.scale
-    return tiles.asReversed().firstOrNull { pointInsideSolveTile(imagePoint, it, pad) }
+    return tiles.asReversed().firstOrNull {
+        it.sourceSpace == activeTileSpace && pointInsideSolveTile(imagePoint, it, pad)
+    }
 }
 
 /** Symmetrisches Resize um das Zentrum aus dem aktuellen Ziehpunkt (wie beim Rechteck-Overlay). */
@@ -13624,6 +16531,9 @@ private sealed class EditorGestureTarget {
     data class RotateHandle(val id: Long) : EditorGestureTarget()
     // Zieh-Griff am Ende der Namens-Führungslinie (Ellipse/Rectangle/Freehand mit showName=true).
     data class LabelHandle(val id: Long) : EditorGestureTarget()
+    // Sternbild-NAME selbst (unabhängig vom Linienmuster) -- Ziehen versetzt nur den Namen
+    // (AnnotationOverlay.constellationNameOffset), Antippen ohne Ziehen setzt ihn zurück.
+    data class ConstellationNameHandle(val id: Long) : EditorGestureTarget()
     data class FixedDelete(val id: Long) : EditorGestureTarget()
     data class FixedReference(val id: Long) : EditorGestureTarget()
 }
@@ -13658,11 +16568,16 @@ private fun resolveEditorGestureTarget(
         ?.let { id -> overlays.firstOrNull { it.id == id } }
 
     if (editingOverlay != null) {
-        if (editingOverlay.kind == OverlayKind.Constellation && showConstellationAnchors) {
-            nearestConstellationAnchor(editingOverlay, screenPoint, viewport, handleHitRadius)?.let { anchorIndex ->
-                return EditorGestureTarget.ConstellationAnchor(editingOverlay.id, anchorIndex)
+        if (editingOverlay.kind == OverlayKind.Constellation) {
+            if (editingOverlay.showName && constellationNameHitTest(editingOverlay, screenPoint, viewport, handleHitRadius)) {
+                return EditorGestureTarget.ConstellationNameHandle(editingOverlay.id)
             }
-        } else if (editingOverlay.kind != OverlayKind.Constellation) {
+            if (showConstellationAnchors) {
+                nearestConstellationAnchor(editingOverlay, screenPoint, viewport, handleHitRadius)?.let { anchorIndex ->
+                    return EditorGestureTarget.ConstellationAnchor(editingOverlay.id, anchorIndex)
+                }
+            }
+        } else {
             nearestResizeCorner(editingOverlay, screenPoint, viewport, handleHitRadius)?.let { corner ->
                 return EditorGestureTarget.ResizeHandle(editingOverlay.id, corner)
             }
@@ -13936,12 +16851,40 @@ private fun findOverlayAtScreen(
         when (overlay.kind) {
             OverlayKind.Constellation -> {
                 val points = overlay.constellationImagePoints().map { viewport.imageToScreen(it) }
-                points.any { it.distanceTo(screenPoint) <= hitRadiusPx } ||
+                // Nutzer-Auftrag 2026-09-03: gegen die TATSÄCHLICH GEZEICHNETE Punktfolge prüfen.
+                // Sobald `edgePolylines` existiert (jede PanoramaWcsSolution -- Fisheye, Mercator,
+                // Mesh, ...), zeichnet drawOverlay gekrümmte Großkreis-Polylinien; der bisherige Test
+                // gegen die GERADE Sehne zwischen zwei Ankern lag bei starker Krümmung weit neben der
+                // sichtbaren Linie -- große, randnahe Sternbilder waren dadurch praktisch nicht
+                // greifbar. Die Naht-Aufteilung wird identisch zum Zeichnen nachvollzogen
+                // (overlay.seamAware -> splitPolylineAtSeam), sonst liefen Linie und Trefferfläche bei
+                // 360°-Panoramen an der Naht auseinander. `trimPolylineEnds` wird bewusst NICHT
+                // nachgebildet: ungetrimmt ist nur an den Ankerenden minimal großzügiger, und genau
+                // dort greift ohnehin schon der Ankerpunkt-Treffer darüber.
+                val polylines = overlay.edgePolylines
+                val edgeHit = if (polylines != null) {
+                    polylines.any { poly ->
+                        if (poly.size < 2) return@any false
+                        val pieces = if (overlay.seamAware) {
+                            OverlayGeometry.splitPolylineAtSeam(poly, viewport.imageWidth)
+                        } else {
+                            listOf(poly)
+                        }
+                        pieces.any { piece ->
+                            if (piece.size < 2) return@any false
+                            piece.map { viewport.imageToScreen(it) }.zipWithNext().any { (a, b) ->
+                                distanceToSegment(screenPoint, a, b) <= hitRadiusPx
+                            }
+                        }
+                    }
+                } else {
                     overlay.constellation?.edges.orEmpty().any { (a, b) ->
                         val start = points.getOrNull(a)
                         val end = points.getOrNull(b)
                         start != null && end != null && distanceToSegment(screenPoint, start, end) <= hitRadiusPx
                     }
+                }
+                points.any { it.distanceTo(screenPoint) <= hitRadiusPx } || edgeHit
             }
             OverlayKind.Text -> pointInsideOverlayBounds(imagePoint, overlay, padding = imagePadding)
             OverlayKind.Ellipse -> pointNearEllipseStroke(imagePoint, overlay, padding = imagePadding)
@@ -14158,6 +17101,16 @@ private fun decodeOriginalBitmap(context: Context, uri: Uri?): Bitmap? {
     }
 }
 
+// Größe der Original-Bilddatei in Byte (Nutzer-Auftrag 2026-09-02, "Originalexport"-Diagnose) -- über
+// den FileDescriptor statt InputStream.available() (bei content://-Uris nicht zuverlässig die echte
+// Gesamtgröße). null bei jedem Fehlschlag (z.B. Uri seit dem Laden ungültig geworden) statt Absturz.
+private fun originalFileSizeBytes(context: Context, uri: Uri?): Long? {
+    if (uri == null) return null
+    return runCatching {
+        context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize }
+    }.getOrNull()
+}
+
 @Composable
 private fun rememberEditorImageFromUri(uri: Uri?): LoadedEditorImage? {
     val context = LocalContext.current
@@ -14225,9 +17178,9 @@ private fun loadEditorImage(context: Context, uri: Uri): LoadedEditorImage? {
     }
 }
 
-private fun Context.sharePng(uri: Uri) {
+private fun Context.shareImage(uri: Uri, mimeType: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "image/png"
+        type = mimeType
         putExtra(Intent.EXTRA_STREAM, uri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }

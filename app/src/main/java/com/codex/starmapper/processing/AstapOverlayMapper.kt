@@ -2,6 +2,7 @@ package com.codex.starmapper.processing
 
 import android.graphics.Bitmap
 import androidx.compose.ui.geometry.Offset
+import com.codex.starmapper.diagnostics.AppDiagnostics
 import androidx.compose.ui.geometry.Size
 import com.codex.starmapper.domain.AnnotationLayer
 import com.codex.starmapper.domain.AnnotationOverlay
@@ -112,6 +113,9 @@ object AstapOverlayMapper {
         // Katalog-Muster genau ein Eintrag, unabhängig davon, ob es am Ende gezeichnet wird. Default
         // null -> keine Verhaltens-/Performance-Änderung für Aufrufer, die das nicht brauchen.
         completenessOut: MutableList<ConstellationCompleteness>? = null,
+        // `true` NUR, wenn dieses Bild aus dem expliziten 360°-/Tiny-Sky-Workflow stammt (s.
+        // seamAwareProjection unten). Default `false` = Golden-Verhalten: keine Naht-Sonderbehandlung.
+        panoramaWorkflowActive: Boolean = false,
     ): List<AnnotationOverlay> {
         val padding = max(imageWidth, imageHeight) * 0.08f
         // Fisheye/Panorama: gerade Pixel-Linien zwischen weit entfernten Ankern laufen quer durchs
@@ -131,6 +135,27 @@ object AstapOverlayMapper {
         // Einzelkachel-Crop-Direct-Fall (kein Fallback) bleibt unveraendert gerade (mosaic.fallback ist
         // dort per Konstruktion null, s. cropTile zwei Zeilen weiter).
         val fisheyeProjection = solution is PanoramaWcsSolution || mosaic?.fallback is PanoramaWcsSolution
+        // Naht-Aufteilung beim Zeichnen: BEIDE Bedingungen muessen erfuellt sein.
+        //
+        // (1) Die Projektion ist horizontal periodisch (`horizontalPeriodPx() != null`) -- ohne Periode
+        //     gibt es keine Naht, an der ueberhaupt geteilt werden koennte.
+        // (2) [panoramaWorkflowActive]: das Bild stammt aus dem EXPLIZITEN 360°-/Tiny-Sky-Workflow.
+        //
+        // Bedingung (2) ist neu (Nutzer-Vorgabe 2026-09-04). Vorher genuegte (1) allein -- das war zu
+        // breit: ein normal importiertes, Mercator-GESTITCHTES Foto ist mathematisch ebenfalls periodisch,
+        // aber kein 360°-Panorama-Workflow. Auf so einem Bild verschob `splitPolylineAtSeam` Kantenstuecke
+        // ausserhalb [0, imageWidth] um ±imageWidth zurueck INS Bild und zeigte dadurch Sternbilder(teile),
+        // die dort nicht hingehoeren (Gerätebefund Diagnose 45: 69/69 Overlays seamAware=true auf einem
+        // 6392x4101-Foto). Die Golden-APK behandelt exakt dasselbe Bild mit Mercator korrekt (Diagnose 47)
+        // -- sie kannte splitPolylineAtSeam gar nicht.
+        //
+        // Mercator selbst wird dadurch NICHT entwertet: nur die Naht-Sonderbehandlung entfaellt, die
+        // Projektion und ihre Auswahl bleiben unveraendert. Der echte 360°-Fall behaelt sie vollstaendig.
+        // GraticuleRenderers eigenes `seamAware` ist davon UNBERUEHRT (eingefrorener Gradnetz-Umbau).
+        val periodicProjectionSource = (solution as? PanoramaWcsSolution)
+            ?: (mosaic?.fallback as? PanoramaWcsSolution)
+        val periodicProjection = periodicProjectionSource?.projection?.horizontalPeriodPx() != null
+        val seamAwareProjection = panoramaWorkflowActive && periodicProjection
         // "Genau 1 Kachel" ist nur dann der alte Crop-Direct-Fall (ganzes Bild als EINE Kachel gelöst,
         // Cull auf nur diese Kachel sinnvoll), wenn KEIN Fallback existiert. Mit Fallback (seit 0.16.0:
         // Einzelbildlösung deckt den Rest ab) deckt eine einzelne Verfeinerungs-Kachel NUR einen kleinen
@@ -173,6 +198,23 @@ object AstapOverlayMapper {
         // Schutzschicht gegen zu lange/verstreute Kanten; sie kennen keine Anker-Distanz, sondern
         // beurteilen die tatsächlich GEZEICHNETE Geometrie.
         return catalog.mapIndexedNotNull { catalogIndex, pattern ->
+            // Referenzpunkt für die nahtstellen-sichere Umrechnung ALLER Sternpositionen dieses
+            // Musters: die (grobe, sphärische) Muster-Mitte, EINMAL über den Hauptzweig projiziert.
+            // Jeder Einzelstern wird unten relativ zu DIESER EINEN gemeinsamen Referenz entfaltet
+            // (nicht von Stern zu Stern verkettet -- die Katalog-Reihenfolge in pattern.stars ist
+            // keine räumliche Nachbarschaft), damit je ZWEI beliebige Sterne des Musters (nicht nur
+            // Listen-Nachbarn, also auch die beiden Enden einer beliebigen Kante) auf demselben Ast
+            // landen. Für jedes reale IAU-Sternbild (Winkelausdehnung immer klar unter 180°, selbst
+            // Hydra nur ~100°) ist "nächster Ast zur Muster-Mitte" für JEDEN Einzelstern eindeutig
+            // richtig. Schlägt schon die Referenz-Projektion fehl, bleibt reference=null -> identisches
+            // Verhalten wie vor diesem Fix.
+            val patternCenterDir = pattern.stars.fold(Vec3(0.0, 0.0, 0.0)) { acc, star ->
+                val v = raDecToVector(star.raHours * 15.0, star.decDegrees.toDouble())
+                Vec3(acc.x + v.x, acc.y + v.y, acc.z + v.z)
+            }.normalized()
+            val (patternCenterRa, patternCenterDec) = vectorToRaDec(patternCenterDir)
+            val patternCenterSky = com.codex.starmapper.domain.SkyPoint(patternCenterRa.toFloat(), patternCenterDec.toFloat())
+            val patternReference = solution.skyToImage(point = patternCenterSky, imageHeight = imageHeight)
             val projected = pattern.stars.map { star ->
                 solution.skyToImage(
                     point = com.codex.starmapper.domain.SkyPoint(
@@ -180,6 +222,7 @@ object AstapOverlayMapper {
                         decDegrees = star.decDegrees,
                     ),
                     imageHeight = imageHeight,
+                    reference = patternReference,
                 )
             }
             val visibleEdges = pattern.edges.filter { (startIndex, endIndex) ->
@@ -313,7 +356,7 @@ object AstapOverlayMapper {
                     val a = pattern.stars[startIndex]
                     val b = pattern.stars[endIndex]
                     val curved = greatCircleImagePolyline(
-                        a.raHours, a.decDegrees, b.raHours, b.decDegrees, solution, imageHeight,
+                        a.raHours, a.decDegrees, b.raHours, b.decDegrees, solution, imageHeight, reference = start,
                     )
                     if (isCurveTrustworthy(curved, start, end, imageWidth, imageHeight)) {
                         curved
@@ -344,6 +387,7 @@ object AstapOverlayMapper {
                 constellation = clippedPattern,
                 anchorOverrides = points.mapIndexed { index, point -> index to point }.toMap(),
                 edgePolylines = edgePolylines,
+                seamAware = seamAwareProjection,
                 colorArgb = colorArgb,
                 strokeWidth = strokeWidth,
                 anchorRadiusRatio = anchorRadiusRatio,
@@ -456,13 +500,60 @@ object AstapOverlayMapper {
         // Sprache des Anzeigenamens (BCP-47-Kürzel, s. AppLocale.resolvedLanguageTag) -- steuert nur
         // [DeepSkyObject.properDisplayName], analog zu createStarOverlays' `lang`-Parameter.
         lang: String = "en",
+        // Punkt 6 (Nutzer-Vorgabe 2026-08-30): koppelt Beschriftungs- an Objekt-Deckkraft, s.
+        // AnnotationOverlay.nameOpacityLinked-KDoc. Default false = bisheriges Verhalten unverändert.
+        nameOpacityLinked: Boolean = false,
+        // Best Known V1 (Nutzer-Vorgabe 2026-09-01, s. BestKnownCatalog-KDoc): true = NUR Objekte
+        // zeigen, die BestKnownCatalog.match() erfolgreich auf eines der 250 kuratierten Ziele abbildet
+        // (gepinnte Objekte bleiben wie bei allen übrigen Filtern ausgenommen), UND deren Anzeigename
+        // (sofern in der Tabelle vorhanden) durch den Best-Known-Namen ersetzen. Default false =
+        // bisheriges Verhalten (kompletter Katalog, Katalogname) unverändert.
+        bestKnownEnabled: Boolean = false,
+        // WCS-basierter Mindestgrößen-Filter (Abschnitt I-P der Best-Known-Vorgabe): `null` = "Alle
+        // Größen" (Filter AUS, Altverhalten -- nur der bereits bestehende minRenderSizeFraction/
+        // arcminToPx-Boden greift weiterhin). Nicht-null = Prozentanteil der kürzeren Bildseite, gegen
+        // die natürliche projizierte Größe (VOR sizeOverrides, VOR arcminToPx-Fallback) geprüft --
+        // bewusst eine ANDERE, frühere Prüfung als minRenderSizeFraction (die bleibt unverändert
+        // bestehen, wirkt aber danach auf die ggf. schon override-/fallback-beeinflusste Größe, s.
+        // dortigen Parameter-Kommentar). Objekte OHNE bekannte natürliche Winkelausdehnung werden bei
+        // aktivem Filter verworfen (sizeKnown=false darf NIE die minRenderSizeFraction-Ersatzgröße als
+        // Beweis für "groß genug" verwenden, s. Abschnitt M) -- außer sie sind gepinnt.
+        minNaturalSizePercent: Float? = null,
+        // Performance-Fix 2026-09-02: einmalig beim Katalog-Laden vorberechnete Best-Known-Zuordnung
+        // (Objekt -> Treffer oder null), analog zu catalogGroups oben -- vermeidet, dass BEI JEDER
+        // Neuberechnung (jeder Slider-Commit im Objekte-Menü) erneut bis zu ~365.000 normalisierte
+        // Vergleiche über den kompletten Katalog laufen. `null` (Default, z.B. in Tests ohne Cache) fällt
+        // auf die direkte, weiterhin korrekte BestKnownCatalog.match()-Berechnung pro Objekt zurück --
+        // funktional identisch, nur langsamer.
+        bestKnownMatches: Map<DeepSkyObject, BestKnownEntry?>? = null,
     ): List<AnnotationOverlay> {
         if (pinnedIds.isEmpty() && (categories.isEmpty() || catalogs?.isEmpty() == true)) return emptyList()
-        var pixelsPerDegree = 0f
         val groupOf: (DeepSkyObject) -> DeepSkyCatalogGroup = { catalogGroups[it] ?: DeepSkyCatalogGroup.of(it) }
+        val bestKnownOf: (DeepSkyObject) -> BestKnownEntry? = { bestKnownMatches?.get(it) ?: BestKnownCatalog.match(it) }
+        // Diagnose-Zähler (Abschnitt W) -- unabhängig von Sichtbarkeits-/Bildfeld-Filtern: wie viele der
+        // 250 Best-Known-Ziele lassen sich im GELADENEN Katalog überhaupt auflösen (unabhängig von
+        // Kategorie/Katalog/Helligkeit/Bildausschnitt dieses konkreten Fotos). Performance-Fix: liest den
+        // ggf. bereits vorberechneten bestKnownMatches-Cache statt einer ZWEITEN vollen match()-Passage
+        // über den Katalog (vorher redundant zum Filter direkt darunter).
+        // Zusätzlich zur bereits vorhandenen OBJEKT-Zählung: welche BestKnownEntry-ZEILEN wurden im
+        // Katalog überhaupt gefunden (Nutzer-Vorgabe 2026-09-04)? Wird im SELBEN Durchlauf mitgesammelt
+        // -- kein zweiter Scan über die ~91k Objekte (der Best-Known-Abgleich war bereits einmal ein
+        // Performance-Thema, s. normalizeId-Kommentar oben).
+        val bestKnownMatchedEntries = HashSet<BestKnownEntry>()
+        val bestKnownMatchedInCatalog = if (bestKnownEnabled) {
+            objects.count { o -> bestKnownOf(o)?.also { bestKnownMatchedEntries += it } != null }
+        } else {
+            0
+        }
+        var naturalSizeKnownCount = 0
+        var naturalSizeRejectedCount = 0
         val projected = objects.asSequence()
             .filter { it.id in pinnedIds || DeepSkyCategory.fromType(it.type) in categories }
             .filter { it.id in pinnedIds || catalogs == null || groupOf(it) in catalogs }
+            // Best Known V1 (Abschnitt H): schaltet KEINE anderen Filter ab -- läuft als zusätzlicher,
+            // unabhängiger Filter in derselben Kette. Reine Identitätsprüfung, keine Positionsheuristik
+            // (BestKnownCatalog.match(), s. dortiger KDoc).
+            .filter { it.id in pinnedIds || !bestKnownEnabled || bestKnownOf(it) != null }
             .filter { deepSky ->
                 // Gepinnt: keine Helligkeitsprüfung. Sonst Bereich je Katalog; Objekte ohne
                 // Helligkeit passieren immer (über Größe gezeichnet, Running-Man-Altverhalten).
@@ -484,9 +575,6 @@ object AstapOverlayMapper {
                 }
                 if (foregroundMask != null && SolveMask.isMasked(foregroundMask, point)) {
                     return@mapNotNull null
-                }
-                if (pixelsPerDegree <= 0f) {
-                    pixelsPerDegree = estimatePixelsPerDegreeAt(solution, deepSky.point, point, imageHeight)
                 }
                 deepSky to point
             }
@@ -517,20 +605,75 @@ object AstapOverlayMapper {
         var minPxArr = FloatArray(candidates.size)
         var rotArr = FloatArray(candidates.size)
         var radii = FloatArray(candidates.size)
+        // sizeKnown = ein echtes Winkelmaß (Form-Fakten ODER Katalog-`dim`) konnte tatsächlich projiziert
+        // werden -- unterscheidet eine ECHTE natürliche Größe vom arcminToPx(null,...)-Anzeige-Platzhalter
+        // (Abschnitt M: "keine geratenen Größen", der Platzhalter darf NIE als Beweis für "groß genug"
+        // gelten). Nur für den neuen minNaturalSizePercent-Filter unten gebraucht.
+        val sizeKnownArr = BooleanArray(candidates.size)
         for (i in candidates.indices) {
             val ds = candidates[i].first
             val shape = shapes[normalizeDesignation(ds.name)] ?: shapes[normalizeDesignation(ds.id)]
-            val majPx = arcminToPx(shape?.majArcmin ?: ds.majorAxisArcmin, pixelsPerDegree, imageWidth, imageHeight)
-            if (shape?.minArcmin != null && shape.posAngleDeg != null) {
-                majPxArr[i] = majPx
-                minPxArr[i] = arcminToPx(shape.minArcmin, pixelsPerDegree, imageWidth, imageHeight)
-                rotArr[i] = paToImageAngle(candidates[i].second, ds.point, shape.posAngleDeg, solution, imageHeight)
+            val majArcmin = shape?.majArcmin ?: ds.majorAxisArcmin
+            val ellipse = majArcmin?.takeIf { it > 0f }?.let { maj ->
+                val minArcmin = shape?.minArcmin?.takeIf { shape.posAngleDeg != null }
+                projectedEllipseAxes(
+                    point = candidates[i].second,
+                    sky = ds.point,
+                    majArcmin = maj,
+                    minArcmin = minArcmin ?: maj,
+                    paDeg = if (minArcmin != null) shape?.posAngleDeg ?: 0f else 0f,
+                    solution = solution,
+                    imageHeight = imageHeight,
+                )
+            }
+            if (ellipse != null) {
+                majPxArr[i] = ellipse.first
+                minPxArr[i] = ellipse.second
+                rotArr[i] = ellipse.third
+                sizeKnownArr[i] = true
             } else {
-                majPxArr[i] = majPx
-                minPxArr[i] = majPx // Kreis
+                // Kein Winkelmaß bekannt (weder Form-Fakten noch Katalog-`dim`) ODER Nord-/Ost-
+                // Abtastung fehlgeschlagen (z.B. Projektions-Polstelle) -> fester Anzeige-Kreis, wie
+                // der bisherige arcminToPx-Fallback (dessen Formel unabhängig von pixelsPerDegree ist).
+                val fallback = arcminToPx(null, 0f, imageWidth, imageHeight)
+                majPxArr[i] = fallback
+                minPxArr[i] = fallback
                 rotArr[i] = 0f
+                sizeKnownArr[i] = false
             }
             radii[i] = max(majPxArr[i], minPxArr[i]) / 2f
+        }
+
+        // WCS-basierter Mindestgrößen-Filter (Abschnitt I-P): NATÜRLICHE projizierte Größe (majPxArr an
+        // dieser Stelle, VOR sizeOverrides/minRenderSizeFraction unten) gegen einen Prozentanteil der
+        // kürzeren Bildseite geprüft -- reines Filterkriterium, beeinflusst die spätere Render-Größe
+        // selbst nicht (die bleibt Sache von sizeOverrides/minRenderSizeFraction danach, unverändert).
+        if (minNaturalSizePercent != null && minNaturalSizePercent > 0f) {
+            val thresholdPx = minNaturalSizePercent / 100f * min(imageWidth, imageHeight)
+            naturalSizeKnownCount = sizeKnownArr.count { it }
+            val keepIdx = candidates.indices.filter { i ->
+                candidates[i].first.id in pinnedIds || (sizeKnownArr[i] && majPxArr[i] >= thresholdPx)
+            }
+            naturalSizeRejectedCount = candidates.size - keepIdx.size
+            if (keepIdx.size != candidates.size) {
+                val filteredCandidates = ArrayList<Pair<DeepSkyObject, Offset>>(keepIdx.size)
+                val filteredMajPx = FloatArray(keepIdx.size)
+                val filteredMinPx = FloatArray(keepIdx.size)
+                val filteredRot = FloatArray(keepIdx.size)
+                val filteredRadii = FloatArray(keepIdx.size)
+                keepIdx.forEachIndexed { newI, oldI ->
+                    filteredCandidates += candidates[oldI]
+                    filteredMajPx[newI] = majPxArr[oldI]
+                    filteredMinPx[newI] = minPxArr[oldI]
+                    filteredRot[newI] = rotArr[oldI]
+                    filteredRadii[newI] = radii[oldI]
+                }
+                candidates = filteredCandidates
+                majPxArr = filteredMajPx
+                minPxArr = filteredMinPx
+                rotArr = filteredRot
+                radii = filteredRadii
+            }
         }
 
         // Nutzer-Override (manuell verändertes Overlay) übersteuert die Katalog-/Form-Fakten-Größe --
@@ -582,47 +725,98 @@ object AstapOverlayMapper {
         // wählen. Führungslinie + Name dürfen keine fremden Objektkreise/Labels kreuzen (nur der eigene,
         // enthaltende Kreis darf zum Herauswachsen durchquert werden). Live-Drag: günstige Basis-Platzierung.
         val candAngles = floatArrayOf(0f, -45f, 45f, -90f, 90f, 180f, -135f, 135f)
+        // Echte gemessene Textbreite statt der früheren Zeichenzahl-Schätzung (label.length*0.55f) --
+        // letztere konnte je nach Name (schmale/breite Zeichen) spürbar daneben liegen und eine an der
+        // Suche "kollisionsfrei" geprüfte Position beim tatsächlichen Zeichnen doch wieder überlappen
+        // lassen (Nutzerbefund 2026-08-30). EIN Paint für alle Objekte -- Font/Fett/Größe sind für den
+        // ganzen Aufruf konstant (DSO-Namen sind immer fett, s. ExportRenderer.drawMarkerName/
+        // SphericalOverlayRenderer, deren nameBold für layer!=null immer true ist).
+        val measurePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = font.toTypeface(bold = true)
+            textSize = (nameTextSize * font.sizeScale()).coerceIn(14f, 120f)
+        }
         // Mit fremden Namens-Boxen (z.B. Sternbildnamen) vorbelegt, s. externalObstacleBoxes-Kommentar.
         val placedBoxes = ArrayList<FloatArray>(externalObstacleBoxes.size).apply { addAll(externalObstacleBoxes) } // je [l, t, r, b] in Bild-px
-        return candidates.mapIndexed { index, (deepSky, point) ->
+        val result = candidates.mapIndexed { index, (deepSky, point) ->
             // Umschließender Durchmesser (große Achse) für die Muster-Sichtbarkeitsprüfung; die eigentliche
             // Form (Kreis oder orientierte Ellipse) steckt in majPxArr/minPxArr/rotArr.
             val diameterPx = radii[index] * 2f
             val style = dsoStyleForType(deepSky.type, dsoColorOverrides)
             // Linienstil je Typ; zu kleine/kurze Form (kein sichtbares Muster) -> Vollstrich.
-            val renderStroke = (strokeWidth * 2f).coerceAtLeast(2f) // spiegelt OverlayGeometry.strokeWidth
+            val renderStroke = (strokeWidth * 2f).coerceAtLeast(0.3f) // spiegelt OverlayGeometry.strokeWidth
             val dashPeriod = renderStroke * 6.4f                     // on(*4) + off(*2.4)
             val effectiveStyle = if (style.lineStyle != OverlayLineStyle.Solid &&
                 diameterPx * 3.14159f < 6f * dashPeriod
             ) OverlayLineStyle.Solid else style.lineStyle
-            // Populärname bevorzugt (z.B. "Andromeda Galaxy" statt "M 31"), s. DeepSkyObject.properDisplayName.
-            val label = deepSky.properDisplayName(lang)
+            // Best Known V1 (Abschnitt D/T): ändert AUSSCHLIESSLICH diesen lokalen Anzeigenamen -- kein
+            // Feld an [deepSky] selbst wird überschrieben. Fällt zurück auf den bereits bestehenden
+            // Populärname-Mechanismus (z.B. "Andromeda Galaxy" statt "M 31" aus dso_names.json), wenn
+            // Best Known aus ist ODER dieses konkrete Objekt keinen eigenen Best-Known-Namen hat.
+            val bestKnownName = if (bestKnownEnabled) {
+                bestKnownOf(deepSky)?.let { BestKnownCatalog.resolveDisplayName(it, lang) }
+            } else {
+                null
+            }
+            val label = bestKnownName ?: deepSky.properDisplayName(lang)
 
             var labelAngle = 0f
             var labelLeaderPx = 0f
             var showThisName = false
+            val dsoOverride = sizeOverrides[deepSky.id]
             if (showNames && label.isNotBlank()) {
                 val effSize = (nameTextSize * font.sizeScale()).coerceIn(14f, 120f)
                 val r = radii[index]
                 val baseLeader = max(effSize * 0.5f, r * 0.15f)
                 val gap = OverlayGeometry.MARKER_NAME_GAP
-                if (!fullLabelPlacement) {
+                if (dsoOverride != null) {
+                    // Manuell verschobene Beschriftung übersteht Neusynchronisierung (Nutzerbefund
+                    // 2026-08-27) -- keine erneute automatische Platzierungssuche, Position bleibt exakt
+                    // wie vom Nutzer gesetzt. Trotzdem als Hindernis eintragen (s. placedBoxes unten),
+                    // damit andere, noch automatisch zu platzierende Namen ihr ausweichen.
+                    showThisName = true
+                    labelAngle = dsoOverride.labelAngleDeg
+                    labelLeaderPx = dsoOverride.labelLeaderPx
+                    val textW = measurePaint.measureText(label)
+                    val textH = effSize * 1.1f
+                    val th = Math.toRadians(labelAngle.toDouble())
+                    val dx = cos(th).toFloat(); val dy = sin(th).toFloat()
+                    // Echter, RICHTUNGSABHÄNGIGER Formrand (Ellipse inkl. Rotation) statt der
+                    // umschließenden Kreisnäherung radii[index] -- exakt dieselbe Formel wie
+                    // OverlayGeometry.markerLabelLayout beim tatsächlichen Zeichnen (boundaryRadiusFor
+                    // ist deren gemeinsamer Kern). Ohne das verifizierte die Hindernis-Box hier eine
+                    // ANDERE Stelle als die später wirklich gezeichnete (Nutzerbefund 2026-08-30: Labels
+                    // lagen teils im eigenen Objekt/schnitten dessen Kontur).
+                    val ownBoundary = OverlayGeometry.boundaryRadiusFor(majPxArr[index], minPxArr[index], rotArr[index], false, dx, dy)
+                    val dist = ownBoundary + labelLeaderPx + gap
+                    val ax = point.x + dist * dx
+                    val ay = point.y + dist * dy
+                    val l = when {
+                        dx > 0.35f -> ax
+                        dx < -0.35f -> ax - textW
+                        else -> ax - textW / 2f
+                    }
+                    placedBoxes += floatArrayOf(l, ay - textH / 2f, l + textW, ay + textH / 2f)
+                } else if (!fullLabelPlacement) {
                     // Live-Drag: günstige Basis-Platzierung (kein O(n^2), keine Kollisionsprüfung) -> kein Ruckeln.
                     showThisName = true
                     labelAngle = 0f
                     labelLeaderPx = baseLeader
                 } else {
-                    val textW = label.length * effSize * 0.55f
+                    val textW = measurePaint.measureText(label)
                     val textH = effSize * 1.1f
                     val step = max(textH, 8f)
-                    val baseDist = r + baseLeader + gap
-                    val maxDist = baseDist + maxObsR + textW + textH
+                    // r (umschließender Radius) bleibt hier NUR als großzügige, sichere Obergrenze für den
+                    // Such-Deckel -- die eigentliche Platzierung unten nutzt pro Kandidatenwinkel den
+                    // echten, richtungsabhängigen Formrand (s. Kommentar im dsoOverride-Zweig oben).
+                    val maxDist = r + baseLeader + gap + maxObsR + textW + textH
                     var bestAngle = 0f
                     var bestDist = Float.MAX_VALUE
                     for (angle in candAngles) {
                         val th = Math.toRadians(angle.toDouble())
                         val dx = cos(th).toFloat()
                         val dy = sin(th).toFloat()
+                        val ownBoundary = OverlayGeometry.boundaryRadiusFor(majPxArr[index], minPxArr[index], rotArr[index], false, dx, dy)
+                        val baseDist = ownBoundary + baseLeader + gap
                         var dist = baseDist
                         while (dist <= maxDist) {
                             val ax = point.x + dist * dx
@@ -635,13 +829,17 @@ object AstapOverlayMapper {
                             val rBox = l + textW
                             val tBox = ay - textH / 2f
                             val bBox = ay + textH / 2f
-                            val edgeX = point.x + r * dx
-                            val edgeY = point.y + r * dy
+                            val edgeX = point.x + ownBoundary * dx
+                            val edgeY = point.y + ownBoundary * dy
                             val lineEndX = point.x + (dist - gap) * dx
                             val lineEndY = point.y + (dist - gap) * dy
-                            var blocked = false
+                            // Namens-Box muss VOLLSTÄNDIG im Bild liegen -- ohne das fand die Suche bei
+                            // Objekten nahe dem Bildrand (kaum andere Objekte als Hindernis) anstandslos
+                            // eine "kollisionsfreie", aber tatsächlich unsichtbare Stelle außerhalb des
+                            // Bildes (Nutzerbefund 2026-08-27).
+                            var blocked = l < 0f || rBox > imageWidth || tBox < 0f || bBox > imageHeight
                             var j = 0
-                            while (j < candidates.size) {
+                            while (!blocked && j < candidates.size) {
                                 if (j != index) {
                                     val cxj = obsX[j]; val cyj = obsY[j]; val rj = radii[j]
                                     // Liegt UNSER Objekt selbst innerhalb von Kreis j (z.B. kleines Objekt in
@@ -682,7 +880,12 @@ object AstapOverlayMapper {
                         }
                         placedBoxes += floatArrayOf(l, ay - textH / 2f, l + textW, ay + textH / 2f)
                         labelAngle = bestAngle
-                        labelLeaderPx = bestDist - r - gap
+                        // Konsistent mit dem echten Formrand in GENAU dieser Richtung (identisch zu dem,
+                        // was oben im Such-Loop für denselben bestAngle bereits berechnet wurde) --
+                        // dieser Wert (nicht mehr r) ist es, den OverlayGeometry.markerLabelLayout beim
+                        // Zeichnen als Ausgangspunkt für die Führungslinie nimmt.
+                        val finalBoundary = OverlayGeometry.boundaryRadiusFor(majPxArr[index], minPxArr[index], rotArr[index], false, dx, dy)
+                        labelLeaderPx = bestDist - finalBoundary - gap
                         showThisName = true
                     }
                 }
@@ -707,10 +910,42 @@ object AstapOverlayMapper {
                 labelAngleDeg = labelAngle,
                 labelLeaderPx = labelLeaderPx,
                 font = font,
+                nameOpacityLinked = nameOpacityLinked,
                 layer = AnnotationLayer.DeepSky,
                 sourceId = deepSky.id,
             )
         }
+        // Best Known V1 (Abschnitt W) -- rein additive, kompakte Diagnosezeile. sizeFilterMode=all,
+        // wenn minNaturalSizePercent null/0 ist (Abschnitt N: "Alle Größen" = Filter komplett aus) --
+        // dann bleiben naturalSizeKnown/naturalSizeRejected bei 0 (Filter lief nie, keine Ablehnung).
+        val sizeFilterActive = minNaturalSizePercent != null && minNaturalSizePercent > 0f
+        val sizeFilterModeText = if (sizeFilterActive) "percent" else "all"
+        val minObjectSizePercentText = minNaturalSizePercent?.let { "%.1f".format(it) } ?: "n/a"
+        val minObjectSizePxText = if (sizeFilterActive) {
+            "%.1f".format(minNaturalSizePercent!! / 100f * min(imageWidth, imageHeight))
+        } else {
+            "n/a"
+        }
+        if (bestKnownEnabled) {
+            val unmatched = BestKnownCatalog.entries.filter { it !in bestKnownMatchedEntries }
+            AppDiagnostics.record(
+                "bestknown_catalog_audit entries=${BestKnownCatalog.entries.size} " +
+                    "matchedEntries=${bestKnownMatchedEntries.size} " +
+                    "unmatchedEntries=${unmatched.size} " +
+                    "unmatched=${
+                        if (unmatched.isEmpty()) "none" else unmatched.joinToString("|") { it.preferredCanonicalId }
+                    }",
+            )
+        }
+        AppDiagnostics.record(
+            "deepsky_best_known bestKnownEnabled=$bestKnownEnabled " +
+                "bestKnownMatchedInCatalog=$bestKnownMatchedInCatalog " +
+                "sizeFilterMode=$sizeFilterModeText minObjectSizePercent=$minObjectSizePercentText " +
+                "minObjectSizePx=$minObjectSizePxText " +
+                "naturalSizeKnown=$naturalSizeKnownCount naturalSizeRejected=$naturalSizeRejectedCount " +
+                "visibleCount=${result.size}",
+        )
+        return result
     }
 
     /**
@@ -929,12 +1164,17 @@ object AstapOverlayMapper {
             val len = hypot(dRa, dDec)
             if (len < 1e-9) return null
             val step = min(0.2, len * 0.5)
+            // reference=projectedFrom: der Sondierungs-Punkt liegt nur `step` Grad (<=0,2°) von `from`
+            // entfernt -- ohne dieselbe Entfaltungs-Referenz wie `projectedFrom` könnte er auf den
+            // JEWEILS ANDEREN Ast der 360°-Naht fallen und eine riesige Schein-Distanz liefern, die
+            // genau den Kanten-Cull korrumpiert, der sich unten auf dieses Ergebnis verlässt.
             val shifted = solution.skyToImage(
                 SkyPoint(
                     (from.raDegrees + (dRa / len * step)).toFloat(),
                     (from.decDegrees + (dDec / len * step)).toFloat(),
                 ),
                 imageHeight,
+                reference = projectedFrom,
             ) ?: return null
             val distance = hypot(
                 (shifted.x - projectedFrom.x).toDouble(),
@@ -953,63 +1193,87 @@ object AstapOverlayMapper {
     }
 
     /**
-     * Lokale Bildskala (Pixel pro Grad) AN EINEM EINZELNEN Punkt (fester 0,2°-Deklinationsschritt) --
-     * für den DSO-Größen-Umrechner (arcminToPx) unten, der nur EIN Objekt zur Skalen-Schätzung
-     * heranzieht, kein Kantenpaar wie estimatePixelsPerDegree oben. Absichtlich eigenständig statt
-     * über estimatePixelsPerDegree(sky, sky) simuliert -- Letzteres bräuchte zwei UNTERSCHIEDLICHE
-     * Punkte (Winkelabstand > 0) und würde bei identischen Punkten degenerieren (0f).
+     * Bildet eine Katalog-Ellipse (großer/kleiner Halbmesser aus [majArcmin]/[minArcmin], Positionswinkel
+     * [paDeg] Grad Nord->Ost) an [sky] in eine Bild-Ellipse um: (Durchmesser groß px, Durchmesser klein
+     * px, Rotationswinkel Grad). ISOTROPE lokale Skala (geometrisches Mittel der beiden Jacobi-Eigenwerte
+     * an [point], `sqrt(|det J|)`) + reiner Rotationsanteil der Jacobi-Matrix -- das Katalog-Seitenver-
+     * hältnis `majArcmin:minArcmin` bleibt dadurch IMMER exakt erhalten, unabhängig von der lokalen
+     * (An-)Isotropie der Projektion an diesem Bildpunkt (Nutzer-Vorgabe 2026-08-27: "wieder normal ohne
+     * Verzerrung" -- ersetzt die zuvor hier verwendete volle 2x2-SVD, die eine reale Projektionsanisotropie
+     * [z.B. Equirectangular fernab des Himmelsäquators] noch zusätzlich in die gezeichnete Form mischte,
+     * s. [[project_rendering_seam_ellipse_fix]]). null bei fehlgeschlagener Nord-/Ost-Abtastung (z.B.
+     * Projektions-Polstelle) -- Aufrufer fällt dann auf den festen Anzeige-Kreis zurück.
+     *
+     * Herleitung: Jacobi-Spalten (jNx,jNy)/(jEx,jEy) = Bild-px PRO GRAD wahrer Nord-/Ost-Distanz an
+     * [point]. Für ein reales 2x2 J=[[a,c],[b,d]] (Spalten (a,b),(c,d)) liefert `atan2(b-c, a+d)` den
+     * Rotationswinkel der Polarzerlegung J=R*M (R = reine Rotation, M = symmetrischer Streckanteil) --
+     * OHNE Matrix-Invertierung/-Wurzel, per Hand an 3 Fällen verifiziert (reine Rotation φ -> φ; reine
+     * anisotrope Diagonalskalierung -> 0; Skalierung gefolgt von Rotation R(φ)*diag(sx,sy) -> φ,
+     * unabhängig von sx,sy). Mit `isoScale = sqrt(|det J|)` liegt `A_iso = isoScale*R(θ_J+PA)*diag(aDeg,
+     * bDeg)` bereits in Polarform vor -- Halbachsen/Rotation folgen direkt ohne weitere SVD.
      */
-    private fun estimatePixelsPerDegreeAt(
-        solution: WcsSolutionLike,
-        skyPoint: SkyPoint,
-        projected: Offset,
-        imageHeight: Int,
-    ): Float {
-        val decStep = if (skyPoint.decDegrees < 89f) 0.2f else -0.2f
-        val shifted = solution.skyToImage(
-            SkyPoint(skyPoint.raDegrees, skyPoint.decDegrees + decStep),
-            imageHeight,
-        ) ?: return 0f
-        val distance = hypot(
-            (shifted.x - projected.x).toDouble(),
-            (shifted.y - projected.y).toDouble(),
-        ).toFloat()
-        return distance / 0.2f
-    }
-
-    /**
-     * Positionswinkel (Grad, Nord->Ost) -> Bild-Rotationswinkel der Ellipsen-Hauptachse (Grad) für
-     * OverlayKind.Ellipse. Nord-/Ost-Bildvektor per skyToImage-Sampling (echte Projektionsvektoren ->
-     * Parität/Spiegelung automatisch korrekt): majVec = N*cos(pa) + E*sin(pa). rotationDegrees =
-     * atan2(majVec.y, majVec.x). Sampling-Ausfall -> 0 (Ellipse bleibt achsenparallel, unkritisch).
-     */
-    private fun paToImageAngle(
+    /** Lokale 2x2-Jacobi-Matrix (Bild-px PRO GRAD wahrer Winkeldistanz) der Sky->Bild-Abbildung
+     *  [solution] bei [point]/[sky], via Epsilon-Abtastung in Nord-/Ost-Richtung (Betrag, nicht nur
+     *  Richtung wie im früheren paToImageAngle -- die Schrittweite wird herausdividiert). Grundlage für
+     *  [projectedEllipseAxes] (DSO-Ellipsenform). Rückgabe [jNx,jNy,jEx,jEy], oder null, wenn nicht
+     *  abbildbar (z.B. Antipode). */
+    private fun localSkyToImageJacobian(
         point: Offset,
         sky: SkyPoint,
-        paDeg: Float,
         solution: WcsSolutionLike,
         imageHeight: Int,
-    ): Float {
+    ): FloatArray? {
         val delta = 0.1f
-        // Nord: Dec + delta (am Pol nach innen kippen). Ost: RA + delta/cos(dec) (Pol-Nulldivision abgefangen).
         val decStep = if (sky.decDegrees < 89f) delta else -delta
-        val north = solution.skyToImage(SkyPoint(sky.raDegrees, sky.decDegrees + decStep), imageHeight) ?: return 0f
+        // WICHTIG (Nutzerbefund 2026-08-24, "blaue Linien"/Bild-Naht-Ausreißer): [point] als Referenz
+        // durchreichen, exakt wie createConstellationOverlays es für patternReference bereits tut --
+        // ohne das kann der Epsilon-Tastpunkt bei einem Objekt nahe der 360°-Bild-Naht (RA nahe 0°/360°)
+        // auf die GEGENÜBERLIEGENDE Bildseite springen (atan2-Hauptzweig), was hier eine riesige, freie
+        // Scheindistanz statt einer kleinen lokalen Ableitung ergibt -- Diagnose zeigte dadurch
+        // entstandene DSO-Ellipsen mit bis zu 4404px Breite bei 1px Höhe, alle nahe x=0.
+        val north = solution.skyToImage(SkyPoint(sky.raDegrees, sky.decDegrees + decStep), imageHeight, point) ?: return null
         val cosDec = cos(Math.toRadians(sky.decDegrees.toDouble())).let { if (abs(it) < 0.02) 0.02 else it }
         val east = solution.skyToImage(
             SkyPoint(sky.raDegrees + (delta / cosDec).toFloat(), sky.decDegrees),
             imageHeight,
-        ) ?: return 0f
-        val sign = if (decStep < 0f) -1f else 1f // am Pol umgedrehten Nord-Schritt kompensieren
-        val nx = (north.x - point.x) * sign
-        val ny = (north.y - point.y) * sign
-        val ex = east.x - point.x
-        val ey = east.y - point.y
-        val pa = Math.toRadians(paDeg.toDouble())
-        val c = cos(pa)
-        val s = sin(pa)
-        val majX = nx * c + ex * s
-        val majY = ny * c + ey * s
-        return Math.toDegrees(atan2(majY, majX)).toFloat()
+            point,
+        ) ?: return null
+        val sign = if (decStep < 0f) -1f else 1f
+        return floatArrayOf(
+            (north.x - point.x) * sign / delta,
+            (north.y - point.y) * sign / delta,
+            (east.x - point.x) / delta,
+            (east.y - point.y) / delta,
+        )
+    }
+
+    private fun projectedEllipseAxes(
+        point: Offset,
+        sky: SkyPoint,
+        majArcmin: Float,
+        minArcmin: Float,
+        paDeg: Float,
+        solution: WcsSolutionLike,
+        imageHeight: Int,
+    ): Triple<Float, Float, Float>? {
+        val jac = localSkyToImageJacobian(point, sky, solution, imageHeight) ?: return null
+        val jNx = jac[0]; val jNy = jac[1]; val jEx = jac[2]; val jEy = jac[3]
+
+        // majArcmin/minArcmin sind volle Achsen (Katalog-Konvention, wie arcminToPx) -> /120 statt /60
+        // für den HALBEN Wert (Grad).
+        val aDeg = majArcmin / 120.0
+        val bDeg = minArcmin / 120.0
+        // Isotrope Skala (Bild-px pro Grad) = geometrisches Mittel der Jacobi-Eigenwerte, UNABHÄNGIG
+        // von deren tatsächlichem Verhältnis -- das Katalog-Seitenverhältnis aDeg:bDeg bleibt dadurch
+        // immer exakt erhalten, s. Funktions-KDoc.
+        val isoScale = sqrt(abs(jNx.toDouble() * jEy.toDouble() - jNy.toDouble() * jEx.toDouble()))
+        if (!isoScale.isFinite() || isoScale <= 0.0) return null
+        // Reiner Rotationsanteil von J (Polarzerlegung J=R*M, R-Winkel per Standardformel für ein
+        // 2x2 J=[[a,c],[b,d]] mit Spalten (jNx,jNy)=(a,b) und (jEx,jEy)=(c,d)) + Katalog-Positionswinkel.
+        val rotationRad = atan2((jNy - jEx).toDouble(), (jNx + jEy).toDouble()) + Math.toRadians(paDeg.toDouble())
+        val majorPx = (2.0 * isoScale * aDeg).toFloat()
+        val minorPx = (2.0 * isoScale * bDeg).toFloat()
+        return Triple(majorPx, minorPx, Math.toDegrees(rotationRad).toFloat())
     }
 
     /**
@@ -1119,19 +1383,29 @@ object AstapOverlayMapper {
         decDegreesB: Float,
         solution: WcsSolutionLike,
         imageHeight: Int,
+        // Startreferenz für die nahtstellen-sichere Entfaltung -- i.d.R. der bereits fixierte
+        // (unwrapped) Startpunkt des Aufrufers, damit der erste Kurvenpunkt (t=0, exakt Stern A)
+        // garantiert auf demselben Ast landet wie das außerhalb schon berechnete `start`. Jeder
+        // weitere Punkt referenziert danach den JEWEILS VORHERIGEN Kurvenpunkt (anders als beim
+        // Muster-Sterne-Loop oben: die Samples HIER sind ein räumlich geordneter Weg A->B, Verketten
+        // ist hier also korrekt und am einfachsten).
+        reference: Offset? = null,
     ): List<Offset> {
         val va = raDecToVector(raHoursA * 15.0, decDegreesA.toDouble())
         val vb = raDecToVector(raHoursB * 15.0, decDegreesB.toDouble())
         val steps = 14
         val out = ArrayList<Offset>(steps + 1)
+        var ref = reference
         for (i in 0..steps) {
             val v = slerp(va, vb, i.toDouble() / steps)
             val (ra, dec) = vectorToRaDec(v)
             val p = solution.skyToImage(
                 com.codex.starmapper.domain.SkyPoint(ra.toFloat(), dec.toFloat()),
                 imageHeight,
+                ref,
             ) ?: continue
             out += p
+            ref = p
         }
         return out
     }
@@ -1168,7 +1442,7 @@ object AstapOverlayMapper {
         start: Offset,
         end: Offset,
     ): Float? {
-        val poly = greatCircleImagePolyline(raHoursA, decDegreesA, raHoursB, decDegreesB, solution, imageHeight)
+        val poly = greatCircleImagePolyline(raHoursA, decDegreesA, raHoursB, decDegreesB, solution, imageHeight, reference = start)
         if (!isCurveTrustworthy(poly, start, end, imageWidth, imageHeight)) return null
         var length = 0f
         for (i in 1 until poly.size) {

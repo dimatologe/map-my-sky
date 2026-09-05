@@ -5,6 +5,7 @@ import androidx.compose.ui.geometry.Offset
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.acos
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.sqrt
 import kotlin.math.tan
@@ -182,6 +183,15 @@ object TileDeWarp {
         return PanoramaWcsSolution(projection, Mat3.IDENTITY)
     }
 
+    // Zenit-Radius-Grenze der Tiny-Sky-Ganzansicht -- bewusst deutlich unter 180°/den früheren 170°
+    // gehalten (Nutzerentscheidung 2026-08-23): die Arbeitsansicht soll zum Kacheln/Objekte-Platzieren
+    // ÜBERWIEGEND Himmel zeigen statt (wie zuvor) fast nur Boden/Vordergrund -- betrifft NUR diese
+    // In-App-Vorschau, der spätere Export liest immer das unveränderte Original-2:1-Bild. Bei 100°
+    // füllt der Himmel (θ 0°-90°) ca. 84% des Scheiben-Radius (~70% der Fläche) statt vormals 8,75%
+    // (<1% Fläche). Geteilte Konstante mit [stereographicSkyDiscRadius], damit Ansicht und
+    // automatische Zentrierung (s. dortige Verwendung) garantiert zueinander passen.
+    private const val TINY_SKY_MAX_THETA_DEG = 100.0
+
     /**
      * Rein geometrisches Modell für die stereografische 360°-Ganzansicht ("Tiny Sky", Zenit-zentriert):
      * bildet dieselbe foto-native Az/El-Richtung wie [equirectangularNativeModel] auf ein
@@ -189,16 +199,209 @@ object TileDeWarp {
      * nur der Maßstab variiert) — anders als Equirectangular, dessen Verzeichnung nahe den Polen die
      * FORM der Muster verzerrt, UND wichtig für [convertOverlayGeometry]: die Konformität macht die
      * lokale Rotations-Verdrehung zwischen den beiden Koordinatensystemen an jedem Himmelspunkt
-     * wohldefiniert (winkeltreu). `maxTheta`=170° statt voller 180°: der exakte Nadir liegt bei reiner
-     * Stereografie im Unendlichen: die äußersten ~10° um den Nadir werden an den Bildrand gedrängt
-     * (Standard-Kompromiss bei "Tiny-Planet"-Darstellungen; der Nadir ist bei Himmelsfotos ohnehin
-     * meist Stativ/Boden).
+     * wohldefiniert (winkeltreu).
      */
     fun stereographicOverviewModel(outputSize: Int): PanoramaWcsSolution {
-        val maxTheta = Math.toRadians(170.0)
+        val maxTheta = Math.toRadians(TINY_SKY_MAX_THETA_DEG)
         val f = (outputSize / 2.0) / (2.0 * tan(maxTheta / 2.0))
-        val projection = StereographicProjection(cx = outputSize / 2.0, cy = outputSize / 2.0, f = f)
+        // flipY=true (Nutzerbefund 2026-08-24, in Tiny Sky gezeichnete Formen erscheinen nach dem
+        // Verlassen "gespiegelt platziert"): von Hand nachgerechnet (Az/El-Vektor an einem Testpunkt,
+        // az=0/theta=60°, gegen equirectangularNativeModel(), dessen fy=-imageHeight/π bereits im Code
+        // festgelegt ist) -- ohne flipY hat die lokale Pixel-zu-Pixel-Jacobi-Matrix zwischen dieser
+        // stereografischen Ansicht und dem äquirektangularen Original an diesem Punkt Determinante -1,
+        // also eine ECHTE Spiegelung (nicht nur eine Drehung) -- unsichtbar für rotationssymmetrische
+        // Inhalte (DSO-Kreise/-Ellipsen, daher bisher nicht aufgefallen), aber sichtbar für asymmetrische
+        // Nutzer-Zeichnungen (Freihandformen), die über convertOverlayGeometryLocal beim Verlassen von
+        // Tiny Sky in den nativen Bestand zurückgeschrieben werden. flipY=true macht die Determinante
+        // an diesem Punkt +1 (reine Drehung, keine Spiegelung mehr).
+        val projection = StereographicProjection(cx = outputSize / 2.0, cy = outputSize / 2.0, f = f, flipY = true)
         return PanoramaWcsSolution(projection, Mat3.IDENTITY)
+    }
+
+    /**
+     * Radius (Ausgabe-Pixel) der Himmel-Halbkugel (Zenit bis Horizont, θ=90°) innerhalb der Tiny-Sky-
+     * Ganzansicht -- für automatisches Ein-/Auszoomen beim Betreten des Modus (s. Verwendung in
+     * StarMapperApp.kt), damit die Startansicht die Himmel-Scheibe füllt statt nur zentriert-aber-winzig
+     * zu zeigen. Selbe Formel/Konstante wie [stereographicOverviewModel], daher immer konsistent.
+     */
+    fun stereographicSkyDiscRadius(outputSize: Int): Float {
+        val maxTheta = Math.toRadians(TINY_SKY_MAX_THETA_DEG)
+        val f = (outputSize / 2.0) / (2.0 * tan(maxTheta / 2.0))
+        return (2.0 * f * tan(Math.toRadians(45.0))).toFloat()
+    }
+
+    /**
+     * Geometrie der periodischen 360°-Naht INNERHALB der Tiny-Sky-Ansicht (Nutzer-Auftrag 2026-09-03:
+     * "Nicht einfach x = width/2 ... hardcoden ... dieselbe Koordinatenlogik verwenden, die auch der
+     * TinySky-Transformation zugrunde liegt").
+     *
+     * WICHTIG -- die Naht ist in dieser Ansicht KEINE senkrechte Linie. Herleitung, direkt aus den
+     * beiden hier definierten Modellen:
+     *  - [equirectangularNativeModel] bildet mit `x = W/2 + W/(2π) * atan2(v.y, v.x)` ab. Der
+     *    atan2-Astwechsel (λ = ±π) liegt also bei `x = 0` UND `x = W`, den beiden BILDKANTEN des
+     *    2:1-Panoramas -- das ist die periodische Naht.
+     *  - Diese Richtungen erfüllen `v.y == 0, v.x < 0`. [stereographicOverviewModel] bildet sie mit
+     *    `φ = atan2(v.y, v.x) = π`, also `cos φ = -1`, `sin φ = 0` ab -> `x = S/2 - r`, `y = S/2`.
+     * Die Naht ist damit ein WAAGERECHTER Halbstrahl auf halber Höhe, vom Scheibenmittelpunkt
+     * (Zenit, θ=0, r=0) nach LINKS bis zum Scheibenrand (θ = TINY_SKY_MAX_THETA_DEG, r = S/2, also
+     * exakt x = 0). Die beiden "Seiten" der Naht sind folglich OBEN und UNTEN, nicht links/rechts.
+     *
+     * Berechnet wird sie hier trotzdem nicht per Formel, sondern durch ABTASTEN der nativen Bildkante
+     * (`x = 0`, volle Bildhöhe) durch dieselbe Projektionskette, die auch [buildStereographicOverview]
+     * benutzt -- änderte sich eine der beiden Projektionen, wanderte die Linie automatisch mit.
+     *
+     * [maxAngularErrorDeg]/[maxPixelErrorPx] beantworten zusätzlich die Frage, ob die Naht mathematisch
+     * exakt geschlossen ist: verglichen wird für dieselben Bildhöhen die Richtung bei `x = 0` gegen die
+     * bei `x = nativeWidth` (Winkelabstand) und deren Tiny-Sky-Bildpunkte (Pixelabstand). Beides muss
+     * praktisch 0 sein; ein sichtbarer Helligkeits-/Stitching-Unterschied im Foto selbst ist davon
+     * unabhängig und KEIN Koordinatenfehler.
+     *
+     * `null`, wenn die Kette für dieses Bild keine brauchbare Naht liefert (unplausible Maße).
+     */
+    data class TinySkySeam(
+        val y: Float,
+        val minX: Float,
+        val maxX: Float,
+        val maxAngularErrorDeg: Double,
+        val maxPixelErrorPx: Double,
+        val periodPx: Double,
+    )
+
+    fun tinySkySeamGeometry(outputSize: Int, nativeWidth: Int, nativeHeight: Int): TinySkySeam? {
+        if (outputSize <= 0 || nativeWidth <= 0 || nativeHeight <= 0) return null
+        val overview = stereographicOverviewModel(outputSize).projection
+        val native = equirectangularNativeModel(nativeWidth, nativeHeight).projection
+        val discRadius = stereographicSkyDiscRadius(outputSize)
+        val cx = outputSize / 2.0
+        val cy = outputSize / 2.0
+        var minX = Double.MAX_VALUE
+        var maxX = -Double.MAX_VALUE
+        var sumY = 0.0
+        var count = 0
+        var maxAngularErrorDeg = 0.0
+        var maxPixelErrorPx = 0.0
+        val steps = 256
+        for (i in 0..steps) {
+            val py = nativeHeight.toDouble() * i / steps
+            val dirLeft = native.pixelToDirection(0.0, py) ?: continue
+            val pLeft = overview.directionToPixel(dirLeft) ?: continue
+            // Kontinuitätsmessung: dieselbe Bildhöhe an der GEGENÜBERLIEGENDEN Kante.
+            native.pixelToDirection(nativeWidth.toDouble(), py)?.let { dirRight ->
+                val dot = (dirLeft.x * dirRight.x + dirLeft.y * dirRight.y + dirLeft.z * dirRight.z)
+                    .coerceIn(-1.0, 1.0)
+                maxAngularErrorDeg = max(maxAngularErrorDeg, Math.toDegrees(acos(dot)))
+                overview.directionToPixel(dirRight)?.let { pRight ->
+                    maxPixelErrorPx = max(
+                        maxPixelErrorPx,
+                        sqrt(
+                            (pLeft.x - pRight.x).toDouble() * (pLeft.x - pRight.x) +
+                                (pLeft.y - pRight.y).toDouble() * (pLeft.y - pRight.y),
+                        ),
+                    )
+                }
+            }
+            // Nur der innerhalb der sichtbaren Himmel-Scheibe liegende Teil wird gezeichnet.
+            val r = sqrt((pLeft.x - cx) * (pLeft.x - cx) + (pLeft.y - cy) * (pLeft.y - cy))
+            if (r > discRadius) continue
+            minX = kotlin.math.min(minX, pLeft.x.toDouble())
+            maxX = max(maxX, pLeft.x.toDouble())
+            sumY += pLeft.y.toDouble()
+            count++
+        }
+        if (count < 2 || minX > maxX) return null
+        return TinySkySeam(
+            y = (sumY / count).toFloat(),
+            minX = minX.toFloat(),
+            maxX = maxX.toFloat(),
+            maxAngularErrorDeg = maxAngularErrorDeg,
+            maxPixelErrorPx = maxPixelErrorPx,
+            // Volle Azimut-Umrundung in nativen Bild-Pixeln -- bei equirectangularNativeModel per
+            // Konstruktion exakt die Bildbreite (fx = W/2π -> 2π*fx = W).
+            periodPx = equirectangularNativeModel(nativeWidth, nativeHeight)
+                .projection.horizontalPeriodPx() ?: nativeWidth.toDouble(),
+        )
+    }
+
+    enum class TinySkySeamSide { Above, Below }
+
+    /** Ergebnis von [tinySkySeamSnap]; [deltaY] ist die nötige Verschiebung der Kachel in Y (Bild-px). */
+    data class TinySkySeamSnap(
+        val deltaY: Float,
+        val side: TinySkySeamSide,
+        val overlapAbovePx: Float,
+        val overlapBelowPx: Float,
+    )
+
+    /**
+     * Prüft, ob die achsenparallele Hüllbox einer Solve-Kachel die 360°-Naht ([seam]) überdeckt, und
+     * liefert die Verschiebung, die sie KOMPLETT auf EINE Seite bringt (Nutzer-Vorgabe 2026-09-03:
+     * "NICHT die Kachel teilen. NICHT über die 360°-Naht wrappen. Die Größe und [die Position entlang
+     * der Naht] bleiben unverändert").
+     *
+     * Da die Naht in der Tiny-Sky-Ansicht ein WAAGERECHTER Halbstrahl ist (s. [tinySkySeamGeometry]),
+     * sind die beiden Seiten OBEN und UNTEN -- verschoben wird deshalb in Y, nicht in X. Gewählt wird
+     * die Seite mit dem GRÖSSEREN Kachelanteil; bei exakt gleichem Anteil entscheidet die Lage des
+     * Kachelmittelpunkts (deterministisch, kein Flackern -- zusätzlich wird ohnehin nur beim Loslassen
+     * geschnappt, nicht pro Zieh-Frame).
+     *
+     * `null` = Kachel schneidet die Naht nicht (auch: sie liegt komplett rechts vom Scheibenmittelpunkt,
+     * wo der Halbstrahl gar nicht existiert) -> nichts zu tun, Kachel bleibt unverändert.
+     */
+    fun tinySkySeamSnap(
+        left: Float,
+        top: Float,
+        right: Float,
+        bottom: Float,
+        centerY: Float,
+        seam: TinySkySeam,
+        safetyMarginPx: Float,
+    ): TinySkySeamSnap? {
+        val straddlesY = top < seam.y && bottom > seam.y
+        val overlapsSeamX = left < seam.maxX && right > seam.minX
+        if (!straddlesY || !overlapsSeamX) return null
+        val overlapAbove = seam.y - top
+        val overlapBelow = bottom - seam.y
+        val side = when {
+            overlapAbove > overlapBelow -> TinySkySeamSide.Above
+            overlapBelow > overlapAbove -> TinySkySeamSide.Below
+            centerY <= seam.y -> TinySkySeamSide.Above
+            else -> TinySkySeamSide.Below
+        }
+        val margin = max(0f, safetyMarginPx)
+        val deltaY = if (side == TinySkySeamSide.Above) {
+            (seam.y - margin) - bottom
+        } else {
+            (seam.y + margin) - top
+        }
+        return TinySkySeamSnap(deltaY, side, overlapAbove, overlapBelow)
+    }
+
+    /**
+     * Ausgabegröße für [buildStereographicOverview], sodass die Tiny-Sky-Ansicht am Zenit (Bildmitte)
+     * MINDESTENS dieselbe Pixel-pro-Grad-Dichte erreicht wie das äquirektangulare Quellbild -- Nutzer-
+     * Vorgabe (2026-08-24): "die Projektion vom Tiny Sky [soll] der Originalauflösung entspreche[n]".
+     * Ein fester Wert (vorher 2000, unabhängig von der Quellauflösung) unterlief das je nach Foto
+     * unterschiedlich stark: bei einem 6500px breiten Bild lag die Zenit-Dichte bei nur ~40% der
+     * Quelle -- genau dort, wo die meisten Kacheln landen -- und ließ schwächere Sterne für den Löser
+     * untergehen.
+     *
+     * Herleitung: bei Equirectangular ist die Dichte überall exakt `sourceWidth / 360°` (linear in
+     * beiden Achsen). Die stereografische Radial-Dichte `dr/dθ` bei θ=0 (Zenit) ist `f` (Pixel/Radiant,
+     * mit `f` wie in [stereographicOverviewModel]) und wächst mit `sec²(θ/2)` nach außen -- der Zenit
+     * ist also IMMER die dichteste (dünnste Auflösung) Stelle der Scheibe; matcht man dort die
+     * Quelldichte, ist JEDE andere Stelle der Scheibe mindestens so hoch aufgelöst wie die Quelle.
+     * Auflösen von `f = sourceWidth/(2π)` nach `outputSize` (über dieselbe `f`-Formel wie
+     * [stereographicOverviewModel]) ergibt die Formel unten.
+     *
+     * Sicherheitsdeckel: das Quellbild selbst ist bereits beim Laden auf `MAX_DISPLAY_DIMENSION_PX`
+     * (6500, s. StarMapperApp.kt) begrenzt -- bei dieser Breite liefert die Formel ~4930, deutlich
+     * unter dem Deckel. Der Deckel greift nur defensiv (z. B. falls die Lade-Grenze künftig steigt),
+     * nicht im normalen Betrieb.
+     */
+    fun stereographicOutputSizeForSource(sourceWidth: Int): Int {
+        val maxTheta = Math.toRadians(TINY_SKY_MAX_THETA_DEG)
+        val ideal = ceil((2.0 * sourceWidth / PI) * tan(maxTheta / 2.0)).toInt()
+        return ideal.coerceIn(512, 6000)
     }
 
     /**
@@ -232,7 +435,7 @@ object TileDeWarp {
                     black
                 } else {
                     val src = nativeModel.projection.directionToPixel(dir)
-                    if (src == null) black else sampleBilinear(srcPixels, 0, 0, srcW, srcH, src.x.toDouble(), src.y.toDouble())
+                    if (src == null) black else sampleBilinear(srcPixels, 0, 0, srcW, srcH, src.x.toDouble(), src.y.toDouble(), wrapX = true)
                 }
             }
         }
@@ -389,14 +592,81 @@ object TileDeWarp {
         return result
     }
 
+    /**
+     * Analog zu [anchorsFor], aber für eine Kachel, die DIREKT aus dem Tiny-Sky-Bitmap gelöst wurde
+     * (kein De-Warp-Patch involviert, s. Plan Nachtrag 1 "Kacheln bleiben im Raum, in dem sie gezeichnet
+     * wurden"): rechnet ein Raster von Kachel-lokalen Punkten über [tileWcs] (Tiny-Sky-Crop-Pixel <->
+     * äquatoriale Richtung, direkt vom Solver) UND über die rein geometrische Kette
+     * [overviewProjection] (Tiny-Sky-Pixel -> Richtung) -> [nativeProjection] (Richtung -> nativer
+     * Pixel) in EXAKTE (nativer Pixel, Richtung)-Paare um -- keine Bounding-Box-Näherung, jeder Punkt
+     * einzeln umgerechnet. 3x3 (statt [anchorsFor]s 5x5) reicht hier: die höhere Dichte dort kompensiert
+     * eine echte NICHTLINEARE Neu-Abtastung (De-Warp-Patch-Resampling), die hier nicht stattfindet --
+     * dieselbe Charakteristik wie bei einer normalen, rohen Kachel.
+     */
+    fun tinySkyAnchorsFor(
+        tileWcs: WcsSolution,
+        rx: Int, ry: Int, rw: Int, rh: Int,
+        overviewProjection: PanoramaProjection,
+        nativeProjection: PanoramaProjection,
+        grid: Int = 3,
+    ): List<Pair<Offset, Vec3>> {
+        val result = ArrayList<Pair<Offset, Vec3>>(grid * grid)
+        for (gy in 0 until grid) {
+            val py = rh * (gy + 0.5) / grid
+            for (gx in 0 until grid) {
+                val px = rw * (gx + 0.5) / grid
+                val sky = tileWcs.imageToSky(px, py, rh)
+                val dir = raDecToVector(sky.raDegrees.toDouble(), sky.decDegrees.toDouble())
+                val overviewDir = overviewProjection.pixelToDirection(rx + px, ry + py) ?: continue
+                val nativePixel = nativeProjection.directionToPixel(overviewDir) ?: continue
+                result += nativePixel to dir
+            }
+        }
+        return result
+    }
+
+    /**
+     * A2 (Nutzer-Vorgabe 2026-08-30): transformiert echte, dichte `.corr`-Sternkorrespondenzen einer
+     * Tiny-Sky-Kachel (crop-lokale Pixel, s. [rx]/[ry] = Kachel-Ursprung IM Tiny-Sky-Bitmap) exakt nach
+     * nativen 2:1-Bild-Pixeln -- GENAU dieselbe zweistufige geometrische Kette wie [tinySkyAnchorsFor],
+     * nur pro echtem `.corr`-Treffer statt pro künstlichem 3x3-Raster. Ersetzt NICHT die alte naive
+     * "crop-lokal + tileOffsetX/Y"-Addition (die bliebe für Tiny-Sky-Pixel falsch) -- das ist der Grund,
+     * warum diese Funktion überhaupt gebraucht wird. Ein einzelner Punkt, dessen Richtung außerhalb
+     * dessen liegt, was [nativeProjection] abbilden kann, wird EINZELN übersprungen (`mapNotNull`) --
+     * NIE die ganze Kachel verworfen.
+     */
+    fun transformTinySkyRefsToNative(
+        refs: List<Pair<Offset, Vec3>>,
+        rx: Int, ry: Int,
+        overviewProjection: PanoramaProjection,
+        nativeProjection: PanoramaProjection,
+    ): List<Pair<Offset, Vec3>> = refs.mapNotNull { (cropLocal, dir) ->
+        val overviewDir = overviewProjection.pixelToDirection(
+            (rx + cropLocal.x).toDouble(), (ry + cropLocal.y).toDouble(),
+        ) ?: return@mapNotNull null
+        val nativePixel = nativeProjection.directionToPixel(overviewDir) ?: return@mapNotNull null
+        nativePixel to dir
+    }
+
     private fun sampleBilinear(
         region: IntArray, regX: Int, regY: Int, regW: Int, regH: Int, sx: Double, sy: Double,
+        // Nur für den vollen-Bildbreite-zyklischen Fall (buildStereographicOverview): die Naht bei
+        // Azimut ±π liefert x==regW (eine Spalte hinter der letzten gültigen) für JEDE Zeile -> ohne
+        // Umbruch eine schwarze Radiallinie. De-Warp (buildPatch/resamplePatch) sampelt dagegen ein
+        // NICHT-zyklisches Rechteck-Crop -- dort bleibt wrapX=false (Standard), unverändertes Verhalten.
+        wrapX: Boolean = false,
     ): Int {
-        val lx = sx - regX
+        var lx = sx - regX
         val ly = sy - regY
-        if (lx < 0.0 || ly < 0.0 || lx > regW - 1.0 || ly > regH - 1.0) return 0xFF000000.toInt()
+        if (ly < 0.0 || ly > regH - 1.0) return 0xFF000000.toInt()
+        if (wrapX) {
+            // Kotlins `%` kann bei negativem Operanden negativ bleiben -> doppelt umbrechen.
+            lx = ((lx % regW) + regW) % regW
+        } else if (lx < 0.0 || lx > regW - 1.0) {
+            return 0xFF000000.toInt()
+        }
         val x0 = lx.toInt(); val y0 = ly.toInt()
-        val x1 = (x0 + 1).coerceAtMost(regW - 1)
+        val x1 = if (wrapX) (x0 + 1) % regW else (x0 + 1).coerceAtMost(regW - 1)
         val y1 = (y0 + 1).coerceAtMost(regH - 1)
         val fx = lx - x0; val fy = ly - y0
         val c00 = region[y0 * regW + x0]; val c10 = region[y0 * regW + x1]

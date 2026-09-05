@@ -88,6 +88,27 @@ enum class ExportScale {
     Original,
 }
 
+// Bilddateiformat für den "mit Hintergrund"-Export (Nutzer-Einstellung, Settings-Menü). Der
+// "nur Overlay"-Export (transparent) bleibt UNABHÄNGIG davon immer Png (JPEG kennt keine Transparenz).
+// Jpeg schreibt zusätzlich eingebettete XMP-360°-Metadaten (Google Photo-Sphere-Standard), damit externe
+// Galerie-Apps (z.B. Samsung) das exportierte Bild als Panorama erkennen -- das geht nur bei JPEG, nicht
+// bei PNG (s. ExportRenderer.writeGPanoXmpMetadata).
+enum class ExportImageFormat {
+    Png,
+    Jpeg,
+}
+
+// 360°-optimierter Export (Nutzer-Vorgabe 2026-08-28, Plan-Abschnitt "360°-optimierter Export"): NEUER,
+// zum normalen Export vollständig zusätzlicher Modus (Flat) -- Spherical360 verzerrt bestimmte
+// pixelbasierte Overlay-Typen (aktuell nur die im Proof-of-Concept-Umfang eligiblen, s.
+// SphericalOverlayRenderer.isEligible) vor, damit sie nach dem Wickeln des exportierten equirectangularen
+// Bilds auf eine Kugel in einem 360°-Betrachter lokal korrekt aussehen. Rein render-time, kein Einfluss
+// auf das Overlay-Datenmodell selbst -- Flat bleibt in jeder Hinsicht das unveränderte Altverhalten.
+enum class ExportProjectionMode {
+    Flat,
+    Spherical360,
+}
+
 enum class OverlayLineStyle {
     Solid,
     Dashed,
@@ -346,11 +367,70 @@ data class AnnotationOverlay(
     // FRISCHER, index-abgeleiteter id neu aufgebaut werden -- ohne sourceId gäbe es keinen Weg, ein
     // manuell bearbeitetes Overlay über eine Neusynchronisierung hinweg wiederzuerkennen.
     val sourceId: String? = null,
+    // Mitlaufende Tiny-Sky-Pixel-Geometrie für Overlays, die IN Tiny Sky entstanden/bearbeitet wurden --
+    // s. StarMapperApp.snapshotTinySkyGeometryIfActive für die volle Begründung. null für alle Overlays,
+    // die nie in Tiny Sky angefasst wurden (u.a. IMMER für aus dem Solve stammende Sternbilder/DSOs/
+    // Katalogsterne, da die nie über onCreateOverlay/onUpdateOverlay laufen).
+    val tinySkyGeometry: TinySkyGeometry? = null,
+    // Punkt 6 (Nutzer-Vorgabe 2026-08-30): koppelt die Beschriftungs-Deckkraft an [opacity], statt sie
+    // (wie bisher für alle Nicht-Star-Ebenen hart auf 1f gesetzt) unabhängig zu halten. Gebacken beim
+    // Sync (createDeepSkyOverlays), da die drei Renderer (Editor/ExportRenderer/SphericalOverlayRenderer)
+    // nur AnnotationOverlay selbst sehen, keinen Zugriff auf die AnnotateSelections-Einstellung haben.
+    // Default false = bisheriges Verhalten (Name immer voll deckend) exakt erhalten.
+    val nameOpacityLinked: Boolean = false,
+    // Manueller Versatz (Bild-px) des Sternbildnamens relativ zum automatisch berechneten Anker
+    // (constellationNameAnchor). null = volle Automatik (bisheriges Verhalten). Nur für
+    // OverlayKind.Constellation relevant; wird als Offset statt absoluter Position gespeichert, damit
+    // die Position sinnvoll "mitwandert", falls sich der automatische Anker nach einer Neu-Lösung
+    // verschiebt. Per Ziehen am Namen gesetzt, per Antippen (ohne Ziehen) auf null zurückgesetzt.
+    val constellationNameOffset: Offset? = null,
+    // GOLDEN-RUECKBAU (Gerätebefund 2026-09-03): steuert, ob die Kanten dieses Overlays beim ZEICHNEN
+    // durch OverlayGeometry.splitPolylineAtSeam laufen duerfen. Das ist NUR bei einer horizontal
+    // PERIODISCHEN Projektion (CylindricalProjection-Familie -> 360deg-Panorama, horizontalPeriodPx()
+    // != null) korrekt -- exakt dieselbe Bedingung, die GraticuleRenderer fuer sein eigenes `seamAware`
+    // seit jeher benutzt ("seamAware MUSS an der Cylindrical-Periodizitaet haengen"). Bei einer NICHT
+    // periodischen Projektion (Rectilinear/Fisheye/Stereographic -- normales Einzelfoto) gibt es keine
+    // Naht: splitPolylineAtSeam wuerde dort jedes Kantenstueck, das ueber x=0 bzw. x=imageWidth
+    // hinauslaeuft, abschneiden UND um +/-imageWidth VERSCHIEBEN -- also mitten ins Bild auf die
+    // gegenueberliegende Seite zeichnen. Genau das erzeugte die gemeldeten "falschen Sternbild-
+    // strukturen an falschen Stellen". Der Golden-Build vom 12.08. kannte splitPolylineAtSeam gar
+    // nicht und liess solche Stuecke einfach ausserhalb der Leinwand wegclippen.
+    // Default false = Golden-Verhalten; nur createConstellationOverlays setzt es (dort periodizitaets-
+    // abhaengig), damit die 360deg-Nahtbehandlung fuer echte Panoramen unveraendert erhalten bleibt.
+    val seamAware: Boolean = false,
 )
 
-// Nutzer-Override für Größe/Rotation eines einzelnen DSO-Overlays, keyed über AnnotationOverlay.sourceId.
-// Überlebt Neusynchronisierungen der DeepSky-Ebene (s. AnnotateSelections.dsoSizeOverrides).
+// Tiny-Sky-Pixel-Momentaufnahme eines Overlays für [AnnotationOverlay.tinySkyGeometry] -- dieselben
+// Geometrie-/Callout-Felder wie normal (center/size/rotationDegrees + labelAngleDeg/labelLeaderPx, s.
+// oben), nur im Tiny-Sky-Koordinatenraum. labelAngleDeg/labelLeaderPx seit Nachtrag 11 (Nutzerbefund:
+// Callout-Linie sprang nach Tiny-Sky-Wechsel "woanders hin", weil sie vorher NICHT mitgeführt wurde).
+// freehandSegments seit Nachtrag 13 (Nutzerbefund: Zeichnung verformt sich beim erneuten Betreten von
+// Tiny Sky) -- AnnotationOverlay.freehandSegments ist ein EINZIGES, geteiltes Feld, das relativ zum
+// AKTUELLEN center/size/rotationDegrees interpretiert wird (s. OverlayGeometry.denormalizedFreehandPoints);
+// die Verlassen-Konvertierung schreibt beim Umrechnen auf native Koordinaten zwangsläufig NEU
+// normierte (native-relative) Punkte in dieses Feld. Ohne eine eigene, unveränderte Tiny-Sky-Kopie
+// hier würde die Anzeige beim erneuten Betreten von Tiny Sky die alte tsg-Geometrie (center/size/
+// rotationDegrees) mit den NEUEN, nativ-normierten Punkten kombinieren -- ein Koordinatenraum-Mix,
+// der die Form sichtbar verzerrt (dieselbe Fehlerklasse wie beim labelAngleDeg-Bug oben, nur für die
+// Kontur-Punkte statt die Callout-Richtung).
+data class TinySkyGeometry(
+    val center: Offset,
+    val size: Size,
+    val rotationDegrees: Float,
+    val labelAngleDeg: Float = 0f,
+    val labelLeaderPx: Float = 0f,
+    val freehandSegments: List<List<Offset>>? = null,
+)
+
+// Nutzer-Override für Größe/Rotation/Label-Position eines einzelnen DSO-Overlays, keyed über
+// AnnotationOverlay.sourceId. Überlebt Neusynchronisierungen der DeepSky-Ebene (s.
+// AnnotateSelections.dsoSizeOverrides). labelAngleDeg/labelLeaderPx seit Nutzerbefund 2026-08-27: ohne
+// diese beiden Felder ging eine manuell verschobene Namens-Beschriftung bei jeder Neusynchronisierung
+// (neues Objekt manuell hinzugefügt, Schwellenwert verändert) verloren, obwohl Größe/Rotation korrekt
+// erhalten blieben.
 data class DsoSizeOverride(
     val size: Size,
     val rotationDegrees: Float,
+    val labelAngleDeg: Float,
+    val labelLeaderPx: Float,
 )

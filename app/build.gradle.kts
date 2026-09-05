@@ -4,8 +4,8 @@ plugins {
 }
 
 // Zentrale Version: wird als App-Version UND im APK-Dateinamen verwendet (eine Quelle).
-val appVersionName = "0.23.1"
-val appVersionCode = 173
+val appVersionName = "0.32.2"
+val appVersionCode = 254
 
 android {
     namespace = "com.codex.starmapper"
@@ -18,7 +18,7 @@ android {
         versionCode = appVersionCode
         versionName = appVersionName
 
-        buildConfigField("String", "BUILD_ID", "\"2026-08-22-perf-fix1-fix2-173\"")
+        buildConfigField("String", "BUILD_ID", "\"2026-09-04-bestknown-coalsack-wizard-audit-254\"")
 
         vectorDrawables {
             useSupportLibrary = true

@@ -13,6 +13,14 @@ import kotlin.math.sqrt
 
 sealed interface WcsSolutionLike {
     fun skyToImage(point: SkyPoint, imageHeight: Int): Offset?
+
+    // Bei periodischen Panorama-Projektionen (Cylindrical-Familie) wird der Azimut relativ zu
+    // [reference] entfaltet statt immer den atan2-Hauptzweig zu liefern -- reicht
+    // PanoramaProjection.directionToPixel(dir, reference) 1:1 auf die Sky->Bild-Ebene weiter.
+    // reference=null oder nicht überschrieben -> identisch zu skyToImage(point, imageHeight)
+    // (Hauptzweig); bleibt Default für WcsSolution (TAN, nie periodisch) und MosaicWcsSolution
+    // (mischt i.d.R. selbst nicht-periodische Kachel-Lösungen).
+    fun skyToImage(point: SkyPoint, imageHeight: Int, reference: Offset?): Offset? = skyToImage(point, imageHeight)
 }
 
 /**
@@ -31,14 +39,34 @@ open class PanoramaWcsSolution(
         val eq = raDecToVector(point.raDegrees.toDouble(), point.decDegrees.toDouble())
         return projection.directionToPixel(rotEquToPano * eq)
     }
+
+    override fun skyToImage(point: SkyPoint, imageHeight: Int, reference: Offset?): Offset? {
+        val eq = raDecToVector(point.raDegrees.toDouble(), point.decDegrees.toDouble())
+        return projection.directionToPixel(rotEquToPano * eq, reference)
+    }
 }
 
+/**
+ * [corrRefsAlreadyNative] (Untersuchungsauftrag 2026-08-31, Stage-2-Koordinatenfehler): `true` NUR für
+ * eine Tiny-Sky-Kachel. Für eine normale (native) Kachel ist [tileOffsetX]/[tileOffsetY] der Kachel-
+ * Ursprung im nativen Bild -- eine zugehörige `.corr`-Position ist kachel-LOKAL und braucht genau diese
+ * Addition, um global/nativ zu werden ([FisheyeRefiner.globalizeTileCorrRefs]/[TileConsistency.
+ * overlapDisagreement] tun das). Für eine Tiny-Sky-Kachel ist die zugehörige `.corr`-Position (aus
+ * [StarMapperApp]s `solveAllTiles()`) dank [TileDeWarp.transformTinySkyRefsToNative] bereits VOR dem
+ * Speichern exakt nach nativen Pixeln transformiert -- [tileOffsetX]/[tileOffsetY] ist für diesen Fall
+ * NICHT der Kachel-Ursprung im Tiny-Sky-Bitmap, sondern nur eine grobe, ausschließlich für
+ * [MosaicWcsSolution]s Fallback-Buchhaltung gedachte native Bounding-Box-Näherung (per
+ * `convertOverlayGeometry`, s. Konstruktionsstelle) -- eine zusätzliche Addition auf die bereits native
+ * `.corr`-Position wäre ein doppelter/falscher Versatz. Default `false` erhält das bisherige Verhalten
+ * für jede andere [TileWcs]-Konstruktionsstelle unverändert.
+ */
 data class TileWcs(
     val wcs: WcsSolutionLike,
     val tileOffsetX: Int,
     val tileOffsetY: Int,
     val tileWidth: Int,
     val tileHeight: Int,
+    val corrRefsAlreadyNative: Boolean = false,
 )
 
 class MosaicWcsSolution(
@@ -48,7 +76,27 @@ class MosaicWcsSolution(
     // ungelösten Bereichen bleiben plausibel. null -> altes Verhalten (nächste Kachel).
     val fallback: WcsSolutionLike? = null,
 ) : WcsSolutionLike {
-    override fun skyToImage(point: SkyPoint, imageHeight: Int): Offset? {
+    /**
+     * Wie [skyToImage], aber ohne den letzten Rückfall ("nächste Kachel extrapolieren, auch ohne jedes
+     * Vertrauen") -- liefert `null` für Himmelsrichtungen, die von KEINER Kachel (auch nicht im
+     * Blend-Rand) beansprucht werden UND kein [fallback] existiert. Für Konstellations-/DSO-/Stern-
+     * Platzierung ist "irgendetwas anzeigen, auch grob falsch" historisch bewusst gewählt (s.
+     * [skyToImage]-Kommentar) -- für das Koordinatennetz (GraticuleRenderer), das AKTIV weite
+     * Himmelsbereiche systematisch abtastet, führt genau dieses "wilde Extrapolieren einer fernen
+     * Kachel-WCS" (Nutzerbefund 2026-08-27: netzartige Schleifen/Speichen weit über das Bild hinaus,
+     * bei einem Mosaik mit gescheitertem globalen Refine/Mesh und dadurch fallback=null) zu klar
+     * sichtbaren Artefakten -- eine Tangential-(TAN-)Kachel-Lösung weit jenseits ihres eigenen gültigen
+     * Bereichs extrapoliert (jenseits ~90° vom Kachel-Tangentialpunkt kehrt sie sich sogar um). Ein
+     * fehlender Netzabschnitt (echte, nicht abgedeckte Lücke) ist für ein Gitter das ehrlichere, weit
+     * unauffälligere Ergebnis als eine falsch geformte, aber lückenlos wirkende Linie.
+     */
+    fun skyToImageReliableOnly(point: SkyPoint, imageHeight: Int): Offset? =
+        resolve(point, imageHeight, allowUnreliableExtrapolation = false)
+
+    override fun skyToImage(point: SkyPoint, imageHeight: Int): Offset? =
+        resolve(point, imageHeight, allowUnreliableExtrapolation = true)
+
+    private fun resolve(point: SkyPoint, imageHeight: Int, allowUnreliableExtrapolation: Boolean): Offset? {
         // Punkte STRENG innerhalb GENAU EINER Kachel (trust=1, keine andere Kachel beteiligt)
         // verhalten sich exakt wie zuvor. Punkte knapp AUSSERHALB einer Kachel (bis
         // BLEND_MARGIN_FRACTION der Kachelgröße) werden weich zum Fallback hin übergeblendet statt
@@ -119,7 +167,7 @@ class MosaicWcsSolution(
             return Offset(weightedX / trustSum, weightedY / trustSum)
         }
         fallback?.skyToImage(point, imageHeight)?.let { return it }
-        return candidates.minByOrNull { it.distSq }?.fullOffset
+        return if (allowUnreliableExtrapolation) candidates.minByOrNull { it.distSq }?.fullOffset else null
     }
 
     /**
@@ -390,22 +438,30 @@ private fun sampleSkyPoints(wcs: WcsSolutionLike, w: Int, h: Int): List<SkyPoint
         0.0 to hf / 2, wf to hf / 2,
         0.0 to hf, wf / 2 to hf, wf to hf,
     )
-    return samples.mapNotNull { (px, py) -> pixelToSky(wcs, px, py, h) }
+    return samples.mapNotNull { (px, py) -> wcs.imageToSkyApprox(px, py, h) }
 }
 
-private fun pixelToSky(wcs: WcsSolutionLike, px: Double, py: Double, imageHeight: Int): SkyPoint? = when (wcs) {
-    is WcsSolution -> wcs.imageToSky(px, py, imageHeight)
+/**
+ * Näherungsweise Umkehrung von [WcsSolutionLike.skyToImage]: nativer Bild-Pixel -> Himmelsrichtung.
+ * "Näherung", weil (a) [RefractedPanoramaWcsSolution] die Refraktionskorrektur hier NICHT anwendet (nur
+ * `skyToImage` ist dafür überschrieben -- für den einzigen verbleibenden Nutzungszweck, die grobe
+ * Sichtfeld-Bounding-Box für die Tycho-2-Katalogabfrage (s. `raDecBoundingBox`/`sampleSkyPoints`),
+ * unerheblich, für eine Präzisionsplatzierung wäre es das nicht) und (b) [MosaicWcsSolution] bewusst
+ * `null` liefert (wird in `raDecBoundingBox()` bereits separat pro Kachel behandelt, hier nie sinnvoll
+ * ohne zusätzlichen Kachel-Ownership-Lookup lösbar).
+ */
+fun WcsSolutionLike.imageToSkyApprox(px: Double, py: Double, imageHeight: Int): SkyPoint? = when (this) {
+    is WcsSolution -> imageToSky(px, py, imageHeight)
     is PanoramaWcsSolution -> {
-        val dirPano = wcs.projection.pixelToDirection(px, py)
+        val dirPano = projection.pixelToDirection(px, py)
         if (dirPano == null) {
             null
         } else {
-            val dirEq = (wcs.rotEquToPano.transpose() * dirPano).normalized()
+            val dirEq = (rotEquToPano.transpose() * dirPano).normalized()
             val (ra, dec) = vectorToRaDec(dirEq)
             SkyPoint(ra.toFloat(), dec.toFloat())
         }
     }
-    // Wird in raDecBoundingBox() bereits separat pro Kachel behandelt, hier nie erreicht.
     is MosaicWcsSolution -> null
 }
 

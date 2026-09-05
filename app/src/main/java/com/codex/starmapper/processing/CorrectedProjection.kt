@@ -45,6 +45,17 @@ class CorrectedProjection(
     groupWeights: List<Double> = List(groupSizes.size) { 1.0 },
 ) : PanoramaProjection {
 
+    // --- Kontrollierte Read-only-Sicht fuer die Serialisierung (Nutzer-Vorgabe 2026-09-04) ----------
+    // Bewusst die ROHEN Konstruktor-Eingaben statt der abgeleiteten `nodes`: baut man daraus denselben
+    // Konstruktor erneut auf, entsteht bitgleich dieselbe Projektion (inkl. Declustering und
+    // Trag-Radius) -- ohne dass die interne ClusterNode-Struktur oeffentlich werden muss. KEINE
+    // Reflection, kein Zugriff auf private Felder von aussen. Kosten: die Eingabelisten bleiben im
+    // Speicher (Groessenordnung 100-300 Punkte, s. fitMesh/RichCorrMesh), das ist vertretbar.
+    val exportBaseline: PanoramaProjection get() = baseline
+    val exportControlPoints: List<Pair<Offset, Vec3>> = controlPoints.toList()
+    val exportGroupSizes: List<Int> = groupSizes.toList()
+    val exportGroupWeights: List<Double> = groupWeights.toList()
+
     private data class ClusterNode(
         val anchorX: Double,
         val anchorY: Double,
@@ -97,6 +108,40 @@ class CorrectedProjection(
         val x = basePixel.x + (dx * confidence).toFloat()
         val y = basePixel.y + (dy * confidence).toFloat()
         if (!x.isFinite() || !y.isFinite()) return basePixel
+        return Offset(x, y)
+    }
+
+    /**
+     * Periodizitaet der BASELINE durchreichen (Gerätebefund 2026-09-04, Diagnose 49/50).
+     *
+     * Ein Korrektur-Layer aendert nichts an der horizontalen Periode seines Basismodells: liegt eine
+     * Equirectangular/Mercator-Baseline zugrunde, ist auch diese Projektion horizontal periodisch.
+     * Ohne diese Delegation meldete Mesh `horizontalPeriodPx=absent`, wodurch im echten
+     * 360°-/Tiny-Sky-Workflow `seamAware` ausblieb und Sternbildkanten ueber die Naht verworfen statt
+     * geteilt wurden -- gemessen 82/88 gezeichnete Sternbilder mit Mesh gegen 88/88 mit Equirectangular.
+     *
+     * Fuer ein NORMALES (nicht-360°-)Bild aendert das nichts am Sternbild-Verhalten: dort ist
+     * `panoramaWorkflowActive` false, und `AstapOverlayMapper` verlangt BEIDE Bedingungen (s. dortiges
+     * `seamAwareProjection`). Die Periodizitaet allein aktiviert die Naht-Aufteilung nicht mehr.
+     */
+    override fun horizontalPeriodPx(): Double? = baseline.horizontalPeriodPx()
+
+    /**
+     * Referenz-bewusste Variante: die Ast-Auswahl macht die BASELINE (nur sie kennt die Periode), die
+     * lokale Korrektur wird aber am HAUPTZWEIG-Pixel abgegriffen -- dort liegen die Knoten (s. init,
+     * gebaut ueber `baseline.directionToPixel(dir)` ohne Referenz). Ohne diese Trennung fiele eine
+     * entfaltete Position aus dem Trag-Radius jedes Knotens heraus, die Konfidenz ginge auf 0 und die
+     * Korrektur waere ausgerechnet an der Naht wirkungslos.
+     */
+    override fun directionToPixel(dir: Vec3, reference: Offset?): Offset? {
+        if (reference == null) return directionToPixel(dir)
+        val unwrapped = baseline.directionToPixel(dir, reference) ?: return null
+        val mainBranch = baseline.directionToPixel(dir) ?: return unwrapped
+        val (dx, dy, confidence) = blendedCorrection(mainBranch.x.toDouble(), mainBranch.y.toDouble())
+        if (confidence <= 0.0) return unwrapped
+        val x = unwrapped.x + (dx * confidence).toFloat()
+        val y = unwrapped.y + (dy * confidence).toFloat()
+        if (!x.isFinite() || !y.isFinite()) return unwrapped
         return Offset(x, y)
     }
 

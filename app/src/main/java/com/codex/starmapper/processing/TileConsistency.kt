@@ -71,9 +71,24 @@ object TileConsistency {
         for ((tileId, tw) in idToTileWcs) {
             val corrRefs = corrRefsById[tileId]
             if (corrRefs.isNullOrEmpty()) continue
+            // Stabilisierungs-Pass (Untersuchungsauftrag 2026-08-31): [tw.wcs] sagt IMMER im lokalen,
+            // zu [tw.tileOffsetX]/[tileOffsetY] RELATIVEN Bildraum vorher (für eine Tiny-Sky-Kachel ist
+            // das der Nachtrag-Refit über [tw.tileOffsetX]/[tileOffsetY] als grobe native Bounding-Box-
+            // Näherung, s. TileWcs-Konstruktionsstelle in solveAllTiles()) -- [corrRefs] ist für eine
+            // Tiny-Sky-Kachel ([tw.corrRefsAlreadyNative]) dagegen bereits NATIV. Ohne Umrechnung würde
+            // hier eine native Position gegen eine lokale Vorhersage verglichen -- derselbe Fehler-Typ
+            // wie der bereits behobene Stage-1/2-Koordinatenraum-Bug, hier aber umgekehrt: nicht die
+            // Vorhersage braucht den Offset, sondern die IST-Position muss ihn VERLIEREN (lokal werden),
+            // bevor sie mit [tw.wcs] verglichen wird -- identisch zur bereits korrekten Umrechnung des
+            // Rückfallpfads (Ganzbild-Blobs -> localBlobs, s. StarMapperApp.kt).
+            val effectiveRefs = if (tw.corrRefsAlreadyNative) {
+                corrRefs.map { (px, dir) -> Offset(px.x - tw.tileOffsetX, px.y - tw.tileOffsetY) to dir }
+            } else {
+                corrRefs
+            }
             result[tileId] = TileOwnAccuracy(
                 rmsPx = if (corrRefs.size >= MIN_TILE_OWN_RMS_MATCHES) {
-                    FisheyeRefiner.reprojectionRmsWcs(tw.wcs, corrRefs, tw.tileHeight)
+                    FisheyeRefiner.reprojectionRmsWcs(tw.wcs, effectiveRefs, tw.tileHeight)
                 } else {
                     null
                 },
@@ -121,8 +136,15 @@ object TileConsistency {
         for ((sourceId, sourceTile) in idToTileWcs) {
             val refs = corrRefsById[sourceId] ?: continue
             for ((localPixel, dir) in refs) {
-                val globalX = localPixel.x + sourceTile.tileOffsetX
-                val globalY = localPixel.y + sourceTile.tileOffsetY
+                // Stabilisierungs-Pass (Untersuchungsauftrag 2026-08-31): identischer Fehler-Typ wie der
+                // bereits behobene FisheyeRefiner.globalizeTileCorrRefs-Bug -- [localPixel] ist für eine
+                // Tiny-Sky-Kachel ([sourceTile.corrRefsAlreadyNative]) bereits NATIV, [sourceTile.
+                // tileOffsetX]/[tileOffsetY] dort nur eine grobe Mosaik-Fallback-Näherung (kein Kachel-
+                // Ursprung) -- die Addition würde denselben doppelten Versatz erzeugen. Die GEGENSEITIGE
+                // (otherTile-)Umrechnung unten bleibt unverändert korrekt: otherTile.wcs sagt IMMER
+                // relativ zu otherTile.tileOffsetX/Y vorher, unabhängig vom Kacheltyp von sourceTile.
+                val globalX = if (sourceTile.corrRefsAlreadyNative) localPixel.x else localPixel.x + sourceTile.tileOffsetX
+                val globalY = if (sourceTile.corrRefsAlreadyNative) localPixel.y else localPixel.y + sourceTile.tileOffsetY
                 for ((otherId, otherTile) in idToTileWcs) {
                     if (otherId == sourceId) continue
                     val marginX = otherTile.tileWidth * OVERLAP_MARGIN_FRACTION

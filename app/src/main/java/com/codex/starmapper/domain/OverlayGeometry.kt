@@ -20,6 +20,9 @@ fun AnnotationOverlay.constellationImagePoints(): List<Offset> {
  * Fisheye/Panorama) werden ignoriert, damit der Name am sichtbaren Sternbildkörper sitzt statt am
  * gemittelten Center oder – durch Klemmen – am linken Rand. Gibt null zurück, wenn zu wenige Anker
  * im Bild liegen -> der Name wird dann GAR NICHT gezeichnet (entfernt die falsch platzierten Namen).
+ * Ist [AnnotationOverlay.constellationNameOffset] gesetzt (Name manuell verschoben), wird er auf den
+ * automatisch berechneten Anker aufaddiert -- einzige Stelle, die den Offset anwendet, dadurch sehen
+ * Editor, Export und die Kollisionsprüfung (constellationNameObstacleBox) automatisch denselben Wert.
  */
 fun AnnotationOverlay.constellationNameAnchor(imageWidth: Float, imageHeight: Float): Offset? {
     val pts = constellationImagePoints()
@@ -33,7 +36,21 @@ fun AnnotationOverlay.constellationNameAnchor(imageWidth: Float, imageHeight: Fl
     val cx = inField.fold(0f) { acc, o -> acc + o.x } / inField.size
     if (cx < 0f || cx > imageWidth) return null
     val top = inField.minOf { it.y }
-    return Offset(cx, top)
+    val auto = Offset(cx, top)
+    val offset = constellationNameOffset ?: return auto
+    return auto + offset
+}
+
+/** Sprachabhängiger Anzeigename eines Sternbilds -- reine Funktion von [lang] (kein Compose-Zugriff
+ *  nötig), damit sowohl `ui/StarMapperApp.kt` (Editor, liest `AppLocale.resolvedLanguageTag` live) als
+ *  auch `processing/ExportRenderer.kt` (Export, bekommt `lang` explizit als Parameter durchgereicht --
+ *  derselbe etablierte Übergabeweg wie bei `AstapOverlayMapper.createDeepSkyOverlays`/`createStarOverlays`)
+ *  dieselbe, garantiert konsistente Logik nutzen. `"de" -> germanName`, sonst `localizedNames[lang] ?:
+ *  name` (Fallback Englisch). Ersetzt KEINE bestehende Funktion -- `StarMapperApp.kt`s private
+ *  `ConstellationPattern.localizedName()` delegiert künftig hierher (s. dort). */
+fun ConstellationPattern.localizedDisplayName(lang: String): String = when (lang) {
+    "de" -> germanName
+    else -> localizedNames[lang] ?: name
 }
 
 fun AnnotationOverlay.normalizedPointToImage(x: Float, y: Float): Offset {

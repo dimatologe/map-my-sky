@@ -1,7 +1,9 @@
 package com.codex.starmapper.processing
 
+import android.content.Context
 import android.os.Build
 import android.util.Log
+import java.io.File
 import net.astrometry.JNI
 
 /**
@@ -14,14 +16,41 @@ import net.astrometry.JNI
  *
  * Die native Lib nutzt glob()/globfree(), erst ab Android 9 (API 28) vorhanden -> darunter wird
  * gar nicht erst geladen.
+ *
+ * WICHTIG (Unit 6, 2026-09-02): [available]/[tryLoad] lädt die .so tatsächlich (`System.
+ * loadLibrary`) -- das darf NUR in dem Prozess passieren, der [solveField] auch wirklich aufruft
+ * (der isolierte `:solver`-Prozess, s. LocalSolveService.kt). Für eine reine "ist der lokale
+ * Solver auf diesem Gerät grundsätzlich nutzbar"-Anzeige/Vorprüfung im HAUPTPROZESS (Solver-Wahl-
+ * UI, LocalAstrometrySolver.isAvailable()/solve()s Vorab-Check) [isSupported] verwenden -- prüft
+ * nur, ob die .so-Datei existiert, OHNE sie zu laden. Vorher wurde [available] dafür mitgenutzt,
+ * wodurch die native Lib bereits beim ersten Anzeigen der Solver-Einstellungen (lange vor jedem
+ * tatsächlichen Solve) unnötig in den Hauptprozess geladen wurde, obwohl dort nie [solveField]
+ * aufgerufen wird -- ein strukturell unsauberer Zustand, den ein realer nativer Crash-Fund
+ * (SIGSEGV des Hauptprozesses kurz nach einem Solve-Abbruch, Untersuchung s. Memory) als einzige
+ * konkrete Auffälligkeit im Hauptprozess offenlegte. Kein Kotlin/Java-seitiger Use-after-free
+ * fand sich (ausführlich untersucht); dieser Fix entfernt die eine strukturelle Anomalie, die
+ * dabei auffiel, unabhängig davon, ob sie der exakte Auslöser war -- der Hauptprozess lädt die
+ * native Lib danach gar nicht mehr, ausser er würde sie tatsächlich brauchen (tut er nicht).
  */
 object LocalAstrometryNative {
 
     private const val TAG = "LocalAstrometry"
+    private const val LIB_FILE_NAME = "libastrometry.so"
 
     /** Android-Version reicht für die native Lib (API 28+)? */
     val supportedApi: Boolean
         get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+
+    /**
+     * Ist der lokale Solver auf diesem Gerät grundsätzlich nutzbar (API-Version + .so tatsächlich
+     * im APK gebündelt)? Prüft NUR, ob die Datei existiert -- lädt NICHTS, kann daher gefahrlos
+     * im Hauptprozess für reine UI-/Vorab-Zwecke aufgerufen werden.
+     */
+    fun isSupported(context: Context): Boolean =
+        supportedApi && runCatching {
+            val dir = context.applicationInfo.nativeLibraryDir ?: return@runCatching false
+            File(dir, LIB_FILE_NAME).exists()
+        }.getOrDefault(false)
 
     /** true, wenn die native Bibliothek geladen werden konnte (einmalig ausgewertet). */
     val available: Boolean by lazy { supportedApi && tryLoad() }

@@ -49,9 +49,14 @@ data class LocalSolveResult(
  */
 class LocalAstrometrySolver(private val context: Context) {
 
-    /** Ist der lokale Solver auf diesem Gerät grundsätzlich einsatzbereit? */
+    /**
+     * Ist der lokale Solver auf diesem Gerät grundsätzlich einsatzbereit? Läuft im Hauptprozess (UI-
+     * Anzeige) -- nutzt bewusst [LocalAstrometryNative.isSupported] (reine Existenzprüfung), NICHT
+     * [LocalAstrometryNative.available] (würde die native Lib unnötig in den Hauptprozess laden, s.
+     * KDoc dort).
+     */
     fun isAvailable(): Boolean =
-        LocalAstrometryNative.available && AstrometryIndexManager.hasBundledIndexes(context)
+        LocalAstrometryNative.isSupported(context) && AstrometryIndexManager.hasBundledIndexes(context)
 
     /**
      * Löst [bitmap] lokal. Optionaler Positions-Hinweis (RA/Dec/Radius in Grad) -> `--ra/--dec/--radius`.
@@ -66,7 +71,10 @@ class LocalAstrometrySolver(private val context: Context) {
         radiusDeg: Double? = null,
         onStatus: suspend (String) -> Unit,
     ): LocalSolveResult = withContext(Dispatchers.IO) {
-        if (!LocalAstrometryNative.available) {
+        // Reine Vorprüfung (Existenz, kein Laden, s. LocalAstrometryNative-KDoc) -- solve() läuft im
+        // Hauptprozess, ruft JNI.solveField() selbst NIE auf (das passiert isoliert in LocalSolveService/
+        // dem `:solver`-Prozess, s. LocalSolveService.start() unten); hier reicht die Vorabprüfung.
+        if (!LocalAstrometryNative.isSupported(context)) {
             throw LocalSolveException(context.getString(R.string.local_error_lib_unavailable))
         }
         val backendCfg = AstrometryIndexManager.ensurePrepared(context)
